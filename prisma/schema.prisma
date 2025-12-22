@@ -79,22 +79,27 @@ model Project {
 }
 
 model Cohort {
-  id          String   @id @default(cuid())
-  name        String
-  projectId   String
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                    String   @id @default(cuid())
+  cohortId              String   @unique  // User-defined cohort ID
+  name                  String
+  projectId             String
+  project               Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   
-  startDate   DateTime?
-  endDate     DateTime?
-  description String?
+  duration              Int?     // Duration in months
+  learnerTarget         Int?     // Target number of learners
+  jobPlacementTarget    Int?     // Target number of job placements
   
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  startDate             DateTime?
+  endDate               DateTime?
+  description           String?
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
   
   // Relations
-  branches    CohortBranch[]
-  batches     Batch[]
-  classes     Class[]
+  branches              CohortBranch[]
+  batches               Batch[]
+  classes               Class[]
   
   @@map("cohorts")
 }

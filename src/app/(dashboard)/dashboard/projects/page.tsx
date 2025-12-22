@@ -5,7 +5,8 @@ import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Trash2, MoreHorizontal, Calendar, Users } from "lucide-react";
+import { Plus, Pencil, Trash2, MoreHorizontal, Calendar, Users, ExternalLink } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { 
   Button, 
   Card, 
@@ -34,6 +35,7 @@ interface Project {
 }
 
 export default function ProjectsPage() {
+  const router = useRouter();
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -130,8 +132,11 @@ export default function ProjectsPage() {
       accessorKey: "name",
       header: "Project",
       cell: ({ row }) => (
-        <div>
-          <p className="font-medium text-gray-900">{row.original.name}</p>
+        <div 
+          className="cursor-pointer hover:text-blue-600 transition-colors"
+          onClick={() => router.push(`/dashboard/projects/${row.original.id}`)}
+        >
+          <p className="font-medium text-gray-900 hover:text-blue-600">{row.original.name}</p>
           <p className="text-xs text-gray-500">Donor: {row.original.donorName}</p>
         </div>
       ),
@@ -150,10 +155,14 @@ export default function ProjectsPage() {
       accessorKey: "cohorts",
       header: "Cohorts",
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-gray-400" />
+        <button 
+          onClick={() => router.push(`/dashboard/projects/${row.original.id}`)}
+          className="flex items-center gap-2 text-blue-600 hover:text-blue-800 transition-colors"
+        >
+          <Users className="w-4 h-4" />
           <span>{row.original._count.cohorts} cohorts</span>
-        </div>
+          <ExternalLink className="w-3 h-3" />
+        </button>
       ),
     },
     {
@@ -168,34 +177,59 @@ export default function ProjectsPage() {
     {
       id: "actions",
       cell: ({ row }) => (
-        <div className="relative">
+        <div className="relative flex justify-end">
           <button
-            onClick={() => setActionMenuOpen(actionMenuOpen === row.original.id ? null : row.original.id)}
-            className="p-2 hover:bg-gray-100 rounded-lg"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActionMenuOpen(actionMenuOpen === row.original.id ? null : row.original.id);
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <MoreHorizontal className="w-4 h-4" />
           </button>
           {actionMenuOpen === row.original.id && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10"
-            >
-              <button
-                onClick={() => openEditModal(row.original)}
-                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            <>
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setActionMenuOpen(null)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
               >
-                <Pencil className="w-4 h-4" />
-                Edit
-              </button>
-              <button
-                onClick={() => openDeleteModal(row.original)}
-                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete
-              </button>
-            </motion.div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/dashboard/projects/${row.original.id}`);
+                  }}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  <Users className="w-4 h-4" />
+                  View Cohorts
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openEditModal(row.original);
+                  }}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openDeleteModal(row.original);
+                  }}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+              </motion.div>
+            </>
           )}
         </div>
       ),
