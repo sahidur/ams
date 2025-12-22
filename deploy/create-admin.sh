@@ -43,22 +43,16 @@ fi
 echo ""
 echo "Creating admin user..."
 
-# Use pg directly with SSL - bypass Prisma completely
-node << SCRIPT
+# Use pg directly with SSL - set NODE_TLS env var to bypass cert check
+NODE_TLS_REJECT_UNAUTHORIZED=0 node << SCRIPT
 const { Pool } = require('pg');
 const bcrypt = require('bcryptjs');
 
 (async () => {
     try {
-        // Parse DATABASE_URL and add SSL
-        const connectionString = process.env.DATABASE_URL;
-        
         const pool = new Pool({ 
-            connectionString: connectionString,
-            ssl: {
-                rejectUnauthorized: false,
-                checkServerIdentity: () => undefined
-            }
+            connectionString: process.env.DATABASE_URL,
+            ssl: true
         });
         
         const hashedPassword = await bcrypt.hash('${admin_password}', 12);

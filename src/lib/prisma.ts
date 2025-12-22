@@ -2,6 +2,9 @@ import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 
+// Disable TLS certificate validation for DigitalOcean managed PostgreSQL
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
