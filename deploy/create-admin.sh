@@ -50,9 +50,15 @@ const bcrypt = require('bcryptjs');
 
 (async () => {
     try {
+        // Parse DATABASE_URL and add SSL
+        const connectionString = process.env.DATABASE_URL;
+        
         const pool = new Pool({ 
-            connectionString: process.env.DATABASE_URL,
-            ssl: { rejectUnauthorized: false }
+            connectionString: connectionString,
+            ssl: {
+                rejectUnauthorized: false,
+                checkServerIdentity: () => undefined
+            }
         });
         
         const hashedPassword = await bcrypt.hash('${admin_password}', 12);
