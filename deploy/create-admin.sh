@@ -43,12 +43,10 @@ fi
 echo ""
 echo "Creating admin user..."
 
-# Create and run the script
+# Use pg directly with SSL - bypass Prisma completely
 node << SCRIPT
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
 const { Pool } = require('pg');
-const { PrismaPg } = require('@prisma/adapter-pg');
+const bcrypt = require('bcryptjs');
 
 (async () => {
     try {
@@ -56,38 +54,38 @@ const { PrismaPg } = require('@prisma/adapter-pg');
             connectionString: process.env.DATABASE_URL,
             ssl: { rejectUnauthorized: false }
         });
-        const adapter = new PrismaPg(pool);
-        const prisma = new PrismaClient({ adapter });
         
         const hashedPassword = await bcrypt.hash('${admin_password}', 12);
         const hashedPin = await bcrypt.hash('0000', 12);
         
-        const user = await prisma.user.create({
-            data: {
-                name: '${admin_name}',
-                email: '${admin_email}',
-                password: hashedPassword,
-                pin: hashedPin,
-                role: 'ADMIN',
-                approvalStatus: 'APPROVED'
-            }
-        });
+        // Check if user exists
+        const existing = await pool.query('SELECT id FROM "User" WHERE email = \$1', ['${admin_email}']);
         
-        console.log('✓ Admin user created successfully!');
-        console.log('  Email: ' + user.email);
+        if (existing.rows.length > 0) {
+            // Update existing user
+            await pool.query(
+                'UPDATE "User" SET name = \$1, password = \$2, role = \$3, "approvalStatus" = \$4 WHERE email = \$5',
+                ['${admin_name}', hashedPassword, 'ADMIN', 'APPROVED', '${admin_email}']
+            );
+            console.log('✓ Admin user updated successfully!');
+        } else {
+            // Create new user
+            await pool.query(
+                'INSERT INTO "User" (id, name, email, password, pin, role, "approvalStatus", "createdAt", "updatedAt") VALUES (gen_random_uuid(), \$1, \$2, \$3, \$4, \$5, \$6, NOW(), NOW())',
+                ['${admin_name}', '${admin_email}', hashedPassword, hashedPin, 'ADMIN', 'APPROVED']
+            );
+            console.log('✓ Admin user created successfully!');
+        }
+        
+        console.log('  Email: ${admin_email}');
         console.log('  Role: ADMIN');
         console.log('');
         console.log('You can now login at your application URL.');
         
-        await prisma.\$disconnect();
         await pool.end();
     } catch (error) {
-        if (error.code === 'P2002') {
-            console.log('User with this email already exists');
-        } else {
-            console.error('Error:', error.message);
-            process.exit(1);
-        }
+        console.error('Error:', error.message);
+        process.exit(1);
     }
 })();
 SCRIPT
