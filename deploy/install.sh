@@ -146,6 +146,31 @@ install_pm2() {
     print_success "PM2 startup configured"
 }
 
+setup_swap() {
+    print_header "Setting Up Swap Space (for low-memory servers)"
+    
+    # Check if swap already exists
+    if [[ $(swapon --show | wc -l) -gt 0 ]]; then
+        print_success "Swap already configured"
+        return
+    fi
+    
+    # Create 2GB swap file
+    fallocate -l 2G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile
+    swapon /swapfile
+    
+    # Make swap permanent
+    echo '/swapfile none swap sw 0 0' | tee -a /etc/fstab
+    
+    # Optimize swap settings
+    sysctl vm.swappiness=10
+    echo 'vm.swappiness=10' | tee -a /etc/sysctl.conf
+    
+    print_success "2GB swap space created"
+}
+
 setup_firewall() {
     print_header "Configuring Firewall"
     
@@ -552,6 +577,7 @@ main() {
     install_system_dependencies
     install_nodejs
     install_pm2
+    setup_swap
     setup_firewall
     clone_repository
     create_env_file
