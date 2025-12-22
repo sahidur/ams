@@ -1,0 +1,65 @@
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth";
+import prisma from "@/lib/prisma";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+
+export async function GET() {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const projects = await prisma.project.findMany({
+      include: {
+        _count: {
+          select: { cohorts: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return NextResponse.json(projects);
+  } catch (error) {
+    console.error("Error fetching projects:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch projects" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(request: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+    
+    if (!session || !["ADMIN", "HO_USER"].includes(session.user.role)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const body = await request.json();
+    const { name, donorName, startDate, endDate, description } = body;
+
+    const project = await prisma.project.create({
+      data: {
+        name,
+        donorName,
+        startDate: new Date(startDate),
+        endDate: new Date(endDate),
+        description,
+      },
+    });
+
+    return NextResponse.json({
+      message: "Project created successfully",
+      project,
+    });
+  } catch (error) {
+    console.error("Error creating project:", error);
+    return NextResponse.json(
+      { error: "Failed to create project" },
+      { status: 500 }
+    );
+  }
+}

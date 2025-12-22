@@ -1,0 +1,231 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  ADMIN
+  HO_USER
+  TRAINER
+  STUDENT
+  BASIC_USER
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model User {
+  id             String         @id @default(cuid())
+  email          String         @unique
+  phone          String?        @unique
+  pin            String         // Hashed PIN
+  password       String         // Hashed password
+  name           String
+  role           Role           @default(BASIC_USER)
+  approvalStatus ApprovalStatus @default(PENDING)
+  isVerified     Boolean        @default(false)
+  createdBy      String?        // Admin who created the user (null if self-registered)
+  
+  // Personal Details
+  dateOfBirth    DateTime?
+  gender         String?
+  address        String?
+  profileImage   String?
+  
+  // Job Information
+  designation    String?
+  department     String?
+  joiningDate    DateTime?
+  employeeId     String?
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  
+  // Relations
+  trainerBatches  Batch[]        @relation("BatchTrainer")
+  studentBatches  BatchStudent[]
+  attendances     Attendance[]
+  faceEncodings   FaceEncoding[]
+  classes         Class[]        @relation("ClassCreator")
+  
+  @@map("users")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  donorName   String
+  startDate   DateTime
+  endDate     DateTime
+  description String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  cohorts     Cohort[]
+  
+  @@map("projects")
+}
+
+model Cohort {
+  id          String   @id @default(cuid())
+  name        String
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  startDate   DateTime?
+  endDate     DateTime?
+  description String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  branches    CohortBranch[]
+  batches     Batch[]
+  classes     Class[]
+  
+  @@map("cohorts")
+}
+
+model Branch {
+  id          String   @id @default(cuid())
+  division    String
+  district    String
+  upazila     String
+  branchName  String
+  branchCode  String?  @unique
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  cohorts     CohortBranch[]
+  batches     Batch[]
+  
+  @@unique([division, district, upazila, branchName])
+  @@map("branches")
+}
+
+model CohortBranch {
+  id        String @id @default(cuid())
+  cohortId  String
+  branchId  String
+  cohort    Cohort @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  branch    Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  
+  @@unique([cohortId, branchId])
+  @@map("cohort_branches")
+}
+
+model Batch {
+  id          String   @id @default(cuid())
+  name        String
+  cohortId    String?
+  cohort      Cohort?  @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  trainerId   String?
+  trainer     User?    @relation("BatchTrainer", fields: [trainerId], references: [id])
+  
+  startDate   DateTime?
+  endDate     DateTime?
+  maxStudents Int      @default(30)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  students    BatchStudent[]
+  classes     Class[]
+  
+  @@map("batches")
+}
+
+model BatchStudent {
+  id        String   @id @default(cuid())
+  batchId   String
+  batch     Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  enrolledAt DateTime @default(now())
+  
+  @@unique([batchId, studentId])
+  @@map("batch_students")
+}
+
+model Class {
+  id          String   @id @default(cuid())
+  name        String
+  subject     String
+  batchId     String
+  batch       Batch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  cohortId    String?
+  cohort      Cohort?  @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  createdById String?
+  createdBy   User?    @relation("ClassCreator", fields: [createdById], references: [id])
+  
+  startDate   DateTime
+  endDate     DateTime
+  startTime   String   // HH:mm format
+  endTime     String   // HH:mm format
+  
+  description String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  attendances Attendance[]
+  
+  @@map("classes")
+}
+
+model Attendance {
+  id              String   @id @default(cuid())
+  classId         String
+  class           Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentId       String
+  student         User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  isPresent       Boolean  @default(false)
+  markedAt        DateTime @default(now())
+  markedBy        String   // "FACE_RECOGNITION" or trainer ID
+  confidence      Float?   // Face recognition confidence score
+  
+  // Multiple check-ins during class
+  checkIns        DateTime[]
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@unique([classId, studentId])
+  @@map("attendances")
+}
+
+model FaceEncoding {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  encoding    Json     // face-api.js face descriptor (128-dimensional array)
+  label       String   // Label for the face
+  imageUrl    String?  // Original training image URL
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("face_encodings")
+}
