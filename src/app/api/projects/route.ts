@@ -16,6 +16,9 @@ export async function GET() {
         _count: {
           select: { cohorts: true },
         },
+        focalPerson: {
+          select: { id: true, name: true, email: true },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -39,7 +42,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, donorName, startDate, endDate, description } = body;
+    const { name, donorName, startDate, endDate, description, focalPersonId } = body;
 
     const project = await prisma.project.create({
       data: {
@@ -48,6 +51,7 @@ export async function POST(request: Request) {
         startDate: new Date(startDate),
         endDate: new Date(endDate),
         description,
+        focalPersonId: focalPersonId || null,
       },
     });
 

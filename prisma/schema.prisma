@@ -51,29 +51,33 @@ model User {
   updatedAt      DateTime       @updatedAt
   
   // Relations
-  trainerBatches  Batch[]        @relation("BatchTrainer")
-  studentBatches  BatchStudent[]
-  attendances     Attendance[]
-  faceEncodings   FaceEncoding[]
-  classes         Class[]        @relation("ClassCreator")
+  trainerBatches    Batch[]        @relation("BatchTrainer")
+  studentBatches    BatchStudent[]
+  attendances       Attendance[]
+  faceEncodings     FaceEncoding[]
+  classes           Class[]        @relation("ClassCreator")
+  focalProjects     Project[]      @relation("ProjectFocalPerson")
+  focalCohorts      Cohort[]       @relation("CohortFocalPerson")
   
   @@map("users")
 }
 
 model Project {
-  id          String   @id @default(cuid())
-  name        String
-  donorName   String
-  startDate   DateTime
-  endDate     DateTime
-  description String?
-  isActive    Boolean  @default(true)
+  id             String   @id @default(cuid())
+  name           String
+  donorName      String
+  startDate      DateTime
+  endDate        DateTime
+  description    String?
+  isActive       Boolean  @default(true)
+  focalPersonId  String?
+  focalPerson    User?    @relation("ProjectFocalPerson", fields: [focalPersonId], references: [id])
   
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
   
   // Relations
-  cohorts     Cohort[]
+  cohorts        Cohort[]
   
   @@map("projects")
 }
@@ -93,6 +97,8 @@ model Cohort {
   endDate               DateTime?
   isActive              Boolean  @default(true)
   description           String?
+  focalPersonId         String?
+  focalPerson           User?    @relation("CohortFocalPerson", fields: [focalPersonId], references: [id])
   
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt

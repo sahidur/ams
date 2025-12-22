@@ -15,6 +15,7 @@ const cohortUpdateSchema = z.object({
   endDate: z.string().optional(),
   isActive: z.boolean().optional(),
   description: z.string().optional(),
+  focalPersonId: z.string().optional(),
 });
 
 export async function GET(
@@ -107,6 +108,7 @@ export async function PUT(
         endDate: validatedData.endDate ? new Date(validatedData.endDate) : undefined,
         isActive: validatedData.isActive,
         description: validatedData.description,
+        focalPersonId: validatedData.focalPersonId || null,
       },
     });
 

@@ -1,14 +1,52 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { hash } from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session || session.user.role !== "ADMIN") {
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const minimal = searchParams.get("minimal") === "true";
+    const search = searchParams.get("search") || "";
+
+    // Minimal mode for dropdown - accessible by ADMIN and HO_USER
+    if (minimal) {
+      if (!["ADMIN", "HO_USER"].includes(session.user.role)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const users = await prisma.user.findMany({
+        where: {
+          approvalStatus: "APPROVED",
+          ...(search && {
+            OR: [
+              { name: { contains: search, mode: "insensitive" } },
+              { email: { contains: search, mode: "insensitive" } },
+            ],
+          }),
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          designation: true,
+        },
+        orderBy: { name: "asc" },
+        take: 50,
+      });
+
+      return NextResponse.json(users);
+    }
+
+    // Full user list - only for ADMIN
+    if (session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

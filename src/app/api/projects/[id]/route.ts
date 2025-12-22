@@ -23,7 +23,13 @@ export async function GET(
             _count: {
               select: { batches: true, branches: true },
             },
+            focalPerson: {
+              select: { id: true, name: true, email: true },
+            },
           },
+        },
+        focalPerson: {
+          select: { id: true, name: true, email: true },
         },
       },
     });
@@ -55,7 +61,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, donorName, startDate, endDate, description, isActive } = body;
+    const { name, donorName, startDate, endDate, description, isActive, focalPersonId } = body;
 
     // If trying to deactivate, check for active cohorts
     if (isActive === false) {
@@ -83,6 +89,7 @@ export async function PUT(
         endDate: new Date(endDate),
         description,
         isActive,
+        focalPersonId: focalPersonId || null,
       },
     });
 

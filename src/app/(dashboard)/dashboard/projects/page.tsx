@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Trash2, MoreHorizontal, Calendar, Users, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash2, MoreHorizontal, Calendar, Users, ExternalLink, Clock, Search, X, User } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { 
   Button, 
@@ -21,6 +21,13 @@ import {
 import { projectSchema, type ProjectInput } from "@/lib/validations";
 import { formatDate } from "@/lib/utils";
 
+interface FocalPerson {
+  id: string;
+  name: string;
+  email: string;
+  designation?: string;
+}
+
 interface Project {
   id: string;
   name: string;
@@ -29,6 +36,8 @@ interface Project {
   endDate: string;
   description: string | null;
   isActive: boolean;
+  focalPersonId: string | null;
+  focalPerson: FocalPerson | null;
   _count: {
     cohorts: number;
   };
@@ -40,8 +49,16 @@ export default function ProjectsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
+  
+  // Focal person search
+  const [users, setUsers] = useState<FocalPerson[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [selectedFocalPerson, setSelectedFocalPerson] = useState<FocalPerson | null>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
@@ -64,8 +81,41 @@ export default function ProjectsPage() {
     }
   };
 
+  const fetchUsers = async (search: string = "") => {
+    try {
+      const res = await fetch(`/api/users?minimal=true&search=${encodeURIComponent(search)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
   useEffect(() => {
     fetchProjects();
+    fetchUsers();
+  }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (userSearch) {
+        fetchUsers(userSearch);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [userSearch]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setIsUserDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   const onSubmit = async (data: ProjectInput) => {
@@ -78,15 +128,52 @@ export default function ProjectsPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          focalPersonId: selectedFocalPerson?.id || null,
+          isActive: selectedProject?.isActive ?? true,
+        }),
       });
 
       if (res.ok) {
         fetchProjects();
         closeModal();
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to save project");
       }
     } catch (error) {
       console.error("Error saving project:", error);
+    }
+  };
+
+  const handleToggleStatus = async () => {
+    if (!selectedProject) return;
+    try {
+      const res = await fetch(`/api/projects/${selectedProject.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: selectedProject.name,
+          donorName: selectedProject.donorName,
+          startDate: selectedProject.startDate,
+          endDate: selectedProject.endDate,
+          description: selectedProject.description,
+          focalPersonId: selectedProject.focalPersonId,
+          isActive: !selectedProject.isActive,
+        }),
+      });
+
+      if (res.ok) {
+        fetchProjects();
+        setIsStatusModalOpen(false);
+        setSelectedProject(null);
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to update status");
+      }
+    } catch (error) {
+      console.error("Error updating status:", error);
     }
   };
 
@@ -104,6 +191,7 @@ export default function ProjectsPage() {
 
   const openEditModal = (project: Project) => {
     setSelectedProject(project);
+    setSelectedFocalPerson(project.focalPerson);
     reset({
       name: project.name,
       donorName: project.donorName,
@@ -121,9 +209,17 @@ export default function ProjectsPage() {
     setActionMenuOpen(null);
   };
 
+  const openStatusModal = (project: Project) => {
+    setSelectedProject(project);
+    setIsStatusModalOpen(true);
+    setActionMenuOpen(null);
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedProject(null);
+    setSelectedFocalPerson(null);
+    setUserSearch("");
     reset();
   };
 
@@ -163,6 +259,27 @@ export default function ProjectsPage() {
           <span>{row.original._count.cohorts} cohorts</span>
           <ExternalLink className="w-3 h-3" />
         </button>
+      ),
+    },
+    {
+      accessorKey: "focalPerson",
+      header: "Focal Person",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          {row.original.focalPerson ? (
+            <>
+              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+                <User className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">{row.original.focalPerson.name}</p>
+                <p className="text-xs text-gray-500">{row.original.focalPerson.email}</p>
+              </div>
+            </>
+          ) : (
+            <span className="text-gray-400 text-sm">Not assigned</span>
+          )}
+        </div>
       ),
     },
     {
@@ -217,6 +334,18 @@ export default function ProjectsPage() {
                 >
                   <Pencil className="w-4 h-4" />
                   Edit
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openStatusModal(row.original);
+                  }}
+                  className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                    row.original.isActive ? "text-orange-600 hover:bg-orange-50" : "text-green-600 hover:bg-green-50"
+                  }`}
+                >
+                  <Clock className="w-4 h-4" />
+                  {row.original.isActive ? "Deactivate" : "Activate"}
                 </button>
                 <button
                   onClick={(e) => {
@@ -302,6 +431,76 @@ export default function ProjectsPage() {
               {...register("endDate")}
             />
           </div>
+          
+          {/* Focal Person Searchable Dropdown */}
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Focal Person</label>
+            <div className="relative" ref={userDropdownRef}>
+              {selectedFocalPerson ? (
+                <div className="flex items-center justify-between p-3 border border-gray-300 rounded-lg bg-gray-50">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                      <User className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{selectedFocalPerson.name}</p>
+                      <p className="text-xs text-gray-500">{selectedFocalPerson.email}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFocalPerson(null)}
+                    className="p-1 hover:bg-gray-200 rounded-full"
+                  >
+                    <X className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search users..."
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      onFocus={() => setIsUserDropdownOpen(true)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                  {isUserDropdownOpen && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                      {users.length > 0 ? (
+                        users.map((user) => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedFocalPerson(user);
+                              setIsUserDropdownOpen(false);
+                              setUserSearch("");
+                            }}
+                            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-100 text-left"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                              <User className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{user.name}</p>
+                              <p className="text-xs text-gray-500">{user.email}</p>
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-4 py-3 text-sm text-gray-500">No users found</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
           <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700">Description</label>
             <textarea
@@ -319,6 +518,43 @@ export default function ProjectsPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Status Change Confirmation Modal */}
+      <Modal
+        isOpen={isStatusModalOpen}
+        onClose={() => setIsStatusModalOpen(false)}
+        title={selectedProject?.isActive ? "Deactivate Project" : "Activate Project"}
+        size="sm"
+      >
+        <div className="text-center">
+          <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
+            selectedProject?.isActive ? "bg-orange-100" : "bg-green-100"
+          }`}>
+            <Clock className={`w-6 h-6 ${selectedProject?.isActive ? "text-orange-600" : "text-green-600"}`} />
+          </div>
+          <p className="text-gray-600 mb-6">
+            Are you sure you want to {selectedProject?.isActive ? "deactivate" : "activate"}{" "}
+            <span className="font-semibold">{selectedProject?.name}</span>?
+            {selectedProject?.isActive && (
+              <span className="block mt-2 text-sm text-orange-600">
+                Note: All cohorts must be deactivated first.
+              </span>
+            )}
+          </p>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setIsStatusModalOpen(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button 
+              variant={selectedProject?.isActive ? "destructive" : "success"}
+              onClick={handleToggleStatus} 
+              className="flex-1"
+            >
+              {selectedProject?.isActive ? "Deactivate" : "Activate"}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Delete Confirmation Modal */}

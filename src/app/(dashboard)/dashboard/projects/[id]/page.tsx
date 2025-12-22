@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,7 +15,10 @@ import {
   Calendar,
   Users,
   Target,
-  Clock
+  Clock,
+  Search,
+  X,
+  User
 } from "lucide-react";
 import Link from "next/link";
 import { 
@@ -43,6 +46,13 @@ const cohortSchema = z.object({
 
 type CohortInput = z.infer<typeof cohortSchema>;
 
+interface FocalPerson {
+  id: string;
+  name: string;
+  email: string;
+  designation?: string;
+}
+
 interface Project {
   id: string;
   name: string;
@@ -51,6 +61,7 @@ interface Project {
   endDate: string;
   description: string | null;
   isActive: boolean;
+  focalPerson: FocalPerson | null;
 }
 
 interface Cohort {
@@ -63,6 +74,8 @@ interface Cohort {
   startDate: string | null;
   endDate: string | null;
   isActive: boolean;
+  focalPersonId: string | null;
+  focalPerson: FocalPerson | null;
   description: string | null;
   createdAt: string;
 }
@@ -74,8 +87,16 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [selectedCohort, setSelectedCohort] = useState<Cohort | null>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
+
+  // Focal person search
+  const [users, setUsers] = useState<FocalPerson[]>([]);
+  const [userSearch, setUserSearch] = useState("");
+  const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
+  const [selectedFocalPerson, setSelectedFocalPerson] = useState<FocalPerson | null>(null);
+  const userDropdownRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
@@ -115,7 +136,40 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
   useEffect(() => {
     fetchProject();
     fetchCohorts();
+    fetchUsers();
   }, [id]);
+
+  const fetchUsers = async (search: string = "") => {
+    try {
+      const res = await fetch(`/api/users?minimal=true&search=${encodeURIComponent(search)}`);
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(data);
+      }
+    } catch (error) {
+      console.error("Error fetching users:", error);
+    }
+  };
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (userSearch) {
+        fetchUsers(userSearch);
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [userSearch]);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
+        setIsUserDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const onSubmit = async (data: CohortInput) => {
     try {
@@ -132,6 +186,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         jobPlacementTarget: data.jobPlacementTarget ? parseInt(data.jobPlacementTarget) : undefined,
         startDate: data.startDate || undefined,
         endDate: data.endDate || undefined,
+        focalPersonId: selectedFocalPerson?.id || null,
       };
 
       const res = await fetch(url, {
@@ -152,20 +207,24 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     }
   };
 
-  const handleToggleStatus = async (cohort: Cohort) => {
+  const handleToggleStatus = async () => {
+    if (!selectedCohort) return;
     try {
-      const res = await fetch(`/api/cohorts/${cohort.id}`, {
+      const res = await fetch(`/api/cohorts/${selectedCohort.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          cohortId: cohort.cohortId,
-          name: cohort.name,
-          isActive: !cohort.isActive,
+          cohortId: selectedCohort.cohortId,
+          name: selectedCohort.name,
+          isActive: !selectedCohort.isActive,
+          focalPersonId: selectedCohort.focalPersonId,
         }),
       });
 
       if (res.ok) {
         fetchCohorts();
+        setIsStatusModalOpen(false);
+        setSelectedCohort(null);
       } else {
         const error = await res.json();
         alert(error.error || "Failed to update status");
@@ -173,7 +232,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     } catch (error) {
       console.error("Error updating status:", error);
     }
-    setActionMenuOpen(null);
   };
 
   const handleDelete = async () => {
@@ -190,6 +248,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
 
   const openEditModal = (cohort: Cohort) => {
     setSelectedCohort(cohort);
+    setSelectedFocalPerson(cohort.focalPerson);
     reset({
       cohortId: cohort.cohortId,
       name: cohort.name,
@@ -210,9 +269,17 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setActionMenuOpen(null);
   };
 
+  const openStatusModal = (cohort: Cohort) => {
+    setSelectedCohort(cohort);
+    setIsStatusModalOpen(true);
+    setActionMenuOpen(null);
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedCohort(null);
+    setSelectedFocalPerson(null);
+    setUserSearch("");
     reset();
   };
 
@@ -277,6 +344,27 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       ),
     },
     {
+      accessorKey: "focalPerson",
+      header: "Focal Person",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          {row.original.focalPerson ? (
+            <>
+              <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center">
+                <User className="w-4 h-4 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-gray-900">{row.original.focalPerson.name}</p>
+                <p className="text-xs text-gray-500">{row.original.focalPerson.email}</p>
+              </div>
+            </>
+          ) : (
+            <span className="text-gray-400 text-sm">Not assigned</span>
+          )}
+        </div>
+      ),
+    },
+    {
       accessorKey: "isActive",
       header: "Status",
       cell: ({ row }) => (
@@ -322,23 +410,14 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    handleToggleStatus(row.original);
+                    openStatusModal(row.original);
                   }}
                   className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
                     row.original.isActive ? "text-orange-600 hover:bg-orange-50" : "text-green-600 hover:bg-green-50"
                   }`}
                 >
-                  {row.original.isActive ? (
-                    <>
-                      <Clock className="w-4 h-4" />
-                      Deactivate
-                    </>
-                  ) : (
-                    <>
-                      <Clock className="w-4 h-4" />
-                      Activate
-                    </>
-                  )}
+                  <Clock className="w-4 h-4" />
+                  {row.original.isActive ? "Deactivate" : "Activate"}
                 </button>
                 <button
                   onClick={(e) => {
@@ -535,6 +614,76 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               error={errors.endDate?.message}
             />
           </div>
+          
+          {/* Focal Person Searchable Dropdown */}
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Focal Person</label>
+            <div className="relative" ref={userDropdownRef}>
+              {selectedFocalPerson ? (
+                <div className="flex items-center justify-between p-3 border border-gray-300 rounded-lg bg-gray-50">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                      <User className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{selectedFocalPerson.name}</p>
+                      <p className="text-xs text-gray-500">{selectedFocalPerson.email}</p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedFocalPerson(null)}
+                    className="p-1 hover:bg-gray-200 rounded-full"
+                  >
+                    <X className="w-4 h-4 text-gray-500" />
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      placeholder="Search users..."
+                      value={userSearch}
+                      onChange={(e) => setUserSearch(e.target.value)}
+                      onFocus={() => setIsUserDropdownOpen(true)}
+                      className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                    />
+                  </div>
+                  {isUserDropdownOpen && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                      {users.length > 0 ? (
+                        users.map((user) => (
+                          <button
+                            key={user.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedFocalPerson(user);
+                              setIsUserDropdownOpen(false);
+                              setUserSearch("");
+                            }}
+                            className="w-full flex items-center gap-2 px-4 py-2 hover:bg-gray-100 text-left"
+                          >
+                            <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center">
+                              <User className="w-4 h-4 text-blue-600" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{user.name}</p>
+                              <p className="text-xs text-gray-500">{user.email}</p>
+                            </div>
+                          </button>
+                        ))
+                      ) : (
+                        <p className="px-4 py-3 text-sm text-gray-500">No users found</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
           <Input
             label="Description (Optional)"
             placeholder="Enter cohort description"
@@ -549,6 +698,37 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Status Change Confirmation Modal */}
+      <Modal
+        isOpen={isStatusModalOpen}
+        onClose={() => setIsStatusModalOpen(false)}
+        title={selectedCohort?.isActive ? "Deactivate Cohort" : "Activate Cohort"}
+      >
+        <div className="text-center">
+          <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
+            selectedCohort?.isActive ? "bg-orange-100" : "bg-green-100"
+          }`}>
+            <Clock className={`w-6 h-6 ${selectedCohort?.isActive ? "text-orange-600" : "text-green-600"}`} />
+          </div>
+          <p className="text-gray-600 mb-6">
+            Are you sure you want to {selectedCohort?.isActive ? "deactivate" : "activate"}{" "}
+            cohort <span className="font-semibold">&quot;{selectedCohort?.name}&quot;</span>?
+          </p>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setIsStatusModalOpen(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button 
+              variant={selectedCohort?.isActive ? "destructive" : "success"}
+              onClick={handleToggleStatus} 
+              className="flex-1"
+            >
+              {selectedCohort?.isActive ? "Deactivate" : "Activate"}
+            </Button>
+          </div>
+        </div>
       </Modal>
 
       {/* Delete Confirmation Modal */}

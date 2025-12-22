@@ -15,6 +15,7 @@ const cohortSchema = z.object({
   endDate: z.string().optional(),
   isActive: z.boolean().optional(),
   description: z.string().optional(),
+  focalPersonId: z.string().optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -34,6 +35,13 @@ export async function GET(request: NextRequest) {
           select: {
             id: true,
             name: true,
+          },
+        },
+        focalPerson: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
           },
         },
         _count: {
@@ -94,6 +102,7 @@ export async function POST(request: NextRequest) {
         endDate: validatedData.endDate ? new Date(validatedData.endDate) : undefined,
         isActive: validatedData.isActive ?? true,
         description: validatedData.description,
+        focalPersonId: validatedData.focalPersonId || null,
       },
       include: {
         project: true,
