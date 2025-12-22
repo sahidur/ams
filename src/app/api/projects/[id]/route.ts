@@ -57,6 +57,23 @@ export async function PUT(
     const body = await request.json();
     const { name, donorName, startDate, endDate, description, isActive } = body;
 
+    // If trying to deactivate, check for active cohorts
+    if (isActive === false) {
+      const activeCohorts = await prisma.cohort.count({
+        where: {
+          projectId: id,
+          isActive: true,
+        },
+      });
+
+      if (activeCohorts > 0) {
+        return NextResponse.json(
+          { error: `Cannot deactivate project. ${activeCohorts} active cohort(s) exist. Please deactivate all cohorts first.` },
+          { status: 400 }
+        );
+      }
+    }
+
     const project = await prisma.project.update({
       where: { id },
       data: {

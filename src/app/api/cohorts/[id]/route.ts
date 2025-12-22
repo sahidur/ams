@@ -11,6 +11,9 @@ const cohortUpdateSchema = z.object({
   duration: z.coerce.number().optional(),
   learnerTarget: z.coerce.number().optional(),
   jobPlacementTarget: z.coerce.number().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
+  isActive: z.boolean().optional(),
   description: z.string().optional(),
 });
 
@@ -100,6 +103,9 @@ export async function PUT(
         duration: validatedData.duration,
         learnerTarget: validatedData.learnerTarget,
         jobPlacementTarget: validatedData.jobPlacementTarget,
+        startDate: validatedData.startDate ? new Date(validatedData.startDate) : undefined,
+        endDate: validatedData.endDate ? new Date(validatedData.endDate) : undefined,
+        isActive: validatedData.isActive,
         description: validatedData.description,
       },
     });

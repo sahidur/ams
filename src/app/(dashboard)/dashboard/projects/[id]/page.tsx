@@ -36,6 +36,8 @@ const cohortSchema = z.object({
   duration: z.string().optional(),
   learnerTarget: z.string().optional(),
   jobPlacementTarget: z.string().optional(),
+  startDate: z.string().optional(),
+  endDate: z.string().optional(),
   description: z.string().optional(),
 });
 
@@ -58,6 +60,9 @@ interface Cohort {
   duration: number | null;
   learnerTarget: number | null;
   jobPlacementTarget: number | null;
+  startDate: string | null;
+  endDate: string | null;
+  isActive: boolean;
   description: string | null;
   createdAt: string;
 }
@@ -125,6 +130,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
         duration: data.duration ? parseInt(data.duration) : undefined,
         learnerTarget: data.learnerTarget ? parseInt(data.learnerTarget) : undefined,
         jobPlacementTarget: data.jobPlacementTarget ? parseInt(data.jobPlacementTarget) : undefined,
+        startDate: data.startDate || undefined,
+        endDate: data.endDate || undefined,
       };
 
       const res = await fetch(url, {
@@ -143,6 +150,30 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     } catch (error) {
       console.error("Error saving cohort:", error);
     }
+  };
+
+  const handleToggleStatus = async (cohort: Cohort) => {
+    try {
+      const res = await fetch(`/api/cohorts/${cohort.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cohortId: cohort.cohortId,
+          name: cohort.name,
+          isActive: !cohort.isActive,
+        }),
+      });
+
+      if (res.ok) {
+        fetchCohorts();
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to update status");
+      }
+    } catch (error) {
+      console.error("Error updating status:", error);
+    }
+    setActionMenuOpen(null);
   };
 
   const handleDelete = async () => {
@@ -165,6 +196,8 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       duration: cohort.duration?.toString() || "",
       learnerTarget: cohort.learnerTarget?.toString() || "",
       jobPlacementTarget: cohort.jobPlacementTarget?.toString() || "",
+      startDate: cohort.startDate ? cohort.startDate.split("T")[0] : "",
+      endDate: cohort.endDate ? cohort.endDate.split("T")[0] : "",
       description: cohort.description || "",
     });
     setIsModalOpen(true);
@@ -181,6 +214,15 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     setIsModalOpen(false);
     setSelectedCohort(null);
     reset();
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return "-";
+    return new Date(dateString).toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+    });
   };
 
   const columns: ColumnDef<Cohort>[] = [
@@ -204,33 +246,43 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       ),
     },
     {
-      accessorKey: "duration",
+      accessorKey: "dates",
       header: "Duration",
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Clock className="w-4 h-4 text-gray-400" />
-          <span>{row.original.duration ? `${row.original.duration} months` : "-"}</span>
+        <div className="text-sm">
+          <div className="flex items-center gap-2">
+            <Calendar className="w-4 h-4 text-gray-400" />
+            <span>{formatDate(row.original.startDate)} - {formatDate(row.original.endDate)}</span>
+          </div>
+          {row.original.duration && (
+            <p className="text-xs text-gray-500 mt-1">{row.original.duration} months</p>
+          )}
         </div>
       ),
     },
     {
       accessorKey: "learnerTarget",
-      header: "Learner Target",
+      header: "Targets",
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-blue-500" />
-          <span>{row.original.learnerTarget?.toLocaleString() || "-"}</span>
+        <div className="text-sm space-y-1">
+          <div className="flex items-center gap-2">
+            <Users className="w-4 h-4 text-blue-500" />
+            <span>{row.original.learnerTarget?.toLocaleString() || "-"} learners</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <Target className="w-4 h-4 text-green-500" />
+            <span>{row.original.jobPlacementTarget?.toLocaleString() || "-"} jobs</span>
+          </div>
         </div>
       ),
     },
     {
-      accessorKey: "jobPlacementTarget",
-      header: "Job Placement Target",
+      accessorKey: "isActive",
+      header: "Status",
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Target className="w-4 h-4 text-green-500" />
-          <span>{row.original.jobPlacementTarget?.toLocaleString() || "-"}</span>
-        </div>
+        <Badge variant={row.original.isActive ? "success" : "default"}>
+          {row.original.isActive ? "Active" : "Inactive"}
+        </Badge>
       ),
     },
     {
@@ -255,7 +307,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+                className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
               >
                 <button
                   onClick={(e) => {
@@ -266,6 +318,27 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 >
                   <Pencil className="w-4 h-4" />
                   Edit
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleStatus(row.original);
+                  }}
+                  className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                    row.original.isActive ? "text-orange-600 hover:bg-orange-50" : "text-green-600 hover:bg-green-50"
+                  }`}
+                >
+                  {row.original.isActive ? (
+                    <>
+                      <Clock className="w-4 h-4" />
+                      Deactivate
+                    </>
+                  ) : (
+                    <>
+                      <Clock className="w-4 h-4" />
+                      Activate
+                    </>
+                  )}
                 </button>
                 <button
                   onClick={(e) => {
@@ -285,7 +358,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
     },
   ];
 
-  const formatDate = (dateString: string) => {
+  const formatProjectDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
       year: "numeric",
       month: "short",
@@ -353,7 +426,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </div>
               <div>
                 <p className="text-sm text-gray-500">Start Date</p>
-                <p className="font-semibold">{formatDate(project.startDate)}</p>
+                <p className="font-semibold">{formatProjectDate(project.startDate)}</p>
               </div>
             </div>
           </CardContent>
@@ -366,7 +439,7 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               </div>
               <div>
                 <p className="text-sm text-gray-500">End Date</p>
-                <p className="font-semibold">{formatDate(project.endDate)}</p>
+                <p className="font-semibold">{formatProjectDate(project.endDate)}</p>
               </div>
             </div>
           </CardContent>
@@ -446,6 +519,20 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
               placeholder="e.g., 300"
               {...register("jobPlacementTarget")}
               error={errors.jobPlacementTarget?.message}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <Input
+              label="Start Date"
+              type="date"
+              {...register("startDate")}
+              error={errors.startDate?.message}
+            />
+            <Input
+              label="End Date"
+              type="date"
+              {...register("endDate")}
+              error={errors.endDate?.message}
             />
           </div>
           <Input

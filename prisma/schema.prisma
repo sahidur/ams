@@ -91,6 +91,7 @@ model Cohort {
   
   startDate             DateTime?
   endDate               DateTime?
+  isActive              Boolean  @default(true)
   description           String?
   
   createdAt             DateTime @default(now())
