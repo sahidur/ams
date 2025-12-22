@@ -191,52 +191,73 @@ export default function UsersPage() {
     {
       id: "actions",
       cell: ({ row }) => (
-        <div className="relative">
+        <div className="relative flex justify-end">
           <button
-            onClick={() => setActionMenuOpen(actionMenuOpen === row.original.id ? null : row.original.id)}
-            className="p-2 hover:bg-gray-100 rounded-lg"
+            onClick={(e) => {
+              e.stopPropagation();
+              setActionMenuOpen(actionMenuOpen === row.original.id ? null : row.original.id);
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
           >
             <MoreHorizontal className="w-4 h-4" />
           </button>
           {actionMenuOpen === row.original.id && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-10"
-            >
-              <button
-                onClick={() => openEditModal(row.original)}
-                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+            <>
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setActionMenuOpen(null)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
               >
-                <Pencil className="w-4 h-4" />
-                Edit
-              </button>
-              {row.original.approvalStatus === "PENDING" && (
-                <>
-                  <button
-                    onClick={() => handleApprove(row.original.id)}
-                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-600 hover:bg-green-50"
-                  >
-                    <UserCheck className="w-4 h-4" />
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => handleReject(row.original.id)}
-                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-orange-600 hover:bg-orange-50"
-                  >
-                    <UserX className="w-4 h-4" />
-                    Reject
-                  </button>
-                </>
-              )}
-              <button
-                onClick={() => openDeleteModal(row.original)}
-                className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-              >
-                <Trash2 className="w-4 h-4" />
-                Delete
-              </button>
-            </motion.div>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openEditModal(row.original);
+                  }}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  <Pencil className="w-4 h-4" />
+                  Edit
+                </button>
+                {row.original.approvalStatus === "PENDING" && (
+                  <>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleApprove(row.original.id);
+                      }}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-600 hover:bg-green-50"
+                    >
+                      <UserCheck className="w-4 h-4" />
+                      Approve
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReject(row.original.id);
+                      }}
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-orange-600 hover:bg-orange-50"
+                    >
+                      <UserX className="w-4 h-4" />
+                      Reject
+                    </button>
+                  </>
+                )}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openDeleteModal(row.original);
+                  }}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+              </motion.div>
+            </>
           )}
         </div>
       ),

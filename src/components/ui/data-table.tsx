@@ -66,7 +66,8 @@ export function DataTable<TData, TValue>({
         </div>
       </div>
 
-      <div className="rounded-lg border border-gray-200 overflow-hidden">
+      <div className="rounded-lg border border-gray-200 overflow-visible">
+        <div className="overflow-x-auto">
         <table className="w-full">
           <thead className="bg-gray-50">
             {table.getHeaderGroups().map((headerGroup) => (
@@ -151,6 +152,7 @@ export function DataTable<TData, TValue>({
             </AnimatePresence>
           </tbody>
         </table>
+        </div>
       </div>
 
       <div className="flex items-center justify-between">
