@@ -440,60 +440,52 @@ create_admin_user() {
         
         cd "$APP_DIR"
         
-        # Create admin user script in app directory (so it can access node_modules)
-        cat > "$APP_DIR/create-admin.js" << 'SCRIPT_EOF'
+        # Source environment variables
+        set -a
+        source "$APP_DIR/.env"
+        set +a
+        
+        # Run inline Node.js script from app directory
+        node << ADMINSCRIPT
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const { Pool } = require('pg');
+const { PrismaPg } = require('@prisma/adapter-pg');
 
-async function main() {
-    const { Pool } = require('pg');
-    const { PrismaPg } = require('@prisma/adapter-pg');
-    
-    const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-    const adapter = new PrismaPg(pool);
-    const prisma = new PrismaClient({ adapter });
-    
-    const adminName = process.env.ADMIN_NAME;
-    const adminEmail = process.env.ADMIN_EMAIL;
-    const adminPassword = process.env.ADMIN_PASSWORD;
-    
-    const hashedPassword = await bcrypt.hash(adminPassword, 12);
-    const hashedPin = await bcrypt.hash('0000', 12);
-    
+(async () => {
     try {
+        const pool = new Pool({ connectionString: process.env.DATABASE_URL });
+        const adapter = new PrismaPg(pool);
+        const prisma = new PrismaClient({ adapter });
+        
+        const hashedPassword = await bcrypt.hash('${admin_password}', 12);
+        const hashedPin = await bcrypt.hash('0000', 12);
+        
         const user = await prisma.user.create({
             data: {
-                name: adminName,
-                email: adminEmail,
+                name: '${admin_name}',
+                email: '${admin_email}',
                 password: hashedPassword,
                 pin: hashedPin,
                 role: 'ADMIN',
                 approvalStatus: 'APPROVED'
             }
         });
-        console.log('Admin user created:', user.email);
+        
+        console.log('Admin user created: ' + user.email);
+        await prisma.\$disconnect();
+        await pool.end();
     } catch (error) {
         if (error.code === 'P2002') {
             console.log('User already exists');
         } else {
-            throw error;
+            console.error('Error:', error.message);
         }
-    } finally {
-        await prisma.$disconnect();
-        await pool.end();
     }
-}
-
-main().catch(console.error);
-SCRIPT_EOF
+})();
+ADMINSCRIPT
         
-        # Run the script from the app directory with environment variables
-        ADMIN_NAME="$admin_name" ADMIN_EMAIL="$admin_email" ADMIN_PASSWORD="$admin_password" node "$APP_DIR/create-admin.js"
-        
-        # Clean up
-        rm -f "$APP_DIR/create-admin.js"
-        
-        print_success "Admin user created"
+        print_success "Admin user setup complete"
     fi
 }
 
