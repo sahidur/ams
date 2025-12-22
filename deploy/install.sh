@@ -440,8 +440,8 @@ create_admin_user() {
         
         cd "$APP_DIR"
         
-        # Create admin user script
-        cat > /tmp/create-admin.js << EOF
+        # Create admin user script in app directory (so it can access node_modules)
+        cat > "$APP_DIR/create-admin.js" << 'SCRIPT_EOF'
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 
@@ -453,14 +453,18 @@ async function main() {
     const adapter = new PrismaPg(pool);
     const prisma = new PrismaClient({ adapter });
     
-    const hashedPassword = await bcrypt.hash('${admin_password}', 12);
+    const adminName = process.env.ADMIN_NAME;
+    const adminEmail = process.env.ADMIN_EMAIL;
+    const adminPassword = process.env.ADMIN_PASSWORD;
+    
+    const hashedPassword = await bcrypt.hash(adminPassword, 12);
     const hashedPin = await bcrypt.hash('0000', 12);
     
     try {
         const user = await prisma.user.create({
             data: {
-                name: '${admin_name}',
-                email: '${admin_email}',
+                name: adminName,
+                email: adminEmail,
                 password: hashedPassword,
                 pin: hashedPin,
                 role: 'ADMIN',
@@ -475,16 +479,19 @@ async function main() {
             throw error;
         }
     } finally {
-        await prisma.\$disconnect();
+        await prisma.$disconnect();
         await pool.end();
     }
 }
 
 main().catch(console.error);
-EOF
+SCRIPT_EOF
         
-        node /tmp/create-admin.js
-        rm /tmp/create-admin.js
+        # Run the script from the app directory with environment variables
+        ADMIN_NAME="$admin_name" ADMIN_EMAIL="$admin_email" ADMIN_PASSWORD="$admin_password" node "$APP_DIR/create-admin.js"
+        
+        # Clean up
+        rm -f "$APP_DIR/create-admin.js"
         
         print_success "Admin user created"
     fi
