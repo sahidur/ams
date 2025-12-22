@@ -58,20 +58,20 @@ const bcrypt = require('bcryptjs');
         const hashedPassword = await bcrypt.hash('${admin_password}', 12);
         const hashedPin = await bcrypt.hash('0000', 12);
         
-        // Check if user exists
-        const existing = await pool.query('SELECT id FROM "User" WHERE email = \$1', ['${admin_email}']);
+        // Check if user exists (using lowercase table name)
+        const existing = await pool.query('SELECT id FROM users WHERE email = \$1', ['${admin_email}']);
         
         if (existing.rows.length > 0) {
             // Update existing user
             await pool.query(
-                'UPDATE "User" SET name = \$1, password = \$2, role = \$3, "approvalStatus" = \$4 WHERE email = \$5',
+                'UPDATE users SET name = \$1, password = \$2, role = \$3, approval_status = \$4 WHERE email = \$5',
                 ['${admin_name}', hashedPassword, 'ADMIN', 'APPROVED', '${admin_email}']
             );
             console.log('✓ Admin user updated successfully!');
         } else {
             // Create new user
             await pool.query(
-                'INSERT INTO "User" (id, name, email, password, pin, role, "approvalStatus", "createdAt", "updatedAt") VALUES (gen_random_uuid(), \$1, \$2, \$3, \$4, \$5, \$6, NOW(), NOW())',
+                'INSERT INTO users (id, name, email, password, pin, role, approval_status, created_at, updated_at) VALUES (gen_random_uuid(), \$1, \$2, \$3, \$4, \$5, \$6, NOW(), NOW())',
                 ['${admin_name}', '${admin_email}', hashedPassword, hashedPin, 'ADMIN', 'APPROVED']
             );
             console.log('✓ Admin user created successfully!');
