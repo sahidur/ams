@@ -139,8 +139,14 @@ export default function DashboardLayout({
     }
   }, [session?.user?.id, status]);
 
+  // Check if user is Super Admin (should have access to everything)
+  const isSuperAdmin = session?.user?.userRoleName === "Super Admin" || 
+    (session?.user as { userRole?: { name: string } })?.userRole?.name === "SUPER_ADMIN";
+
   // Check if user has at least READ permission for a module
   const hasModuleAccess = (module: string): boolean => {
+    // Super Admin has access to all modules
+    if (isSuperAdmin) return true;
     return userPermissions.some(
       (p) => p.module === module && p.action === "READ"
     );
@@ -179,10 +185,12 @@ export default function DashboardLayout({
     return null;
   }
 
-  // Wait for permissions to load before filtering nav items
-  const filteredNavItems = permissionsLoaded
-    ? navItems.filter((item) => item.alwaysShow || hasModuleAccess(item.module))
-    : navItems.filter((item) => item.alwaysShow); // Show only always-visible items while loading
+  // Super Admin sees all menus, others wait for permissions to load
+  const filteredNavItems = isSuperAdmin
+    ? navItems // Super Admin sees all
+    : permissionsLoaded
+      ? navItems.filter((item) => item.alwaysShow || hasModuleAccess(item.module))
+      : navItems.filter((item) => item.alwaysShow); // Show only always-visible items while loading
 
   const handleSignOut = () => {
     signOut({ callbackUrl: "/" });
