@@ -147,8 +147,9 @@ export default function DashboardLayout({
   const hasModuleAccess = (module: string): boolean => {
     // Super Admin has access to all modules
     if (isSuperAdmin) return true;
+    // Check for READ or ALL permission
     return userPermissions.some(
-      (p) => p.module === module && p.action === "READ"
+      (p) => p.module === module && (p.action === "READ" || p.action === "ALL")
     );
   };
 
