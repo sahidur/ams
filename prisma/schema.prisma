@@ -117,6 +117,7 @@ model User {
   classes           Class[]        @relation("ClassCreator")
   focalProjects     Project[]      @relation("ProjectFocalPerson")
   focalCohorts      Cohort[]       @relation("CohortFocalPerson")
+  projectAssignments UserProjectAssignment[]
   
   @@map("users")
 }
@@ -137,6 +138,7 @@ model Project {
   
   // Relations
   cohorts        Cohort[]
+  userAssignments UserProjectAssignment[]
   
   @@map("projects")
 }
@@ -166,6 +168,7 @@ model Cohort {
   branches              CohortBranch[]
   batches               Batch[]
   classes               Class[]
+  userAssignments       UserProjectAssignment[]
   
   @@map("cohorts")
 }
@@ -299,4 +302,21 @@ model FaceEncoding {
   updatedAt   DateTime @updatedAt
   
   @@map("face_encodings")
+}
+
+// User Project and Cohort Assignments
+model UserProjectAssignment {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cohortId    String
+  cohort      Cohort   @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([userId, projectId, cohortId])
+  @@map("user_project_assignments")
 }

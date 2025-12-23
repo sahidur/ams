@@ -28,9 +28,18 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const projectId = searchParams.get("projectId");
+    const activeOnly = searchParams.get("activeOnly") === "true";
+
+    const whereClause: { projectId?: string; isActive?: boolean } = {};
+    if (projectId) {
+      whereClause.projectId = projectId;
+    }
+    if (activeOnly) {
+      whereClause.isActive = true;
+    }
 
     const cohorts = await prisma.cohort.findMany({
-      where: projectId ? { projectId } : undefined,
+      where: Object.keys(whereClause).length > 0 ? whereClause : undefined,
       include: {
         project: {
           select: {
