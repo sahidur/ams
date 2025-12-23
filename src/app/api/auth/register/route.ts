@@ -70,33 +70,38 @@ export async function POST(request: Request) {
     const hashedPassword = await hash(password, 12);
     const hashedPin = await hash(pin, 12);
 
-    // Create user with PENDING approval status
-    const user = await prisma.user.create({
-      data: {
-        name,
-        email,
-        phone,
-        pin: hashedPin,
-        password: hashedPassword,
-        dateOfBirth: new Date(dateOfBirth),
-        gender,
-        address,
-        designation,
-        department,
-        employeeId,
-        joiningDate: new Date(joiningDate),
-        approvalStatus: "PENDING",
-        isVerified: false,
-      },
-    });
+    // Create user and project assignment in a transaction
+    const user = await prisma.$transaction(async (tx) => {
+      // Create user with PENDING approval status
+      const newUser = await tx.user.create({
+        data: {
+          name,
+          email,
+          phone,
+          pin: hashedPin,
+          password: hashedPassword,
+          dateOfBirth: new Date(dateOfBirth),
+          gender,
+          address,
+          designation,
+          department,
+          employeeId,
+          joiningDate: new Date(joiningDate),
+          approvalStatus: "PENDING",
+          isVerified: false,
+        },
+      });
 
-    // Create UserProjectAssignment for the selected project and cohort
-    await prisma.userProjectAssignment.create({
-      data: {
-        userId: user.id,
-        projectId,
-        cohortId,
-      },
+      // Create UserProjectAssignment for the selected project and cohort
+      await tx.userProjectAssignment.create({
+        data: {
+          userId: newUser.id,
+          projectId,
+          cohortId,
+        },
+      });
+
+      return newUser;
     });
 
     return NextResponse.json({

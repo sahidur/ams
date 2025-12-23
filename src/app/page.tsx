@@ -224,18 +224,20 @@ export default function AuthPage() {
 
       const result = await res.json();
 
-      if (!res.ok) {
+      if (!res.ok || !result.success) {
         setAuthStatus("error");
         setMessage(result.error || "Registration failed");
         setTimeout(() => setAuthStatus("idle"), 4000);
-      } else {
-        setAuthStatus("success");
-        setMessage("Account created successfully!");
-        setTimeout(() => {
-          setRegistrationSuccess(true);
-        }, 500);
+        return;
       }
-    } catch {
+      
+      setAuthStatus("success");
+      setMessage("Account created successfully! Please wait for admin approval.");
+      setTimeout(() => {
+        setRegistrationSuccess(true);
+      }, 1500);
+    } catch (err) {
+      console.error("Registration error:", err);
       setAuthStatus("error");
       setMessage("An unexpected error occurred");
       setTimeout(() => setAuthStatus("idle"), 3000);
