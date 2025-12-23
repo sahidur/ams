@@ -9,11 +9,23 @@ export const loginSchema = z.object({
 });
 
 export const registerSchema = z.object({
+  // Step 1: Personal Information
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
   phone: z.string()
     .min(1, "Phone number is required")
     .regex(bangladeshPhoneRegex, "Invalid Bangladesh phone number (e.g., 01712345678 or +8801712345678)"),
+  dateOfBirth: z.string().optional(),
+  gender: z.string().optional(),
+  address: z.string().optional(),
+  
+  // Step 2: Job Information
+  designation: z.string().optional(),
+  department: z.string().optional(),
+  employeeId: z.string().optional(),
+  joiningDate: z.string().optional(),
+  
+  // Step 3: Security
   pin: z.string().length(6, "PIN must be exactly 6 digits").regex(/^\d{6}$/, "PIN must be 6 digits"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   confirmPassword: z.string(),

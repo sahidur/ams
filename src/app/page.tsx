@@ -6,6 +6,7 @@ import { signIn, useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { 
   CalendarCheck, 
   Mail, 
@@ -20,13 +21,61 @@ import {
   Shield,
   Users,
   Building2,
-  ChevronRight
+  ChevronRight,
+  ChevronLeft,
+  Briefcase,
+  MapPin,
+  Calendar,
+  IdCard,
+  Building,
+  Check
 } from "lucide-react";
-import { Button, Input } from "@/components/ui";
-import { loginSchema, registerSchema, type LoginInput, type RegisterInput } from "@/lib/validations";
+import { Button, Input, Select } from "@/components/ui";
+import { loginSchema, type LoginInput } from "@/lib/validations";
+
+// Bangladesh phone number regex
+const bangladeshPhoneRegex = /^(?:\+?880|0)1[3-9]\d{8}$/;
+
+// Step schemas for validation
+const step1Schema = z.object({
+  name: z.string().min(2, "Name must be at least 2 characters"),
+  email: z.string().email("Invalid email address"),
+  phone: z.string()
+    .min(1, "Phone number is required")
+    .regex(bangladeshPhoneRegex, "Invalid Bangladesh phone number"),
+  dateOfBirth: z.string().optional(),
+  gender: z.string().optional(),
+  address: z.string().optional(),
+});
+
+const step2Schema = z.object({
+  designation: z.string().optional(),
+  department: z.string().optional(),
+  employeeId: z.string().optional(),
+  joiningDate: z.string().optional(),
+});
+
+const step3Schema = z.object({
+  pin: z.string().length(6, "PIN must be exactly 6 digits").regex(/^\d{6}$/, "PIN must be 6 digits"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  confirmPassword: z.string(),
+}).refine((data) => data.password === data.confirmPassword, {
+  message: "Passwords don't match",
+  path: ["confirmPassword"],
+});
+
+type Step1Data = z.infer<typeof step1Schema>;
+type Step2Data = z.infer<typeof step2Schema>;
+type Step3Data = z.infer<typeof step3Schema>;
 
 type TabType = "login" | "signup";
 type StatusType = "idle" | "loading" | "success" | "error";
+
+const steps = [
+  { id: 1, name: "Personal", icon: User },
+  { id: 2, name: "Job Info", icon: Briefcase },
+  { id: 3, name: "Security", icon: Lock },
+];
 
 export default function AuthPage() {
   const router = useRouter();
@@ -35,6 +84,10 @@ export default function AuthPage() {
   const [authStatus, setAuthStatus] = useState<StatusType>("idle");
   const [message, setMessage] = useState("");
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
+  
+  // Multi-step form state
+  const [currentStep, setCurrentStep] = useState(1);
+  const [formData, setFormData] = useState<Partial<Step1Data & Step2Data & Step3Data>>({});
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -48,9 +101,20 @@ export default function AuthPage() {
     resolver: zodResolver(loginSchema),
   });
 
-  // Register form
-  const registerForm = useForm<RegisterInput>({
-    resolver: zodResolver(registerSchema),
+  // Step forms
+  const step1Form = useForm<Step1Data>({
+    resolver: zodResolver(step1Schema),
+    defaultValues: formData,
+  });
+
+  const step2Form = useForm<Step2Data>({
+    resolver: zodResolver(step2Schema),
+    defaultValues: formData,
+  });
+
+  const step3Form = useForm<Step3Data>({
+    resolver: zodResolver(step3Schema),
+    defaultValues: formData,
   });
 
   const handleLogin = async (data: LoginInput) => {
@@ -83,7 +147,18 @@ export default function AuthPage() {
     }
   };
 
-  const handleRegister = async (data: RegisterInput) => {
+  const handleStep1Submit = (data: Step1Data) => {
+    setFormData(prev => ({ ...prev, ...data }));
+    setCurrentStep(2);
+  };
+
+  const handleStep2Submit = (data: Step2Data) => {
+    setFormData(prev => ({ ...prev, ...data }));
+    setCurrentStep(3);
+  };
+
+  const handleStep3Submit = async (data: Step3Data) => {
+    const finalData = { ...formData, ...data };
     setAuthStatus("loading");
     setMessage("");
 
@@ -91,7 +166,7 @@ export default function AuthPage() {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(finalData),
       });
 
       const result = await res.json();
@@ -99,12 +174,13 @@ export default function AuthPage() {
       if (!res.ok) {
         setAuthStatus("error");
         setMessage(result.error || "Registration failed");
-        setTimeout(() => setAuthStatus("idle"), 3000);
+        setTimeout(() => setAuthStatus("idle"), 4000);
       } else {
         setAuthStatus("success");
         setMessage("Account created successfully!");
-        setRegistrationSuccess(true);
-        registerForm.reset();
+        setTimeout(() => {
+          setRegistrationSuccess(true);
+        }, 500);
       }
     } catch {
       setAuthStatus("error");
@@ -113,13 +189,23 @@ export default function AuthPage() {
     }
   };
 
+  const goBack = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
   const switchTab = (tab: TabType) => {
     setActiveTab(tab);
     setAuthStatus("idle");
     setMessage("");
     setRegistrationSuccess(false);
+    setCurrentStep(1);
+    setFormData({});
     loginForm.reset();
-    registerForm.reset();
+    step1Form.reset();
+    step2Form.reset();
+    step3Form.reset();
   };
 
   // Show loading while checking session
@@ -334,7 +420,7 @@ export default function AuthPage() {
             </div>
 
             {/* Form Content */}
-            <div className="p-8">
+            <div className="p-6 lg:p-8">
               {/* Status Messages */}
               <AnimatePresence mode="wait">
                 {authStatus !== "idle" && (
@@ -351,13 +437,13 @@ export default function AuthPage() {
                     }`}
                   >
                     {authStatus === "loading" && (
-                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
+                      <Loader2 className="w-5 h-5 text-blue-600 animate-spin flex-shrink-0" />
                     )}
                     {authStatus === "success" && (
-                      <CheckCircle className="w-5 h-5 text-emerald-600" />
+                      <CheckCircle className="w-5 h-5 text-emerald-600 flex-shrink-0" />
                     )}
                     {authStatus === "error" && (
-                      <XCircle className="w-5 h-5 text-red-600" />
+                      <XCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
                     )}
                     <span
                       className={`text-sm font-medium ${
@@ -433,129 +519,315 @@ export default function AuthPage() {
                     </Button>
                   </motion.form>
                 ) : (
-                  <motion.form
+                  <motion.div
                     key="signup"
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     transition={{ duration: 0.3 }}
-                    onSubmit={registerForm.handleSubmit(handleRegister)}
-                    className="space-y-4"
                   >
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Full Name
-                      </label>
-                      <div className="relative">
-                        <User className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <Input
-                          type="text"
-                          placeholder="Enter your full name"
-                          className="pl-12 h-11"
-                          error={registerForm.formState.errors.name?.message}
-                          {...registerForm.register("name")}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Email Address
-                      </label>
-                      <div className="relative">
-                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <Input
-                          type="email"
-                          placeholder="Enter your email"
-                          className="pl-12 h-11"
-                          error={registerForm.formState.errors.email?.message}
-                          {...registerForm.register("email")}
-                        />
-                      </div>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        Phone Number
-                      </label>
-                      <div className="relative">
-                        <Phone className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <Input
-                          type="tel"
-                          placeholder="e.g., 01712345678"
-                          className="pl-12 h-11"
-                          error={registerForm.formState.errors.phone?.message}
-                          {...registerForm.register("phone")}
-                        />
-                      </div>
-                      <p className="text-xs text-slate-500 mt-1">Bangladesh phone format required</p>
-                    </div>
-
-                    <div>
-                      <label className="block text-sm font-medium text-slate-700 mb-2">
-                        6-Digit PIN
-                      </label>
-                      <div className="relative">
-                        <KeyRound className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                        <Input
-                          type="text"
-                          placeholder="Enter 6-digit PIN"
-                          maxLength={6}
-                          className="pl-12 h-11"
-                          error={registerForm.formState.errors.pin?.message}
-                          {...registerForm.register("pin")}
-                        />
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Password
-                        </label>
-                        <div className="relative">
-                          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                          <Input
-                            type="password"
-                            placeholder="Password"
-                            className="pl-12 h-11"
-                            error={registerForm.formState.errors.password?.message}
-                            {...registerForm.register("password")}
-                          />
+                    {/* Step Indicator */}
+                    <div className="flex items-center justify-between mb-8">
+                      {steps.map((step, index) => (
+                        <div key={step.id} className="flex items-center">
+                          <div className="flex flex-col items-center">
+                            <div
+                              className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${
+                                currentStep > step.id
+                                  ? "bg-emerald-500 text-white"
+                                  : currentStep === step.id
+                                  ? "bg-blue-600 text-white"
+                                  : "bg-slate-100 text-slate-400"
+                              }`}
+                            >
+                              {currentStep > step.id ? (
+                                <Check className="w-5 h-5" />
+                              ) : (
+                                <step.icon className="w-5 h-5" />
+                              )}
+                            </div>
+                            <span
+                              className={`text-xs mt-1 font-medium ${
+                                currentStep >= step.id
+                                  ? "text-slate-700"
+                                  : "text-slate-400"
+                              }`}
+                            >
+                              {step.name}
+                            </span>
+                          </div>
+                          {index < steps.length - 1 && (
+                            <div
+                              className={`w-12 lg:w-16 h-0.5 mx-2 mb-5 ${
+                                currentStep > step.id
+                                  ? "bg-emerald-500"
+                                  : "bg-slate-200"
+                              }`}
+                            />
+                          )}
                         </div>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-slate-700 mb-2">
-                          Confirm
-                        </label>
-                        <div className="relative">
-                          <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                          <Input
-                            type="password"
-                            placeholder="Confirm"
-                            className="pl-12 h-11"
-                            error={registerForm.formState.errors.confirmPassword?.message}
-                            {...registerForm.register("confirmPassword")}
-                          />
-                        </div>
-                      </div>
+                      ))}
                     </div>
 
-                    <Button
-                      type="submit"
-                      className="w-full h-12 text-base font-medium"
-                      disabled={authStatus === "loading"}
-                    >
-                      {authStatus === "loading" ? (
-                        <>
-                          <Loader2 className="w-5 h-5 mr-2 animate-spin" />
-                          Creating account...
-                        </>
-                      ) : (
-                        "Create Account"
+                    {/* Step 1: Personal Information */}
+                    <AnimatePresence mode="wait">
+                      {currentStep === 1 && (
+                        <motion.form
+                          key="step1"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ duration: 0.2 }}
+                          onSubmit={step1Form.handleSubmit(handleStep1Submit)}
+                          className="space-y-4"
+                        >
+                          <h3 className="text-lg font-semibold text-slate-800 mb-4">Personal Information</h3>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Full Name *</label>
+                            <div className="relative">
+                              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              <Input
+                                placeholder="Enter your full name"
+                                className="pl-10 h-11"
+                                error={step1Form.formState.errors.name?.message}
+                                {...step1Form.register("name")}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Email Address *</label>
+                            <div className="relative">
+                              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              <Input
+                                type="email"
+                                placeholder="Enter your email"
+                                className="pl-10 h-11"
+                                error={step1Form.formState.errors.email?.message}
+                                {...step1Form.register("email")}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Phone Number *</label>
+                            <div className="relative">
+                              <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              <Input
+                                type="tel"
+                                placeholder="e.g., 01712345678"
+                                className="pl-10 h-11"
+                                error={step1Form.formState.errors.phone?.message}
+                                {...step1Form.register("phone")}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">Date of Birth</label>
+                              <div className="relative">
+                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                <Input
+                                  type="date"
+                                  className="pl-10 h-11"
+                                  {...step1Form.register("dateOfBirth")}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">Gender</label>
+                              <select
+                                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                {...step1Form.register("gender")}
+                              >
+                                <option value="">Select</option>
+                                <option value="male">Male</option>
+                                <option value="female">Female</option>
+                                <option value="other">Other</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+                            <div className="relative">
+                              <MapPin className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
+                              <textarea
+                                placeholder="Enter your address"
+                                className="flex min-h-[80px] w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                {...step1Form.register("address")}
+                              />
+                            </div>
+                          </div>
+
+                          <Button type="submit" className="w-full h-11 mt-4">
+                            Next Step
+                            <ChevronRight className="w-4 h-4 ml-2" />
+                          </Button>
+                        </motion.form>
                       )}
-                    </Button>
-                  </motion.form>
+
+                      {/* Step 2: Job Information */}
+                      {currentStep === 2 && (
+                        <motion.form
+                          key="step2"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ duration: 0.2 }}
+                          onSubmit={step2Form.handleSubmit(handleStep2Submit)}
+                          className="space-y-4"
+                        >
+                          <h3 className="text-lg font-semibold text-slate-800 mb-4">Job Information</h3>
+                          <p className="text-sm text-slate-500 -mt-2 mb-4">Optional - You can skip these fields</p>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Employee ID</label>
+                            <div className="relative">
+                              <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              <Input
+                                placeholder="Enter employee ID"
+                                className="pl-10 h-11"
+                                {...step2Form.register("employeeId")}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Designation</label>
+                            <div className="relative">
+                              <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              <Input
+                                placeholder="e.g., Software Engineer"
+                                className="pl-10 h-11"
+                                {...step2Form.register("designation")}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
+                            <div className="relative">
+                              <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              <Input
+                                placeholder="e.g., Engineering"
+                                className="pl-10 h-11"
+                                {...step2Form.register("department")}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Joining Date</label>
+                            <div className="relative">
+                              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              <Input
+                                type="date"
+                                className="pl-10 h-11"
+                                {...step2Form.register("joiningDate")}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3 mt-6">
+                            <Button type="button" variant="outline" onClick={goBack} className="flex-1 h-11">
+                              <ChevronLeft className="w-4 h-4 mr-2" />
+                              Back
+                            </Button>
+                            <Button type="submit" className="flex-1 h-11">
+                              Next Step
+                              <ChevronRight className="w-4 h-4 ml-2" />
+                            </Button>
+                          </div>
+                        </motion.form>
+                      )}
+
+                      {/* Step 3: Security */}
+                      {currentStep === 3 && (
+                        <motion.form
+                          key="step3"
+                          initial={{ opacity: 0, x: 20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          exit={{ opacity: 0, x: -20 }}
+                          transition={{ duration: 0.2 }}
+                          onSubmit={step3Form.handleSubmit(handleStep3Submit)}
+                          className="space-y-4"
+                        >
+                          <h3 className="text-lg font-semibold text-slate-800 mb-4">Security Details</h3>
+                          
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">6-Digit PIN *</label>
+                            <div className="relative">
+                              <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              <Input
+                                type="text"
+                                placeholder="Enter 6-digit PIN"
+                                maxLength={6}
+                                className="pl-10 h-11"
+                                error={step3Form.formState.errors.pin?.message}
+                                {...step3Form.register("pin")}
+                              />
+                            </div>
+                            <p className="text-xs text-slate-500 mt-1">This PIN will be used for quick access</p>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Password *</label>
+                            <div className="relative">
+                              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              <Input
+                                type="password"
+                                placeholder="Enter password"
+                                className="pl-10 h-11"
+                                error={step3Form.formState.errors.password?.message}
+                                {...step3Form.register("password")}
+                              />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password *</label>
+                            <div className="relative">
+                              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              <Input
+                                type="password"
+                                placeholder="Confirm password"
+                                className="pl-10 h-11"
+                                error={step3Form.formState.errors.confirmPassword?.message}
+                                {...step3Form.register("confirmPassword")}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex gap-3 mt-6">
+                            <Button type="button" variant="outline" onClick={goBack} className="flex-1 h-11">
+                              <ChevronLeft className="w-4 h-4 mr-2" />
+                              Back
+                            </Button>
+                            <Button 
+                              type="submit" 
+                              className="flex-1 h-11"
+                              disabled={authStatus === "loading"}
+                            >
+                              {authStatus === "loading" ? (
+                                <>
+                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                  Creating...
+                                </>
+                              ) : (
+                                <>
+                                  Create Account
+                                  <CheckCircle className="w-4 h-4 ml-2" />
+                                </>
+                              )}
+                            </Button>
+                          </div>
+                        </motion.form>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
                 )}
               </AnimatePresence>
             </div>

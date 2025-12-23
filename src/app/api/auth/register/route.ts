@@ -17,7 +17,20 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, email, phone, pin, password } = validatedData.data;
+    const { 
+      name, 
+      email, 
+      phone, 
+      pin, 
+      password,
+      dateOfBirth,
+      gender,
+      address,
+      designation,
+      department,
+      employeeId,
+      joiningDate,
+    } = validatedData.data;
 
     // Check if user already exists
     const existingUser = await prisma.user.findFirst({
@@ -25,15 +38,30 @@ export async function POST(request: Request) {
         OR: [
           { email },
           ...(phone ? [{ phone }] : []),
+          ...(employeeId ? [{ employeeId }] : []),
         ],
       },
     });
 
     if (existingUser) {
-      return NextResponse.json(
-        { error: "User with this email or phone already exists" },
-        { status: 400 }
-      );
+      if (existingUser.email === email) {
+        return NextResponse.json(
+          { error: "User with this email already exists" },
+          { status: 400 }
+        );
+      }
+      if (existingUser.phone === phone) {
+        return NextResponse.json(
+          { error: "User with this phone number already exists" },
+          { status: 400 }
+        );
+      }
+      if (employeeId && existingUser.employeeId === employeeId) {
+        return NextResponse.json(
+          { error: "User with this employee ID already exists" },
+          { status: 400 }
+        );
+      }
     }
 
     // Hash password and PIN
@@ -48,12 +76,20 @@ export async function POST(request: Request) {
         phone: phone || null,
         pin: hashedPin,
         password: hashedPassword,
+        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
+        gender: gender || null,
+        address: address || null,
+        designation: designation || null,
+        department: department || null,
+        employeeId: employeeId || null,
+        joiningDate: joiningDate ? new Date(joiningDate) : null,
         approvalStatus: "PENDING",
         isVerified: false,
       },
     });
 
     return NextResponse.json({
+      success: true,
       message: "Registration successful. Please wait for admin approval.",
       user: {
         id: user.id,
@@ -64,7 +100,7 @@ export async function POST(request: Request) {
   } catch (error) {
     console.error("Registration error:", error);
     return NextResponse.json(
-      { error: "Something went wrong" },
+      { error: "Something went wrong. Please try again." },
       { status: 500 }
     );
   }
