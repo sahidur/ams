@@ -28,31 +28,35 @@ import {
   Calendar,
   IdCard,
   Building,
-  Check
+  Check,
+  FolderKanban,
+  Layers
 } from "lucide-react";
-import { Button, Input, Select } from "@/components/ui";
+import { Button, Input } from "@/components/ui";
 import { loginSchema, type LoginInput } from "@/lib/validations";
 
 // Bangladesh phone number regex
 const bangladeshPhoneRegex = /^(?:\+?880|0)1[3-9]\d{8}$/;
 
-// Step schemas for validation
+// Step schemas for validation - ALL MANDATORY
 const step1Schema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
   phone: z.string()
     .min(1, "Phone number is required")
     .regex(bangladeshPhoneRegex, "Invalid Bangladesh phone number"),
-  dateOfBirth: z.string().optional(),
-  gender: z.string().optional(),
-  address: z.string().optional(),
+  dateOfBirth: z.string().min(1, "Date of birth is required"),
+  gender: z.string().min(1, "Gender is required"),
+  address: z.string().min(5, "Address must be at least 5 characters"),
 });
 
 const step2Schema = z.object({
-  designation: z.string().optional(),
-  department: z.string().optional(),
-  employeeId: z.string().optional(),
-  joiningDate: z.string().optional(),
+  designation: z.string().min(2, "Designation is required"),
+  department: z.string().min(2, "Department is required"),
+  employeeId: z.string().min(1, "Employee ID is required"),
+  joiningDate: z.string().min(1, "Joining date is required"),
+  projectId: z.string().min(1, "Project is required"),
+  cohortId: z.string().min(1, "Cohort is required"),
 });
 
 const step3Schema = z.object({
@@ -67,6 +71,19 @@ const step3Schema = z.object({
 type Step1Data = z.infer<typeof step1Schema>;
 type Step2Data = z.infer<typeof step2Schema>;
 type Step3Data = z.infer<typeof step3Schema>;
+
+interface Project {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+interface Cohort {
+  id: string;
+  cohortId: string;
+  name: string;
+  isActive: boolean;
+}
 
 type TabType = "login" | "signup";
 type StatusType = "idle" | "loading" | "success" | "error";
@@ -89,12 +106,67 @@ export default function AuthPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<Partial<Step1Data & Step2Data & Step3Data>>({});
 
+  // Project/Cohort state
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [cohorts, setCohorts] = useState<Cohort[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [cohortsLoading, setCohortsLoading] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+
   // Redirect if already authenticated
   useEffect(() => {
     if (status === "authenticated" && session) {
       router.push("/dashboard");
     }
   }, [session, status, router]);
+
+  // Fetch projects when switching to signup tab or step 2
+  useEffect(() => {
+    if (activeTab === "signup") {
+      fetchProjects();
+    }
+  }, [activeTab]);
+
+  // Fetch cohorts when project changes
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchCohorts(selectedProjectId);
+    } else {
+      setCohorts([]);
+    }
+  }, [selectedProjectId]);
+
+  const fetchProjects = async () => {
+    setProjectsLoading(true);
+    try {
+      const res = await fetch("/api/projects?activeOnly=true");
+      if (res.ok) {
+        const data = await res.json();
+        setProjects(data);
+      }
+    } catch (error) {
+      console.error("Error fetching projects:", error);
+    } finally {
+      setProjectsLoading(false);
+    }
+  };
+
+  const fetchCohorts = async (projectId: string) => {
+    setCohortsLoading(true);
+    setCohorts([]);
+    step2Form.setValue("cohortId", "");
+    try {
+      const res = await fetch(`/api/cohorts?projectId=${projectId}&activeOnly=true`);
+      if (res.ok) {
+        const data = await res.json();
+        setCohorts(data);
+      }
+    } catch (error) {
+      console.error("Error fetching cohorts:", error);
+    } finally {
+      setCohortsLoading(false);
+    }
+  };
 
   // Login form
   const loginForm = useForm<LoginInput>({
@@ -202,6 +274,8 @@ export default function AuthPage() {
     setRegistrationSuccess(false);
     setCurrentStep(1);
     setFormData({});
+    setSelectedProjectId("");
+    setCohorts([]);
     loginForm.reset();
     step1Form.reset();
     step2Form.reset();
@@ -366,7 +440,7 @@ export default function AuthPage() {
       </div>
 
       {/* Right Side - Auth Form */}
-      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 lg:p-12">
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-6 lg:p-12 overflow-y-auto">
         <motion.div
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
@@ -626,20 +700,23 @@ export default function AuthPage() {
 
                           <div className="grid grid-cols-2 gap-4">
                             <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-1">Date of Birth</label>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">Date of Birth *</label>
                               <div className="relative">
                                 <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                                 <Input
                                   type="date"
                                   className="pl-10 h-11"
+                                  error={step1Form.formState.errors.dateOfBirth?.message}
                                   {...step1Form.register("dateOfBirth")}
                                 />
                               </div>
                             </div>
                             <div>
-                              <label className="block text-sm font-medium text-slate-700 mb-1">Gender</label>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">Gender *</label>
                               <select
-                                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                className={`flex h-11 w-full rounded-lg border bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                  step1Form.formState.errors.gender ? "border-red-500" : "border-gray-300"
+                                }`}
                                 {...step1Form.register("gender")}
                               >
                                 <option value="">Select</option>
@@ -647,19 +724,27 @@ export default function AuthPage() {
                                 <option value="female">Female</option>
                                 <option value="other">Other</option>
                               </select>
+                              {step1Form.formState.errors.gender && (
+                                <p className="text-xs text-red-500 mt-1">{step1Form.formState.errors.gender.message}</p>
+                              )}
                             </div>
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Address</label>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Address *</label>
                             <div className="relative">
                               <MapPin className="absolute left-3 top-3 w-5 h-5 text-slate-400" />
                               <textarea
-                                placeholder="Enter your address"
-                                className="flex min-h-[80px] w-full rounded-lg border border-gray-300 bg-white pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                placeholder="Enter your full address"
+                                className={`flex min-h-[80px] w-full rounded-lg border bg-white pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                  step1Form.formState.errors.address ? "border-red-500" : "border-gray-300"
+                                }`}
                                 {...step1Form.register("address")}
                               />
                             </div>
+                            {step1Form.formState.errors.address && (
+                              <p className="text-xs text-red-500 mt-1">{step1Form.formState.errors.address.message}</p>
+                            )}
                           </div>
 
                           <Button type="submit" className="w-full h-11 mt-4">
@@ -681,54 +766,132 @@ export default function AuthPage() {
                           className="space-y-4"
                         >
                           <h3 className="text-lg font-semibold text-slate-800 mb-4">Job Information</h3>
-                          <p className="text-sm text-slate-500 -mt-2 mb-4">Optional - You can skip these fields</p>
                           
-                          <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Employee ID</label>
-                            <div className="relative">
-                              <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                              <Input
-                                placeholder="Enter employee ID"
-                                className="pl-10 h-11"
-                                {...step2Form.register("employeeId")}
-                              />
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">Employee ID *</label>
+                              <div className="relative">
+                                <IdCard className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                <Input
+                                  placeholder="Enter employee ID"
+                                  className="pl-10 h-11"
+                                  error={step2Form.formState.errors.employeeId?.message}
+                                  {...step2Form.register("employeeId")}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-1">Joining Date *</label>
+                              <div className="relative">
+                                <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                                <Input
+                                  type="date"
+                                  className="pl-10 h-11"
+                                  error={step2Form.formState.errors.joiningDate?.message}
+                                  {...step2Form.register("joiningDate")}
+                                />
+                              </div>
                             </div>
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Designation</label>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Designation *</label>
                             <div className="relative">
                               <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                               <Input
                                 placeholder="e.g., Software Engineer"
                                 className="pl-10 h-11"
+                                error={step2Form.formState.errors.designation?.message}
                                 {...step2Form.register("designation")}
                               />
                             </div>
                           </div>
 
                           <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Department</label>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Department *</label>
                             <div className="relative">
                               <Building className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
                               <Input
                                 placeholder="e.g., Engineering"
                                 className="pl-10 h-11"
+                                error={step2Form.formState.errors.department?.message}
                                 {...step2Form.register("department")}
                               />
                             </div>
                           </div>
 
+                          {/* Project Selection */}
                           <div>
-                            <label className="block text-sm font-medium text-slate-700 mb-1">Joining Date</label>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Project *</label>
                             <div className="relative">
-                              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                              <Input
-                                type="date"
-                                className="pl-10 h-11"
-                                {...step2Form.register("joiningDate")}
-                              />
+                              <FolderKanban className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              {projectsLoading ? (
+                                <div className="flex h-11 w-full rounded-lg border border-gray-300 bg-gray-50 pl-10 pr-4 py-2 text-sm items-center">
+                                  <Loader2 className="w-4 h-4 animate-spin text-gray-400 mr-2" />
+                                  <span className="text-gray-400">Loading projects...</span>
+                                </div>
+                              ) : (
+                                <select
+                                  className={`flex h-11 w-full rounded-lg border bg-white pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                    step2Form.formState.errors.projectId ? "border-red-500" : "border-gray-300"
+                                  }`}
+                                  {...step2Form.register("projectId")}
+                                  onChange={(e) => {
+                                    step2Form.setValue("projectId", e.target.value);
+                                    setSelectedProjectId(e.target.value);
+                                  }}
+                                >
+                                  <option value="">Select a project</option>
+                                  {projects.map((project) => (
+                                    <option key={project.id} value={project.id}>
+                                      {project.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
                             </div>
+                            {step2Form.formState.errors.projectId && (
+                              <p className="text-xs text-red-500 mt-1">{step2Form.formState.errors.projectId.message}</p>
+                            )}
+                          </div>
+
+                          {/* Cohort Selection */}
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-1">Cohort *</label>
+                            <div className="relative">
+                              <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+                              {cohortsLoading ? (
+                                <div className="flex h-11 w-full rounded-lg border border-gray-300 bg-gray-50 pl-10 pr-4 py-2 text-sm items-center">
+                                  <Loader2 className="w-4 h-4 animate-spin text-gray-400 mr-2" />
+                                  <span className="text-gray-400">Loading cohorts...</span>
+                                </div>
+                              ) : !selectedProjectId ? (
+                                <div className="flex h-11 w-full rounded-lg border border-gray-300 bg-gray-50 pl-10 pr-4 py-2 text-sm items-center text-gray-400">
+                                  Select a project first
+                                </div>
+                              ) : cohorts.length === 0 ? (
+                                <div className="flex h-11 w-full rounded-lg border border-gray-300 bg-gray-50 pl-10 pr-4 py-2 text-sm items-center text-gray-400">
+                                  No cohorts available
+                                </div>
+                              ) : (
+                                <select
+                                  className={`flex h-11 w-full rounded-lg border bg-white pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                                    step2Form.formState.errors.cohortId ? "border-red-500" : "border-gray-300"
+                                  }`}
+                                  {...step2Form.register("cohortId")}
+                                >
+                                  <option value="">Select a cohort</option>
+                                  {cohorts.map((cohort) => (
+                                    <option key={cohort.id} value={cohort.id}>
+                                      {cohort.name} ({cohort.cohortId})
+                                    </option>
+                                  ))}
+                                </select>
+                              )}
+                            </div>
+                            {step2Form.formState.errors.cohortId && (
+                              <p className="text-xs text-red-500 mt-1">{step2Form.formState.errors.cohortId.message}</p>
+                            )}
                           </div>
 
                           <div className="flex gap-3 mt-6">

@@ -30,6 +30,8 @@ export async function POST(request: Request) {
       department,
       employeeId,
       joiningDate,
+      projectId,
+      cohortId,
     } = validatedData.data;
 
     // Check if user already exists
@@ -37,8 +39,8 @@ export async function POST(request: Request) {
       where: {
         OR: [
           { email },
-          ...(phone ? [{ phone }] : []),
-          ...(employeeId ? [{ employeeId }] : []),
+          { phone },
+          { employeeId },
         ],
       },
     });
@@ -56,7 +58,7 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
-      if (employeeId && existingUser.employeeId === employeeId) {
+      if (existingUser.employeeId === employeeId) {
         return NextResponse.json(
           { error: "User with this employee ID already exists" },
           { status: 400 }
@@ -73,18 +75,27 @@ export async function POST(request: Request) {
       data: {
         name,
         email,
-        phone: phone || null,
+        phone,
         pin: hashedPin,
         password: hashedPassword,
-        dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
-        gender: gender || null,
-        address: address || null,
-        designation: designation || null,
-        department: department || null,
-        employeeId: employeeId || null,
-        joiningDate: joiningDate ? new Date(joiningDate) : null,
+        dateOfBirth: new Date(dateOfBirth),
+        gender,
+        address,
+        designation,
+        department,
+        employeeId,
+        joiningDate: new Date(joiningDate),
         approvalStatus: "PENDING",
         isVerified: false,
+      },
+    });
+
+    // Create UserProjectAssignment for the selected project and cohort
+    await prisma.userProjectAssignment.create({
+      data: {
+        userId: user.id,
+        projectId,
+        cohortId,
       },
     });
 

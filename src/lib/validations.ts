@@ -9,21 +9,23 @@ export const loginSchema = z.object({
 });
 
 export const registerSchema = z.object({
-  // Step 1: Personal Information
+  // Step 1: Personal Information (ALL MANDATORY)
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
   phone: z.string()
     .min(1, "Phone number is required")
     .regex(bangladeshPhoneRegex, "Invalid Bangladesh phone number (e.g., 01712345678 or +8801712345678)"),
-  dateOfBirth: z.string().optional(),
-  gender: z.string().optional(),
-  address: z.string().optional(),
+  dateOfBirth: z.string().min(1, "Date of birth is required"),
+  gender: z.string().min(1, "Gender is required"),
+  address: z.string().min(5, "Address must be at least 5 characters"),
   
-  // Step 2: Job Information
-  designation: z.string().optional(),
-  department: z.string().optional(),
-  employeeId: z.string().optional(),
-  joiningDate: z.string().optional(),
+  // Step 2: Job Information (ALL MANDATORY)
+  designation: z.string().min(2, "Designation is required"),
+  department: z.string().min(2, "Department is required"),
+  employeeId: z.string().min(1, "Employee ID is required"),
+  joiningDate: z.string().min(1, "Joining date is required"),
+  projectId: z.string().min(1, "Project is required"),
+  cohortId: z.string().min(1, "Cohort is required"),
   
   // Step 3: Security
   pin: z.string().length(6, "PIN must be exactly 6 digits").regex(/^\d{6}$/, "PIN must be 6 digits"),
