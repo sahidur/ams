@@ -139,10 +139,10 @@ export default function AuthPage() {
   const fetchProjects = async () => {
     setProjectsLoading(true);
     try {
-      const res = await fetch("/api/projects?activeOnly=true");
+      const res = await fetch("/api/auth/register/options");
       if (res.ok) {
         const data = await res.json();
-        setProjects(data);
+        setProjects(data.projects || []);
       }
     } catch (error) {
       console.error("Error fetching projects:", error);
@@ -156,10 +156,10 @@ export default function AuthPage() {
     setCohorts([]);
     step2Form.setValue("cohortId", "");
     try {
-      const res = await fetch(`/api/cohorts?projectId=${projectId}&activeOnly=true`);
+      const res = await fetch(`/api/auth/register/options?projectId=${projectId}`);
       if (res.ok) {
         const data = await res.json();
-        setCohorts(data);
+        setCohorts(data.cohorts || []);
       }
     } catch (error) {
       console.error("Error fetching cohorts:", error);
