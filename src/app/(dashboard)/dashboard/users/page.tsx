@@ -2,10 +2,11 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Trash2, UserCheck, UserX, MoreHorizontal } from "lucide-react";
+import { Plus, Pencil, Trash2, UserCheck, UserX, MoreHorizontal, Copy, Check, Key } from "lucide-react";
 import { 
   Button, 
   Card, 
@@ -47,14 +48,23 @@ interface Role {
 }
 
 export default function UsersPage() {
+  const { data: session } = useSession();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
+  const [generatedPassword, setGeneratedPassword] = useState<string>("");
+  const [passwordCopied, setPasswordCopied] = useState(false);
+  const [resetPassword, setResetPassword] = useState(false);
+
+  // Check if current user is Super Admin
+  const isSuperAdmin = session?.user?.userRoleName === "Super Admin" || 
+    (session?.user as { userRole?: { name: string } })?.userRole?.name === "SUPER_ADMIN";
 
   const {
     register,
@@ -105,12 +115,20 @@ export default function UsersPage() {
         body: JSON.stringify({
           ...data,
           userRoleId: selectedRoleId || undefined,
+          ...(selectedUser && resetPassword && { resetPassword: true }),
         }),
       });
 
       if (res.ok) {
+        const result = await res.json();
         fetchUsers();
         closeModal();
+        
+        // Show password modal if a new password was generated
+        if (result.generatedPassword) {
+          setGeneratedPassword(result.generatedPassword);
+          setIsPasswordModalOpen(true);
+        }
       }
     } catch (error) {
       console.error("Error saving user:", error);
@@ -152,6 +170,7 @@ export default function UsersPage() {
   const openEditModal = (user: User) => {
     setSelectedUser(user);
     setSelectedRoleId(user.userRoleId || "");
+    setResetPassword(false);
     reset({
       name: user.name,
       email: user.email,
@@ -172,7 +191,24 @@ export default function UsersPage() {
     setIsModalOpen(false);
     setSelectedUser(null);
     setSelectedRoleId("");
+    setResetPassword(false);
     reset();
+  };
+
+  const copyPassword = async () => {
+    try {
+      await navigator.clipboard.writeText(generatedPassword);
+      setPasswordCopied(true);
+      setTimeout(() => setPasswordCopied(false), 2000);
+    } catch (error) {
+      console.error("Failed to copy password:", error);
+    }
+  };
+
+  const closePasswordModal = () => {
+    setIsPasswordModalOpen(false);
+    setGeneratedPassword("");
+    setPasswordCopied(false);
   };
 
   const columns: ColumnDef<User>[] = [
@@ -378,6 +414,27 @@ export default function UsersPage() {
           </div>
           {/* Hidden field for backwards compatibility */}
           <input type="hidden" {...register("role")} value="BASIC_USER" />
+          
+          {/* Reset Password option - only for Super Admin when editing */}
+          {selectedUser && isSuperAdmin && (
+            <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={resetPassword}
+                  onChange={(e) => setResetPassword(e.target.checked)}
+                  className="w-4 h-4 rounded border-gray-300 text-amber-600 focus:ring-amber-500"
+                />
+                <div className="flex items-center gap-2">
+                  <Key className="w-4 h-4 text-amber-600" />
+                  <span className="text-sm font-medium text-amber-800">
+                    Reset password (generate new random password)
+                  </span>
+                </div>
+              </label>
+            </div>
+          )}
+          
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={closeModal} className="flex-1">
               Cancel
@@ -411,6 +468,48 @@ export default function UsersPage() {
               Delete
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Password Display Modal */}
+      <Modal
+        isOpen={isPasswordModalOpen}
+        onClose={closePasswordModal}
+        title="User Password Generated"
+        size="sm"
+      >
+        <div className="text-center">
+          <div className="mx-auto w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
+            <Key className="w-6 h-6 text-green-600" />
+          </div>
+          <p className="text-gray-600 mb-4">
+            The password has been generated successfully. Please copy and share it with the user securely.
+          </p>
+          <div className="flex items-center gap-2 p-4 bg-gray-100 rounded-lg mb-4">
+            <code className="flex-1 text-lg font-mono font-bold text-gray-900 tracking-wider">
+              {generatedPassword}
+            </code>
+            <button
+              onClick={copyPassword}
+              className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+              title="Copy password"
+            >
+              {passwordCopied ? (
+                <Check className="w-5 h-5 text-green-600" />
+              ) : (
+                <Copy className="w-5 h-5 text-gray-600" />
+              )}
+            </button>
+          </div>
+          {passwordCopied && (
+            <p className="text-sm text-green-600 mb-4">Password copied to clipboard!</p>
+          )}
+          <p className="text-xs text-amber-600 mb-4">
+            ⚠️ This password will not be shown again. Make sure to save it.
+          </p>
+          <Button onClick={closePasswordModal} className="w-full">
+            Done
+          </Button>
         </div>
       </Modal>
     </div>

@@ -131,10 +131,19 @@ export async function POST(request: Request) {
       }
     }
 
-    // Generate default password and PIN for admin-created users
-    const defaultPassword = "password123";
+    // Generate random 8-character password and PIN for admin-created users
+    const generateRandomPassword = () => {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
+      let password = '';
+      for (let i = 0; i < 8; i++) {
+        password += chars.charAt(Math.floor(Math.random() * chars.length));
+      }
+      return password;
+    };
+    
+    const generatedPassword = generateRandomPassword();
     const defaultPin = "1234";
-    const hashedPassword = await hash(defaultPassword, 12);
+    const hashedPassword = await hash(generatedPassword, 12);
     const hashedPin = await hash(defaultPin, 12);
 
     const user = await prisma.user.create({
@@ -161,6 +170,7 @@ export async function POST(request: Request) {
         name: user.name,
         email: user.email,
       },
+      generatedPassword, // Return the generated password so admin can share it
     });
   } catch (error) {
     console.error("Error creating user:", error);
