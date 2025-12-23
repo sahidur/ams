@@ -108,9 +108,7 @@ export default function RolesPage() {
       displayName: "",
       description: "",
       isActive: true,
-      permissions: {
-        PROFILE: ["ALL"], // Default access
-      },
+      permissions: {},
     });
     setIsModalOpen(true);
   };
@@ -492,7 +490,7 @@ export default function RolesPage() {
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingRole ? "Edit Role" : "Create New Role"}
-        size="lg"
+        size="full"
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid md:grid-cols-2 gap-4">
@@ -578,9 +576,8 @@ export default function RolesPage() {
                               handlePermissionChange(module.id, action.id)
                             }
                             disabled={
-                              module.id === "PROFILE" ||
-                              (action.id !== "ALL" &&
-                                formData.permissions[module.id]?.includes("ALL"))
+                              action.id !== "ALL" &&
+                              formData.permissions[module.id]?.includes("ALL")
                             }
                             className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500 disabled:opacity-50"
                           />
@@ -591,9 +588,6 @@ export default function RolesPage() {
                 </tbody>
               </table>
             </div>
-            <p className="text-xs text-gray-500 mt-2">
-              * Profile access is always enabled by default
-            </p>
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t">

@@ -1,5 +1,3 @@
-// @ts-nocheck
-// TODO: Remove @ts-nocheck after running prisma db push and prisma generate
 import prisma from "@/lib/prisma";
 
 export type ModuleName = 

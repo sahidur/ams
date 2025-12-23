@@ -59,11 +59,11 @@ const Modal: React.FC<ModalProps> = ({
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", duration: 0.3 }}
             className={cn(
-              "fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white p-6 shadow-2xl",
+              "fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]",
               sizes[size]
             )}
           >
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center justify-between p-6 pb-4 border-b flex-shrink-0">
               {title && <h2 className="text-xl font-semibold">{title}</h2>}
               <button
                 onClick={onClose}
@@ -72,7 +72,9 @@ const Modal: React.FC<ModalProps> = ({
                 <X className="h-5 w-5" />
               </button>
             </div>
-            {children}
+            <div className="p-6 pt-4 overflow-y-auto flex-1">
+              {children}
+            </div>
           </motion.div>
         </>
       )}

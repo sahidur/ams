@@ -1,5 +1,3 @@
-// @ts-nocheck
-// TODO: Remove @ts-nocheck after running prisma db push and prisma generate
 import NextAuth, { type NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@auth/prisma-adapter";
@@ -59,7 +57,7 @@ export const authOptions: NextAuthOptions = {
           email: user.email,
           name: user.name,
           role: user.role,
-          userRoleId: user.userRoleId,
+          userRoleId: user.userRoleId ?? undefined,
           userRoleName: user.userRole?.displayName,
           image: user.profileImage ?? undefined,
         };
@@ -88,7 +86,7 @@ export const authOptions: NextAuthOptions = {
         }
         
         if (dbUser) {
-          token.userRoleId = dbUser.userRoleId;
+          token.userRoleId = dbUser.userRoleId ?? undefined;
           token.userRoleName = dbUser.userRole?.displayName;
         }
       }
