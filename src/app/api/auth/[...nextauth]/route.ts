@@ -37,6 +37,11 @@ export const authOptions: NextAuthOptions = {
           throw new Error("No user found with this email");
         }
 
+        // Check if user account is active
+        if (!user.isActive) {
+          throw new Error("Your account has been deactivated. Please contact administrator.");
+        }
+
         if (user.approvalStatus !== "APPROVED") {
           throw new Error("Your account is pending approval");
         }
