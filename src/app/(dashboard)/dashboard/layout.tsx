@@ -20,6 +20,7 @@ import {
   ChevronDown,
   Settings,
   Camera,
+  Shield,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -43,6 +44,12 @@ const navItems: NavItem[] = [
     title: "Users",
     href: "/dashboard/users",
     icon: Users,
+    roles: ["ADMIN"],
+  },
+  {
+    title: "Roles",
+    href: "/dashboard/roles",
+    icon: Shield,
     roles: ["ADMIN"],
   },
   {
@@ -99,6 +106,26 @@ export default function DashboardLayout({
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+
+  // Check if role is deactivated
+  if (session?.error === "RoleDeactivated") {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="max-w-md mx-auto p-8 bg-white rounded-xl shadow-lg text-center">
+          <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+            <Shield className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">Role Deactivated</h2>
+          <p className="text-gray-600 mb-6">
+            Your role has been deactivated by the administrator. Please contact support for assistance.
+          </p>
+          <Button onClick={() => signOut({ callbackUrl: "/" })}>
+            Sign Out
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   if (status === "loading") {
     return (

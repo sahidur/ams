@@ -27,26 +27,34 @@ interface User {
   email: string;
   phone: string | null;
   role: string;
+  userRoleId: string | null;
+  userRole?: {
+    id: string;
+    name: string;
+    displayName: string;
+    isActive: boolean;
+  };
   approvalStatus: string;
   isVerified: boolean;
   createdAt: string;
 }
 
-const roleOptions = [
-  { value: "ADMIN", label: "Administrator" },
-  { value: "HO_USER", label: "HO User" },
-  { value: "TRAINER", label: "Trainer" },
-  { value: "STUDENT", label: "Student" },
-  { value: "BASIC_USER", label: "Basic User" },
-];
+interface Role {
+  id: string;
+  name: string;
+  displayName: string;
+  isActive: boolean;
+}
 
 export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
+  const [selectedRoleId, setSelectedRoleId] = useState<string>("");
 
   const {
     register,
@@ -69,8 +77,19 @@ export default function UsersPage() {
     }
   };
 
+  const fetchRoles = async () => {
+    try {
+      const res = await fetch("/api/roles?activeOnly=true");
+      const data = await res.json();
+      setRoles(data);
+    } catch (error) {
+      console.error("Error fetching roles:", error);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchRoles();
   }, []);
 
   const onSubmit = async (data: UserInput) => {
@@ -83,7 +102,10 @@ export default function UsersPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          userRoleId: selectedRoleId || undefined,
+        }),
       });
 
       if (res.ok) {
@@ -129,6 +151,7 @@ export default function UsersPage() {
 
   const openEditModal = (user: User) => {
     setSelectedUser(user);
+    setSelectedRoleId(user.userRoleId || "");
     reset({
       name: user.name,
       email: user.email,
@@ -148,6 +171,7 @@ export default function UsersPage() {
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedUser(null);
+    setSelectedRoleId("");
     reset();
   };
 
@@ -175,9 +199,22 @@ export default function UsersPage() {
     {
       accessorKey: "role",
       header: "Role",
-      cell: ({ row }) => (
-        <Badge variant="info">{getRoleDisplayName(row.original.role)}</Badge>
-      ),
+      cell: ({ row }) => {
+        const userRole = row.original.userRole;
+        if (userRole) {
+          return (
+            <div className="flex items-center gap-2">
+              <Badge variant={userRole.isActive ? "info" : "default"}>
+                {userRole.displayName}
+              </Badge>
+              {!userRole.isActive && (
+                <span className="text-xs text-red-500">(Inactive)</span>
+              )}
+            </div>
+          );
+        }
+        return <Badge variant="default">{getRoleDisplayName(row.original.role)}</Badge>;
+      },
     },
     {
       accessorKey: "approvalStatus",
@@ -323,12 +360,24 @@ export default function UsersPage() {
             error={errors.phone?.message}
             {...register("phone")}
           />
-          <Select
-            label="Role"
-            options={roleOptions}
-            error={errors.role?.message}
-            {...register("role")}
-          />
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Role</label>
+            <select
+              value={selectedRoleId}
+              onChange={(e) => setSelectedRoleId(e.target.value)}
+              className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              required
+            >
+              <option value="">Select a role</option>
+              {roles.map((role) => (
+                <option key={role.id} value={role.id}>
+                  {role.displayName}
+                </option>
+              ))}
+            </select>
+          </div>
+          {/* Hidden field for backwards compatibility */}
+          <input type="hidden" {...register("role")} value="BASIC_USER" />
           <div className="flex gap-3 pt-4">
             <Button type="button" variant="outline" onClick={closeModal} className="flex-1">
               Cancel
