@@ -149,7 +149,7 @@ export default function RegisterPage() {
                 <Phone className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
                   type="tel"
-                  placeholder="Phone number (optional)"
+                  placeholder="Phone number (e.g., 01712345678)"
                   className="pl-10"
                   error={errors.phone?.message}
                   {...register("phone")}
@@ -160,8 +160,8 @@ export default function RegisterPage() {
                 <KeyRound className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="4-digit PIN"
-                  maxLength={4}
+                  placeholder="6-digit PIN"
+                  maxLength={6}
                   className="pl-10"
                   error={errors.pin?.message}
                   {...register("pin")}

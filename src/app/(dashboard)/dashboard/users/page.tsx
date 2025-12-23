@@ -7,7 +7,7 @@ import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Trash2, UserCheck, UserX, MoreHorizontal, Copy, Check, Key, Power, PowerOff, Eye, Shield } from "lucide-react";
+import { Plus, Pencil, Trash2, UserCheck, UserX, MoreHorizontal, Copy, Check, Key, Power, PowerOff, Eye, Shield, Users, Clock } from "lucide-react";
 import { 
   Button, 
   Card, 
@@ -49,6 +49,8 @@ interface Role {
   isActive: boolean;
 }
 
+type TabType = "active" | "pending";
+
 export default function UsersPage() {
   const { data: session } = useSession();
   const router = useRouter();
@@ -66,6 +68,7 @@ export default function UsersPage() {
   const [generatedPassword, setGeneratedPassword] = useState<string>("");
   const [passwordCopied, setPasswordCopied] = useState(false);
   const [resetPassword, setResetPassword] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabType>("active");
 
   // Check if current user is Super Admin
   const isSuperAdmin = session?.user?.userRoleName === "Super Admin" || 
@@ -79,6 +82,11 @@ export default function UsersPage() {
   } = useForm<UserInput>({
     resolver: zodResolver(userSchema),
   });
+
+  // Filter users based on active tab
+  const activeUsers = users.filter(u => u.approvalStatus === "APPROVED");
+  const pendingUsers = users.filter(u => u.approvalStatus === "PENDING");
+  const displayedUsers = activeTab === "active" ? activeUsers : pendingUsers;
 
   const fetchUsers = async () => {
     try {
@@ -458,6 +466,67 @@ export default function UsersPage() {
     },
   ];
 
+  // Columns for pending users tab
+  const pendingColumns: ColumnDef<User>[] = [
+    {
+      accessorKey: "name",
+      header: "Name",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center text-white font-medium">
+            {row.original.name.charAt(0)}
+          </div>
+          <div>
+            <p className="font-medium text-gray-900">{row.original.name}</p>
+            <p className="text-xs text-gray-500">{row.original.email}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "phone",
+      header: "Phone",
+      cell: ({ row }) => row.original.phone || "-",
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Registered",
+      cell: ({ row }) => new Date(row.original.createdAt).toLocaleDateString(),
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => router.push(`/dashboard/users/${row.original.id}`)}
+          >
+            <Eye className="w-4 h-4 mr-1" />
+            View
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => handleApprove(row.original.id)}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <UserCheck className="w-4 h-4 mr-1" />
+            Approve
+          </Button>
+          <Button
+            size="sm"
+            variant="destructive"
+            onClick={() => handleReject(row.original.id)}
+          >
+            <UserX className="w-4 h-4 mr-1" />
+            Reject
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -479,17 +548,60 @@ export default function UsersPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>All Users</CardTitle>
+          <div className="flex items-center justify-between">
+            <div className="flex gap-4 border-b border-gray-200 -mb-6 pb-0">
+              <button
+                onClick={() => setActiveTab("active")}
+                className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+                  activeTab === "active"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <Users className="w-4 h-4" />
+                Active Users
+                <Badge variant="info" className="ml-1">{activeUsers.length}</Badge>
+              </button>
+              <button
+                onClick={() => setActiveTab("pending")}
+                className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+                  activeTab === "pending"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <Clock className="w-4 h-4" />
+                Pending Approval
+                {pendingUsers.length > 0 && (
+                  <Badge variant="warning" className="ml-1">{pendingUsers.length}</Badge>
+                )}
+              </button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
             </div>
+          ) : displayedUsers.length === 0 ? (
+            <div className="text-center py-12 text-gray-500">
+              {activeTab === "pending" ? (
+                <>
+                  <Clock className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No pending users</p>
+                </>
+              ) : (
+                <>
+                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                  <p>No active users found</p>
+                </>
+              )}
+            </div>
           ) : (
             <DataTable 
-              columns={columns} 
-              data={users} 
+              columns={activeTab === "pending" ? pendingColumns : columns} 
+              data={displayedUsers} 
               searchPlaceholder="Search users..."
             />
           )}
@@ -519,10 +631,11 @@ export default function UsersPage() {
           />
           <Input
             label="Phone"
-            placeholder="Enter phone number"
+            placeholder="e.g., 01712345678"
             error={errors.phone?.message}
             {...register("phone")}
           />
+          <p className="text-xs text-gray-500 -mt-3">Bangladesh phone number format required</p>
           <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700">Role</label>
             {rolesLoading ? (
