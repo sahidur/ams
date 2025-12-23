@@ -6,7 +6,6 @@ import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { User, Lock, Briefcase, Camera, Loader2 } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input } from "@/components/ui";
-import Image from "next/image";
 
 interface ProfileData {
   name: string;
@@ -48,6 +47,8 @@ export default function ProfilePage() {
       try {
         const res = await fetch(`/api/users/${session?.user?.id}`);
         const data = await res.json();
+        console.log("Profile data:", data);
+        console.log("Profile image URL:", data.profileImage);
         reset({
           name: data.name || "",
           email: data.email || "",
@@ -201,12 +202,15 @@ export default function ProfilePage() {
           <div className="flex items-center gap-6">
             <div className="relative">
               {profileImage ? (
-                <Image
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
                   src={profileImage}
                   alt="Profile"
-                  width={80}
-                  height={80}
                   className="w-20 h-20 rounded-full object-cover"
+                  onError={(e) => {
+                    console.error("Image load error:", profileImage);
+                    e.currentTarget.style.display = "none";
+                  }}
                 />
               ) : (
                 <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold">
