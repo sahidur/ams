@@ -25,8 +25,18 @@ export async function GET(
         email: true,
         phone: true,
         role: true,
+        userRoleId: true,
+        userRole: {
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            isActive: true,
+          },
+        },
         approvalStatus: true,
         isVerified: true,
+        isActive: true,
         dateOfBirth: true,
         gender: true,
         address: true,
