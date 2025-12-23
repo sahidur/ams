@@ -45,6 +45,29 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(users);
     }
 
+    // Filter by role for dropdown (TRAINER/STUDENT) - accessible by ADMIN and HO_USER
+    const roleFilter = searchParams.get("role");
+    if (roleFilter && ["TRAINER", "STUDENT"].includes(roleFilter)) {
+      if (!["ADMIN", "HO_USER"].includes(session.user.role)) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+
+      const users = await prisma.user.findMany({
+        where: {
+          role: roleFilter as "TRAINER" | "STUDENT",
+          approvalStatus: "APPROVED",
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+        },
+        orderBy: { name: "asc" },
+      });
+
+      return NextResponse.json(users);
+    }
+
     // Full user list - only for ADMIN
     if (session.user.role !== "ADMIN") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
