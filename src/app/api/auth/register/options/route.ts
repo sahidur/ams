@@ -12,7 +12,6 @@ export async function GET(request: Request) {
       const cohorts = await prisma.cohort.findMany({
         where: {
           projectId,
-          isActive: true,
         },
         select: {
           id: true,
