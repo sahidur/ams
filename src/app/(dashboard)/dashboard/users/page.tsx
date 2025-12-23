@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Trash2, UserCheck, UserX, MoreHorizontal, Copy, Check, Key } from "lucide-react";
+import { Plus, Pencil, Trash2, UserCheck, UserX, MoreHorizontal, Copy, Check, Key, Power, PowerOff, Eye, Shield } from "lucide-react";
 import { 
   Button, 
   Card, 
@@ -37,6 +38,7 @@ interface User {
   };
   approvalStatus: string;
   isVerified: boolean;
+  isActive: boolean;
   createdAt: string;
 }
 
@@ -49,6 +51,7 @@ interface Role {
 
 export default function UsersPage() {
   const { data: session } = useSession();
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -158,13 +161,45 @@ export default function UsersPage() {
   const handleDelete = async () => {
     if (!selectedUser) return;
     try {
-      await fetch(`/api/users/${selectedUser.id}`, { method: "DELETE" });
+      const res = await fetch(`/api/users/${selectedUser.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.error || "Failed to delete user");
+        return;
+      }
       fetchUsers();
       setIsDeleteModalOpen(false);
       setSelectedUser(null);
     } catch (error) {
       console.error("Error deleting user:", error);
     }
+  };
+
+  const handleToggleActive = async (user: User) => {
+    try {
+      const res = await fetch(`/api/users/${user.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ isActive: !user.isActive }),
+      });
+      if (!res.ok) {
+        const error = await res.json();
+        alert(error.error || "Failed to update user status");
+        return;
+      }
+      fetchUsers();
+    } catch (error) {
+      console.error("Error toggling user status:", error);
+    }
+    setActionMenuOpen(null);
+  };
+
+  // Check if current user can edit a target user
+  const canEditUser = (targetUser: User): boolean => {
+    if (targetUser.userRole?.name === "SUPER_ADMIN") {
+      return isSuperAdmin;
+    }
+    return true;
   };
 
   const openEditModal = (user: User) => {
@@ -216,12 +251,22 @@ export default function UsersPage() {
       accessorKey: "name",
       header: "Name",
       cell: ({ row }) => (
-        <div className="flex items-center gap-3">
+        <div 
+          className="flex items-center gap-3 cursor-pointer"
+          onClick={() => router.push(`/dashboard/users/${row.original.id}`)}
+        >
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium">
             {row.original.name.charAt(0)}
           </div>
           <div>
-            <p className="font-medium text-gray-900">{row.original.name}</p>
+            <div className="flex items-center gap-2">
+              <p className="font-medium text-gray-900 hover:text-blue-600">{row.original.name}</p>
+              {row.original.userRole?.name === "SUPER_ADMIN" && (
+                <span title="Super Admin">
+                  <Shield className="w-4 h-4 text-amber-500" />
+                </span>
+              )}
+            </div>
             <p className="text-xs text-gray-500">{row.original.email}</p>
           </div>
         </div>
@@ -253,8 +298,17 @@ export default function UsersPage() {
       },
     },
     {
+      accessorKey: "isActive",
+      header: "Account",
+      cell: ({ row }) => (
+        <Badge variant={row.original.isActive ? "success" : "danger"}>
+          {row.original.isActive ? "Active" : "Inactive"}
+        </Badge>
+      ),
+    },
+    {
       accessorKey: "approvalStatus",
-      header: "Status",
+      header: "Approval",
       cell: ({ row }) => (
         <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getStatusColor(row.original.approvalStatus)}`}>
           {row.original.approvalStatus}
@@ -263,77 +317,131 @@ export default function UsersPage() {
     },
     {
       id: "actions",
-      cell: ({ row }) => (
-        <div className="relative flex justify-end">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setActionMenuOpen(actionMenuOpen === row.original.id ? null : row.original.id);
-            }}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
-          {actionMenuOpen === row.original.id && (
-            <>
-              <div 
-                className="fixed inset-0 z-40" 
-                onClick={() => setActionMenuOpen(null)}
-              />
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
-              >
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openEditModal(row.original);
-                  }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+      cell: ({ row }) => {
+        const canEdit = canEditUser(row.original);
+        return (
+          <div className="relative flex justify-end">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setActionMenuOpen(actionMenuOpen === row.original.id ? null : row.original.id);
+              }}
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+            {actionMenuOpen === row.original.id && (
+              <>
+                <div 
+                  className="fixed inset-0 z-40" 
+                  onClick={() => setActionMenuOpen(null)}
+                />
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
                 >
-                  <Pencil className="w-4 h-4" />
-                  Edit
-                </button>
-                {row.original.approvalStatus === "PENDING" && (
-                  <>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/dashboard/users/${row.original.id}`);
+                    }}
+                    className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                  >
+                    <Eye className="w-4 h-4" />
+                    View Profile
+                  </button>
+                  {canEdit ? (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        handleApprove(row.original.id);
+                        openEditModal(row.original);
                       }}
-                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-600 hover:bg-green-50"
+                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                     >
-                      <UserCheck className="w-4 h-4" />
-                      Approve
+                      <Pencil className="w-4 h-4" />
+                      Edit
                     </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleReject(row.original.id);
-                      }}
-                      className="flex items-center gap-2 w-full px-4 py-2 text-sm text-orange-600 hover:bg-orange-50"
-                    >
-                      <UserX className="w-4 h-4" />
-                      Reject
-                    </button>
-                  </>
-                )}
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openDeleteModal(row.original);
-                  }}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                >
-                  <Trash2 className="w-4 h-4" />
-                  Delete
-                </button>
-              </motion.div>
-            </>
-          )}
-        </div>
-      ),
+                  ) : (
+                    <div className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-400 cursor-not-allowed">
+                      <Pencil className="w-4 h-4" />
+                      Edit (Super Admin Only)
+                    </div>
+                  )}
+                  {row.original.approvalStatus === "PENDING" && (
+                    <>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleApprove(row.original.id);
+                        }}
+                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-green-600 hover:bg-green-50"
+                      >
+                        <UserCheck className="w-4 h-4" />
+                        Approve
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleReject(row.original.id);
+                        }}
+                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-orange-600 hover:bg-orange-50"
+                      >
+                        <UserX className="w-4 h-4" />
+                        Reject
+                      </button>
+                    </>
+                  )}
+                  {canEdit && (
+                    <>
+                      <div className="border-t border-gray-100 my-1" />
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleToggleActive(row.original);
+                        }}
+                        className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                          row.original.isActive 
+                            ? "text-orange-600 hover:bg-orange-50" 
+                            : "text-green-600 hover:bg-green-50"
+                        }`}
+                      >
+                        {row.original.isActive ? (
+                          <>
+                            <PowerOff className="w-4 h-4" />
+                            Deactivate
+                          </>
+                        ) : (
+                          <>
+                            <Power className="w-4 h-4" />
+                            Activate
+                          </>
+                        )}
+                      </button>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDeleteModal(row.original);
+                        }}
+                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                        Delete
+                      </button>
+                    </>
+                  )}
+                  {!canEdit && (
+                    <div className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-400 cursor-not-allowed">
+                      <Shield className="w-4 h-4" />
+                      Protected User
+                    </div>
+                  )}
+                </motion.div>
+              </>
+            )}
+          </div>
+        );
+      },
     },
   ];
 

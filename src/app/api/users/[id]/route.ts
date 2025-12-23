@@ -71,19 +71,38 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Get the current user's role to check if they're Super Admin
+    const currentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      include: { userRole: true },
+    });
+    const isSuperAdmin = currentUser?.userRole?.name === "SUPER_ADMIN";
+
+    // Get the target user to check if they're Super Admin
+    const targetUser = await prisma.user.findUnique({
+      where: { id },
+      include: { userRole: true },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Only Super Admin can edit other Super Admins
+    if (targetUser.userRole?.name === "SUPER_ADMIN" && !isSuperAdmin) {
+      return NextResponse.json(
+        { error: "Only Super Admin can modify Super Admin users" },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
-    const { name, email, phone, role, designation, department, dateOfBirth, gender, address, userRoleId, resetPassword } = body;
+    const { name, email, phone, role, designation, department, dateOfBirth, gender, address, userRoleId, resetPassword, isActive } = body;
 
     // Check if user is Super Admin for password reset
     let generatedPassword: string | null = null;
     if (resetPassword) {
-      // Verify the current user is Super Admin
-      const currentUser = await prisma.user.findUnique({
-        where: { id: session.user.id },
-        include: { userRole: true },
-      });
-      
-      if (!currentUser?.userRole || currentUser.userRole.name !== "SUPER_ADMIN") {
+      if (!isSuperAdmin) {
         return NextResponse.json(
           { error: "Only Super Admin can reset passwords" },
           { status: 403 }
@@ -130,6 +149,11 @@ export async function PUT(
       gender,
       address,
     };
+
+    // Add isActive if provided
+    if (typeof isActive === "boolean") {
+      updateData.isActive = isActive;
+    }
     
     // Add hashed password if reset was requested
     if (generatedPassword) {
@@ -171,6 +195,31 @@ export async function DELETE(
     const canDeleteUsers = await checkPermission(session.user.id, "USERS", "DELETE");
     if (!canDeleteUsers) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Get the current user's role to check if they're Super Admin
+    const currentUser = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      include: { userRole: true },
+    });
+    const isSuperAdmin = currentUser?.userRole?.name === "SUPER_ADMIN";
+
+    // Get the target user to check if they're Super Admin
+    const targetUser = await prisma.user.findUnique({
+      where: { id },
+      include: { userRole: true },
+    });
+
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    // Only Super Admin can delete other Super Admins
+    if (targetUser.userRole?.name === "SUPER_ADMIN" && !isSuperAdmin) {
+      return NextResponse.json(
+        { error: "Only Super Admin can delete Super Admin users" },
+        { status: 403 }
+      );
     }
 
     await prisma.user.delete({

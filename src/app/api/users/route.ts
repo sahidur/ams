@@ -98,6 +98,7 @@ export async function GET(request: NextRequest) {
         },
         approvalStatus: true,
         isVerified: true,
+        isActive: true,
         createdAt: true,
       },
       orderBy: { createdAt: "desc" },

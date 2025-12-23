@@ -91,6 +91,7 @@ model User {
   userRole       UserRole?      @relation(fields: [userRoleId], references: [id])
   approvalStatus ApprovalStatus @default(PENDING)
   isVerified     Boolean        @default(false)
+  isActive       Boolean        @default(true)  // User account active status
   createdBy      String?        // Admin who created the user (null if self-registered)
   
   // Personal Details
