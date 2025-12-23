@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { hash } from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { checkPermission } from "@/lib/permissions";
 
 export async function GET(request: NextRequest) {
   try {
@@ -16,9 +17,12 @@ export async function GET(request: NextRequest) {
     const minimal = searchParams.get("minimal") === "true";
     const search = searchParams.get("search") || "";
 
-    // Minimal mode for dropdown - accessible by ADMIN and HO_USER
+    // Minimal mode for dropdown - requires READ permission on USERS or BATCHES
     if (minimal) {
-      if (!["ADMIN", "HO_USER"].includes(session.user.role)) {
+      const canAccessUsers = await checkPermission(session.user.id, "USERS", "READ");
+      const canAccessBatches = await checkPermission(session.user.id, "BATCHES", "READ");
+      
+      if (!canAccessUsers && !canAccessBatches) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
@@ -45,10 +49,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(users);
     }
 
-    // Filter by role for dropdown (TRAINER/STUDENT) - accessible by ADMIN and HO_USER
+    // Filter by role for dropdown (TRAINER/STUDENT) - requires READ permission on BATCHES
     const roleFilter = searchParams.get("role");
     if (roleFilter && ["TRAINER", "STUDENT"].includes(roleFilter)) {
-      if (!["ADMIN", "HO_USER"].includes(session.user.role)) {
+      const canAccessBatches = await checkPermission(session.user.id, "BATCHES", "READ");
+      
+      if (!canAccessBatches) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
 
@@ -68,8 +74,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(users);
     }
 
-    // Full user list - only for ADMIN
-    if (session.user.role !== "ADMIN") {
+    // Full user list - requires READ permission on USERS
+    const canReadUsers = await checkPermission(session.user.id, "USERS", "READ");
+    if (!canReadUsers) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -110,7 +117,13 @@ export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
     
-    if (!session || session.user.role !== "ADMIN") {
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check WRITE permission on USERS module
+    const canWriteUsers = await checkPermission(session.user.id, "USERS", "WRITE");
+    if (!canWriteUsers) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

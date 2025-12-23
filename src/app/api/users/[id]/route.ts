@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { hash } from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { checkPermission } from "@/lib/permissions";
 
 export async function GET(
   request: Request,
@@ -60,7 +61,13 @@ export async function PUT(
     const session = await getServerSession(authOptions);
     const { id } = await params;
     
-    if (!session || session.user.role !== "ADMIN") {
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check WRITE permission on USERS module
+    const canWriteUsers = await checkPermission(session.user.id, "USERS", "WRITE");
+    if (!canWriteUsers) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
@@ -156,7 +163,13 @@ export async function DELETE(
     const session = await getServerSession(authOptions);
     const { id } = await params;
     
-    if (!session || session.user.role !== "ADMIN") {
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check DELETE permission on USERS module
+    const canDeleteUsers = await checkPermission(session.user.id, "USERS", "DELETE");
+    if (!canDeleteUsers) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

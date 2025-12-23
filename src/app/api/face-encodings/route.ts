@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { checkPermission } from "@/lib/permissions";
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,8 +11,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Only trainers and admins can add face encodings
-    if (!["ADMIN", "TRAINER"].includes(session.user.role)) {
+    // Check WRITE permission on FACE_TRAINING module
+    const canWriteFaceTraining = await checkPermission(session.user.id, "FACE_TRAINING", "WRITE");
+    if (!canWriteFaceTraining) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -75,8 +77,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(faceEncoding);
     }
 
-    // Get all face encodings (admin only)
-    if (session.user.role !== "ADMIN") {
+    // Get all face encodings (requires READ permission on FACE_TRAINING)
+    const canReadFaceTraining = await checkPermission(session.user.id, "FACE_TRAINING", "READ");
+    if (!canReadFaceTraining) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

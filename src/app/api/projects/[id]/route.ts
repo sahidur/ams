@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import prisma from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { checkPermission } from "@/lib/permissions";
 
 export async function GET(
   request: Request,
@@ -114,7 +115,13 @@ export async function DELETE(
     const session = await getServerSession(authOptions);
     const { id } = await params;
     
-    if (!session || session.user.role !== "ADMIN") {
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check DELETE permission on PROJECTS module
+    const canDeleteProjects = await checkPermission(session.user.id, "PROJECTS", "DELETE");
+    if (!canDeleteProjects) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

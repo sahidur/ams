@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { checkPermission } from "@/lib/permissions";
 
 const cohortUpdateSchema = z.object({
   cohortId: z.string().min(1, "Cohort ID is required"),
@@ -67,7 +68,9 @@ export async function PUT(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (session.user.role !== "ADMIN") {
+    // Check WRITE permission on PROJECTS module (cohorts are part of projects)
+    const canWriteProjects = await checkPermission(session.user.id, "PROJECTS", "WRITE");
+    if (!canWriteProjects) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -132,7 +135,9 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (session.user.role !== "ADMIN") {
+    // Check DELETE permission on PROJECTS module (cohorts are part of projects)
+    const canDeleteProjects = await checkPermission(session.user.id, "PROJECTS", "DELETE");
+    if (!canDeleteProjects) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

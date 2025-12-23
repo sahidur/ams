@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { checkPermission } from "@/lib/permissions";
 
 const cohortSchema = z.object({
   cohortId: z.string().min(1, "Cohort ID is required"),
@@ -71,7 +72,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    if (session.user.role !== "ADMIN") {
+    // Check WRITE permission on PROJECTS module (cohorts are part of projects)
+    const canWriteProjects = await checkPermission(session.user.id, "PROJECTS", "WRITE");
+    if (!canWriteProjects) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

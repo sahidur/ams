@@ -23,6 +23,90 @@ export interface UserPermissions {
 }
 
 /**
+ * Check if a user has permission for a module action (simplified for API routes)
+ * This is a quick check that doesn't require full permission loading
+ */
+export async function checkPermission(
+  userId: string,
+  module: ModuleName,
+  action: PermissionAction
+): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      userRole: {
+        include: {
+          permissions: true,
+        },
+      },
+    },
+  });
+
+  if (!user) {
+    return false;
+  }
+
+  // Check new role-based permissions
+  if (user.userRole) {
+    // Role must be active
+    if (!user.userRole.isActive) {
+      return false;
+    }
+
+    const modulePermission = user.userRole.permissions.find(p => p.module === module);
+    if (!modulePermission) {
+      return false;
+    }
+
+    // ALL grants all permissions
+    if (modulePermission.actions.includes("ALL")) {
+      return true;
+    }
+
+    return modulePermission.actions.includes(action);
+  }
+
+  // Fallback to legacy role permissions
+  return checkLegacyPermission(user.role, module, action);
+}
+
+/**
+ * Check legacy role permission
+ */
+function checkLegacyPermission(role: string, module: ModuleName, action: PermissionAction): boolean {
+  const legacyPermissions: Record<string, Record<string, string[]>> = {
+    ADMIN: {
+      DASHBOARD: ["ALL"], USERS: ["ALL"], ROLES: ["ALL"], PROJECTS: ["ALL"],
+      BRANCHES: ["ALL"], BATCHES: ["ALL"], CLASSES: ["ALL"], ATTENDANCE: ["ALL"],
+      FACE_TRAINING: ["ALL"], PROFILE: ["ALL"]
+    },
+    HO_USER: {
+      DASHBOARD: ["READ"], PROJECTS: ["READ"], BRANCHES: ["READ"],
+      BATCHES: ["READ"], CLASSES: ["READ"], ATTENDANCE: ["READ"], PROFILE: ["ALL"]
+    },
+    TRAINER: {
+      DASHBOARD: ["READ"], BATCHES: ["READ"], CLASSES: ["READ", "WRITE"],
+      ATTENDANCE: ["READ", "WRITE"], FACE_TRAINING: ["READ", "WRITE"], PROFILE: ["ALL"]
+    },
+    STUDENT: {
+      DASHBOARD: ["READ"], CLASSES: ["READ"], ATTENDANCE: ["READ"], PROFILE: ["ALL"]
+    },
+    BASIC_USER: {
+      DASHBOARD: ["READ"], PROFILE: ["ALL"]
+    }
+  };
+
+  const rolePerms = legacyPermissions[role];
+  if (!rolePerms) return false;
+
+  const modulePerms = rolePerms[module];
+  if (!modulePerms) return false;
+
+  if (modulePerms.includes("ALL")) return true;
+  return modulePerms.includes(action);
+}
+
+/**
  * Get permissions for a user
  */
 export async function getUserPermissions(userId: string): Promise<UserPermissions | null> {
