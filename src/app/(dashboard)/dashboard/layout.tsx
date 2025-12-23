@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession, signOut } from "next-auth/react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
@@ -29,8 +29,8 @@ interface NavItem {
   title: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
-  roles: string[];
-  children?: { title: string; href: string }[];
+  module: string; // SystemModule name for permission check
+  alwaysShow?: boolean; // For items that should always show (Dashboard, Profile)
 }
 
 const navItems: NavItem[] = [
@@ -38,63 +38,70 @@ const navItems: NavItem[] = [
     title: "Dashboard",
     href: "/dashboard",
     icon: LayoutDashboard,
-    roles: ["ADMIN", "HO_USER", "TRAINER", "STUDENT", "BASIC_USER"],
+    module: "DASHBOARD",
+    alwaysShow: true,
   },
   {
     title: "Users",
     href: "/dashboard/users",
     icon: Users,
-    roles: ["ADMIN"],
+    module: "USERS",
   },
   {
     title: "Roles",
     href: "/dashboard/roles",
     icon: Shield,
-    roles: ["ADMIN"],
+    module: "ROLES",
   },
   {
     title: "Projects",
     href: "/dashboard/projects",
     icon: FolderKanban,
-    roles: ["ADMIN", "HO_USER"],
+    module: "PROJECTS",
   },
   {
     title: "Branches",
     href: "/dashboard/branches",
     icon: Building2,
-    roles: ["ADMIN", "HO_USER"],
+    module: "BRANCHES",
   },
   {
     title: "Batches",
     href: "/dashboard/batches",
     icon: GraduationCap,
-    roles: ["ADMIN", "HO_USER", "TRAINER"],
+    module: "BATCHES",
   },
   {
     title: "Classes",
     href: "/dashboard/classes",
     icon: Calendar,
-    roles: ["ADMIN", "TRAINER", "STUDENT"],
+    module: "CLASSES",
   },
   {
     title: "Attendance",
     href: "/dashboard/attendance",
     icon: CalendarCheck,
-    roles: ["ADMIN", "TRAINER", "STUDENT"],
+    module: "ATTENDANCE",
   },
   {
     title: "Face Training",
     href: "/dashboard/face-training",
     icon: Camera,
-    roles: ["ADMIN", "TRAINER"],
+    module: "FACE_TRAINING",
   },
   {
     title: "Profile",
     href: "/dashboard/profile",
     icon: User,
-    roles: ["ADMIN", "HO_USER", "TRAINER", "STUDENT", "BASIC_USER"],
+    module: "PROFILE",
+    alwaysShow: true,
   },
 ];
+
+interface UserPermission {
+  module: string;
+  action: string;
+}
 
 export default function DashboardLayout({
   children,
@@ -106,6 +113,38 @@ export default function DashboardLayout({
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [userPermissions, setUserPermissions] = useState<UserPermission[]>([]);
+  const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+
+  // Fetch user permissions
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      if (session?.user?.id) {
+        try {
+          const res = await fetch("/api/roles/modules?userPermissions=true");
+          if (res.ok) {
+            const data = await res.json();
+            setUserPermissions(data.permissions || []);
+          }
+        } catch (error) {
+          console.error("Error fetching permissions:", error);
+        } finally {
+          setPermissionsLoaded(true);
+        }
+      }
+    };
+
+    if (status === "authenticated") {
+      fetchPermissions();
+    }
+  }, [session?.user?.id, status]);
+
+  // Check if user has at least READ permission for a module
+  const hasModuleAccess = (module: string): boolean => {
+    return userPermissions.some(
+      (p) => p.module === module && p.action === "READ"
+    );
+  };
 
   // Check if role is deactivated
   if (session?.error === "RoleDeactivated") {
@@ -140,10 +179,10 @@ export default function DashboardLayout({
     return null;
   }
 
-  const userRole = session?.user?.role || "BASIC_USER";
-  const filteredNavItems = navItems.filter((item) =>
-    item.roles.includes(userRole)
-  );
+  // Wait for permissions to load before filtering nav items
+  const filteredNavItems = permissionsLoaded
+    ? navItems.filter((item) => item.alwaysShow || hasModuleAccess(item.module))
+    : navItems.filter((item) => item.alwaysShow); // Show only always-visible items while loading
 
   const handleSignOut = () => {
     signOut({ callbackUrl: "/" });
@@ -235,7 +274,7 @@ export default function DashboardLayout({
                 <p className="text-sm font-medium text-gray-900">
                   {session?.user?.name}
                 </p>
-                <p className="text-xs text-gray-500">{userRole}</p>
+                <p className="text-xs text-gray-500">{session?.user?.userRoleName || session?.user?.role}</p>
               </div>
               <ChevronDown className="w-4 h-4 text-gray-500" />
             </button>
