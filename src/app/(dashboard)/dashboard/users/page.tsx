@@ -58,6 +58,7 @@ export default function UsersPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
+  const [isToggleActiveModalOpen, setIsToggleActiveModalOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
   const [selectedRoleId, setSelectedRoleId] = useState<string>("");
@@ -175,12 +176,13 @@ export default function UsersPage() {
     }
   };
 
-  const handleToggleActive = async (user: User) => {
+  const handleToggleActive = async () => {
+    if (!selectedUser) return;
     try {
-      const res = await fetch(`/api/users/${user.id}`, {
+      const res = await fetch(`/api/users/${selectedUser.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ isActive: !user.isActive }),
+        body: JSON.stringify({ isActive: !selectedUser.isActive }),
       });
       if (!res.ok) {
         const error = await res.json();
@@ -188,9 +190,16 @@ export default function UsersPage() {
         return;
       }
       fetchUsers();
+      setIsToggleActiveModalOpen(false);
+      setSelectedUser(null);
     } catch (error) {
       console.error("Error toggling user status:", error);
     }
+  };
+
+  const openToggleActiveModal = (user: User) => {
+    setSelectedUser(user);
+    setIsToggleActiveModalOpen(true);
     setActionMenuOpen(null);
   };
 
@@ -398,7 +407,7 @@ export default function UsersPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleToggleActive(row.original);
+                          openToggleActiveModal(row.original);
                         }}
                         className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
                           row.original.isActive 
@@ -618,6 +627,57 @@ export default function UsersPage() {
           <Button onClick={closePasswordModal} className="w-full">
             Done
           </Button>
+        </div>
+      </Modal>
+
+      {/* Toggle Active Confirmation Modal */}
+      <Modal
+        isOpen={isToggleActiveModalOpen}
+        onClose={() => {
+          setIsToggleActiveModalOpen(false);
+          setSelectedUser(null);
+        }}
+        title={selectedUser?.isActive ? "Deactivate User" : "Activate User"}
+        size="sm"
+      >
+        <div className="text-center">
+          <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
+            selectedUser?.isActive ? "bg-orange-100" : "bg-green-100"
+          }`}>
+            {selectedUser?.isActive ? (
+              <PowerOff className="w-6 h-6 text-orange-600" />
+            ) : (
+              <Power className="w-6 h-6 text-green-600" />
+            )}
+          </div>
+          <p className="text-gray-600 mb-6">
+            Are you sure you want to {selectedUser?.isActive ? "deactivate" : "activate"}{" "}
+            <span className="font-semibold">{selectedUser?.name}</span>?
+            {selectedUser?.isActive && (
+              <span className="block mt-2 text-sm text-orange-600">
+                This user will not be able to log in until reactivated.
+              </span>
+            )}
+          </p>
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsToggleActiveModalOpen(false);
+                setSelectedUser(null);
+              }} 
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant={selectedUser?.isActive ? "destructive" : "default"}
+              onClick={handleToggleActive} 
+              className="flex-1"
+            >
+              {selectedUser?.isActive ? "Deactivate" : "Activate"}
+            </Button>
+          </div>
         </div>
       </Modal>
     </div>
