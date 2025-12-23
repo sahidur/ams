@@ -55,6 +55,7 @@ export default function UsersPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [rolesLoading, setRolesLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
@@ -93,11 +94,14 @@ export default function UsersPage() {
 
   const fetchRoles = async () => {
     try {
+      setRolesLoading(true);
       const res = await fetch("/api/roles?activeOnly=true");
       const data = await res.json();
       setRoles(data);
     } catch (error) {
       console.error("Error fetching roles:", error);
+    } finally {
+      setRolesLoading(false);
     }
   };
 
@@ -521,19 +525,25 @@ export default function UsersPage() {
           />
           <div className="space-y-1">
             <label className="block text-sm font-medium text-gray-700">Role</label>
-            <select
-              value={selectedRoleId}
-              onChange={(e) => setSelectedRoleId(e.target.value)}
-              className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              required
-            >
-              <option value="">Select a role</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.id}>
-                  {role.displayName}
-                </option>
-              ))}
-            </select>
+            {rolesLoading ? (
+              <div className="flex h-11 w-full rounded-lg border border-gray-300 bg-gray-50 px-4 py-2 text-sm items-center">
+                <span className="text-gray-400">Loading roles...</span>
+              </div>
+            ) : (
+              <select
+                value={selectedRoleId}
+                onChange={(e) => setSelectedRoleId(e.target.value)}
+                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              >
+                <option value="">Select a role</option>
+                {roles.map((role) => (
+                  <option key={role.id} value={role.id}>
+                    {role.displayName}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
           {/* Hidden field for backwards compatibility */}
           <input type="hidden" {...register("role")} value="BASIC_USER" />
