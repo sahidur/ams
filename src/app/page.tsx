@@ -72,17 +72,16 @@ type Step1Data = z.infer<typeof step1Schema>;
 type Step2Data = z.infer<typeof step2Schema>;
 type Step3Data = z.infer<typeof step3Schema>;
 
-interface Project {
-  id: string;
-  name: string;
-  isActive: boolean;
-}
-
 interface Cohort {
   id: string;
   cohortId: string;
   name: string;
-  isActive: boolean;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  cohorts: Cohort[];
 }
 
 type TabType = "login" | "signup";
@@ -108,10 +107,13 @@ export default function AuthPage() {
 
   // Project/Cohort state
   const [projects, setProjects] = useState<Project[]>([]);
-  const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
-  const [cohortsLoading, setCohortsLoading] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState("");
+
+  // Get cohorts from selected project (pre-loaded, no separate API call)
+  const cohorts = selectedProjectId 
+    ? projects.find(p => p.id === selectedProjectId)?.cohorts || []
+    : [];
 
   // Redirect if already authenticated
   useEffect(() => {
@@ -120,20 +122,16 @@ export default function AuthPage() {
     }
   }, [session, status, router]);
 
-  // Fetch projects when switching to signup tab or step 2
+  // Fetch projects when switching to signup tab
   useEffect(() => {
-    if (activeTab === "signup") {
+    if (activeTab === "signup" && projects.length === 0) {
       fetchProjects();
     }
   }, [activeTab]);
 
-  // Fetch cohorts when project changes
+  // Clear cohort selection when project changes
   useEffect(() => {
-    if (selectedProjectId) {
-      fetchCohorts(selectedProjectId);
-    } else {
-      setCohorts([]);
-    }
+    step2Form.setValue("cohortId", "");
   }, [selectedProjectId]);
 
   const fetchProjects = async () => {
@@ -148,23 +146,6 @@ export default function AuthPage() {
       console.error("Error fetching projects:", error);
     } finally {
       setProjectsLoading(false);
-    }
-  };
-
-  const fetchCohorts = async (projectId: string) => {
-    setCohortsLoading(true);
-    setCohorts([]);
-    step2Form.setValue("cohortId", "");
-    try {
-      const res = await fetch(`/api/auth/register/options?projectId=${projectId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCohorts(data.cohorts || []);
-      }
-    } catch (error) {
-      console.error("Error fetching cohorts:", error);
-    } finally {
-      setCohortsLoading(false);
     }
   };
 
@@ -275,7 +256,6 @@ export default function AuthPage() {
     setCurrentStep(1);
     setFormData({});
     setSelectedProjectId("");
-    setCohorts([]);
     loginForm.reset();
     step1Form.reset();
     step2Form.reset();
@@ -860,18 +840,13 @@ export default function AuthPage() {
                             <label className="block text-sm font-medium text-slate-700 mb-1">Cohort *</label>
                             <div className="relative">
                               <Layers className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
-                              {cohortsLoading ? (
-                                <div className="flex h-11 w-full rounded-lg border border-gray-300 bg-gray-50 pl-10 pr-4 py-2 text-sm items-center">
-                                  <Loader2 className="w-4 h-4 animate-spin text-gray-400 mr-2" />
-                                  <span className="text-gray-400">Loading cohorts...</span>
-                                </div>
-                              ) : !selectedProjectId ? (
+                              {!selectedProjectId ? (
                                 <div className="flex h-11 w-full rounded-lg border border-gray-300 bg-gray-50 pl-10 pr-4 py-2 text-sm items-center text-gray-400">
                                   Select a project first
                                 </div>
                               ) : cohorts.length === 0 ? (
                                 <div className="flex h-11 w-full rounded-lg border border-gray-300 bg-gray-50 pl-10 pr-4 py-2 text-sm items-center text-gray-400">
-                                  No cohorts available
+                                  No active cohorts available
                                 </div>
                               ) : (
                                 <select

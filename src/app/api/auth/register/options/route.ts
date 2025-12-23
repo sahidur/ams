@@ -12,12 +12,12 @@ export async function GET(request: Request) {
       const cohorts = await prisma.cohort.findMany({
         where: {
           projectId,
+          isActive: true,
         },
         select: {
           id: true,
           cohortId: true,
           name: true,
-          isActive: true,
         },
         orderBy: { name: "asc" },
       });
@@ -25,7 +25,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ cohorts });
     }
 
-    // Otherwise, fetch all active projects
+    // Otherwise, fetch all active projects WITH their active cohorts
     const projects = await prisma.project.findMany({
       where: {
         isActive: true,
@@ -33,7 +33,15 @@ export async function GET(request: Request) {
       select: {
         id: true,
         name: true,
-        isActive: true,
+        cohorts: {
+          where: { isActive: true },
+          select: {
+            id: true,
+            cohortId: true,
+            name: true,
+          },
+          orderBy: { name: "asc" },
+        },
       },
       orderBy: { name: "asc" },
     });
