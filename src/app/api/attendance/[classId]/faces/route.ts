@@ -45,7 +45,7 @@ export async function GET(
       .map((s) => ({
         id: s.student.id,
         name: s.student.name,
-        encoding: s.student.faceEncodings[0].encoding as number[],
+        embedding: s.student.faceEncodings[0].encoding as number[],
       }));
 
     return NextResponse.json(knownFaces);

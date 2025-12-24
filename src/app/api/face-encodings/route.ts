@@ -71,10 +71,11 @@ export async function GET(request: NextRequest) {
     const userId = searchParams.get("userId");
 
     if (userId) {
-      const faceEncoding = await prisma.faceEncoding.findFirst({
+      // Count face encodings for a user
+      const count = await prisma.faceEncoding.count({
         where: { userId },
       });
-      return NextResponse.json(faceEncoding);
+      return NextResponse.json({ count });
     }
 
     // Get all face encodings (requires READ permission on FACE_TRAINING)
@@ -100,6 +101,41 @@ export async function GET(request: NextRequest) {
     console.error("Error fetching face encodings:", error);
     return NextResponse.json(
       { error: "Failed to fetch face encodings" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Check DELETE permission on FACE_TRAINING module
+    const canDeleteFaceTraining = await checkPermission(session.user.id, "FACE_TRAINING", "DELETE");
+    if (!canDeleteFaceTraining) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get("userId");
+
+    if (!userId) {
+      return NextResponse.json({ error: "userId is required" }, { status: 400 });
+    }
+
+    // Delete all face encodings for the user
+    await prisma.faceEncoding.deleteMany({
+      where: { userId },
+    });
+
+    return NextResponse.json({ success: true, message: "Face data deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting face encodings:", error);
+    return NextResponse.json(
+      { error: "Failed to delete face encodings" },
       { status: 500 }
     );
   }
