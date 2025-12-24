@@ -15,19 +15,15 @@ export async function GET(
 
     const { classId } = await params;
 
-    // Get the class with batch and students
+    // Get the class with students enrolled in the class (not batch)
     const classData = await prisma.class.findUnique({
       where: { id: classId },
       include: {
-        batch: {
+        students: {
           include: {
-            students: {
+            student: {
               include: {
-                student: {
-                  include: {
-                    faceEncodings: true,
-                  },
-                },
+                faceEncodings: true,
               },
             },
           },
@@ -39,8 +35,8 @@ export async function GET(
       return NextResponse.json({ error: "Class not found" }, { status: 404 });
     }
 
-    // Extract face encodings for all students in the batch
-    const knownFaces = classData.batch.students
+    // Extract face encodings for all students in the class
+    const knownFaces = classData.students
       .filter((s) => s.student.faceEncodings.length > 0)
       .map((s) => ({
         id: s.student.id,

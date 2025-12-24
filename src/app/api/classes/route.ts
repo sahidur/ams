@@ -31,15 +31,23 @@ export async function GET() {
                 name: true,
               },
             },
-            students: {
-              include: {
-                student: {
-                  select: {
-                    id: true,
-                    name: true,
-                    email: true,
-                  },
-                },
+            branch: {
+              select: {
+                id: true,
+                branchName: true,
+                upazila: true,
+                district: true,
+              },
+            },
+          },
+        },
+        students: {
+          include: {
+            student: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
               },
             },
           },
@@ -47,17 +55,19 @@ export async function GET() {
         _count: {
           select: {
             attendances: true,
+            students: true,
           },
         },
       },
       orderBy: { startDate: "desc" },
     });
 
-    // Transform _count.attendances to _count.attendance for frontend compatibility
+    // Transform for frontend compatibility
     const transformedClasses = classes.map(c => ({
       ...c,
       _count: {
         attendance: c._count.attendances,
+        students: c._count.students,
       },
     }));
 

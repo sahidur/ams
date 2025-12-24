@@ -112,6 +112,7 @@ model User {
   // Relations
   trainerBatches    Batch[]        @relation("BatchTrainer")
   studentBatches    BatchStudent[]
+  studentClasses    ClassStudent[]
   attendances       Attendance[]
   faceEncodings     FaceEncoding[]
   classes           Class[]        @relation("ClassCreator")
@@ -221,7 +222,7 @@ model Batch {
   updatedAt   DateTime @updatedAt
   
   // Relations
-  students    BatchStudent[]
+  students    BatchStudent[] // Deprecated - keeping for backward compatibility
   classes     Class[]
   
   @@map("batches")
@@ -263,8 +264,23 @@ model Class {
   
   // Relations
   attendances Attendance[]
+  students    ClassStudent[]
   
   @@map("classes")
+}
+
+// New: Students are assigned to classes, not batches
+model ClassStudent {
+  id        String   @id @default(cuid())
+  classId   String
+  class     Class    @relation(fields: [classId], references: [id], onDelete: Cascade)
+  studentId String
+  student   User     @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  
+  enrolledAt DateTime @default(now())
+  
+  @@unique([classId, studentId])
+  @@map("class_students")
 }
 
 model Attendance {

@@ -115,8 +115,8 @@ export default function AttendancePage() {
     setIsLoading(true);
 
     try {
-      // Fetch students in the batch
-      const studentsRes = await fetch(`/api/batches/${classInfo.batch.id}/students`);
+      // Fetch students in the class (not batch)
+      const studentsRes = await fetch(`/api/classes/${classInfo.id}/students`);
       let studentsData: Student[] = [];
       if (studentsRes.ok) {
         studentsData = await studentsRes.json();

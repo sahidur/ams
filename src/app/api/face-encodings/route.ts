@@ -18,11 +18,14 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { userId, encoding } = body;
+    const { userId, embedding, encoding } = body;
+    
+    // Accept both 'embedding' and 'encoding' for backward compatibility
+    const faceData = embedding || encoding;
 
-    if (!userId || !encoding || !Array.isArray(encoding)) {
+    if (!userId || !faceData || !Array.isArray(faceData)) {
       return NextResponse.json(
-        { error: "Invalid data. userId and encoding array required." },
+        { error: "Invalid data. userId and embedding array required." },
         { status: 400 }
       );
     }
@@ -45,7 +48,7 @@ export async function POST(request: NextRequest) {
     const faceEncoding = await prisma.faceEncoding.create({
       data: {
         userId,
-        encoding: encoding,
+        encoding: faceData,
         label: user.name, // Use user's name as the label
       },
     });

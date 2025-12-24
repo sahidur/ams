@@ -1,13 +1,27 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Plus, Edit2, Trash2, Calendar, Clock, Users } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { 
+  Plus, 
+  Edit2, 
+  Trash2, 
+  Calendar, 
+  Clock, 
+  Users, 
+  UserPlus,
+  X,
+  Check,
+  Search
+} from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { 
   Button, 
   Card, 
   CardContent, 
+  CardHeader,
+  CardTitle,
   Input, 
   Select, 
   Modal, 
@@ -29,6 +43,11 @@ interface ClassInfo {
   batch: {
     id: string;
     name: string;
+    branch?: {
+      branchName: string;
+      upazila: string;
+      district: string;
+    };
     trainer?: {
       id: string;
       name: string;
@@ -36,6 +55,7 @@ interface ClassInfo {
   };
   _count: {
     attendance: number;
+    students: number;
   };
 }
 
@@ -44,15 +64,31 @@ interface Batch {
   name: string;
   branch: {
     branchName: string;
+    upazila: string;
+    district: string;
   };
+}
+
+interface Student {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
 }
 
 export default function ClassesPage() {
   const [classes, setClasses] = useState<ClassInfo[]>([]);
   const [batches, setBatches] = useState<Batch[]>([]);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isStudentModalOpen, setIsStudentModalOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<ClassInfo | null>(null);
+  const [selectedClass, setSelectedClass] = useState<ClassInfo | null>(null);
+  const [classStudents, setClassStudents] = useState<Student[]>([]);
+  const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [isSavingStudents, setIsSavingStudents] = useState(false);
 
   const {
     register,
@@ -85,10 +121,21 @@ export default function ClassesPage() {
     }
   }, []);
 
+  const fetchAllStudents = useCallback(async () => {
+    try {
+      const res = await fetch("/api/users?role=STUDENT");
+      const data = await res.json();
+      setAllStudents(data);
+    } catch (error) {
+      console.error("Error fetching students:", error);
+    }
+  }, []);
+
   useEffect(() => {
     fetchClasses();
     fetchBatches();
-  }, [fetchClasses, fetchBatches]);
+    fetchAllStudents();
+  }, [fetchClasses, fetchBatches, fetchAllStudents]);
 
   const openModal = (classInfo?: ClassInfo) => {
     if (classInfo) {
@@ -115,6 +162,22 @@ export default function ClassesPage() {
       });
     }
     setIsModalOpen(true);
+  };
+
+  const openStudentModal = async (classInfo: ClassInfo) => {
+    setSelectedClass(classInfo);
+    setStudentSearch("");
+    try {
+      const res = await fetch(`/api/classes/${classInfo.id}/students`);
+      const data = await res.json();
+      setClassStudents(data);
+      setSelectedStudents(data.map((s: Student) => s.id));
+    } catch (error) {
+      console.error("Error fetching class students:", error);
+      setClassStudents([]);
+      setSelectedStudents([]);
+    }
+    setIsStudentModalOpen(true);
   };
 
   const onSubmit = async (data: ClassFormData) => {
@@ -151,6 +214,39 @@ export default function ClassesPage() {
     }
   };
 
+  const toggleStudent = (studentId: string) => {
+    setSelectedStudents((prev) =>
+      prev.includes(studentId)
+        ? prev.filter((id) => id !== studentId)
+        : [...prev, studentId]
+    );
+  };
+
+  const saveClassStudents = async () => {
+    if (!selectedClass) return;
+
+    setIsSavingStudents(true);
+    try {
+      await fetch(`/api/classes/${selectedClass.id}/students`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentIds: selectedStudents }),
+      });
+      fetchClasses();
+      setIsStudentModalOpen(false);
+    } catch (error) {
+      console.error("Error updating students:", error);
+    } finally {
+      setIsSavingStudents(false);
+    }
+  };
+
+  const filteredStudents = allStudents.filter(
+    (student) =>
+      student.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+      student.email.toLowerCase().includes(studentSearch.toLowerCase())
+  );
+
   const columns: ColumnDef<ClassInfo>[] = [
     {
       accessorKey: "name",
@@ -164,9 +260,16 @@ export default function ClassesPage() {
     },
     {
       accessorKey: "batch.name",
-      header: "Batch",
+      header: "Batch / Branch",
       cell: ({ row }) => (
-        <Badge variant="info">{row.original.batch.name}</Badge>
+        <div>
+          <Badge variant="info">{row.original.batch.name}</Badge>
+          {row.original.batch.branch && (
+            <p className="text-xs text-gray-500 mt-1">
+              {row.original.batch.branch.branchName}, {row.original.batch.branch.upazila}
+            </p>
+          )}
+        </div>
       ),
     },
     {
@@ -190,13 +293,28 @@ export default function ClassesPage() {
       ),
     },
     {
+      accessorKey: "_count.students",
+      header: "Students",
+      cell: ({ row }) => (
+        <Button
+          variant="ghost"
+          size="sm"
+          className="flex items-center gap-2"
+          onClick={() => openStudentModal(row.original)}
+        >
+          <Users className="w-4 h-4 text-blue-500" />
+          <span className="font-medium">{row.original._count?.students ?? 0}</span>
+          <UserPlus className="w-3 h-3 text-gray-400" />
+        </Button>
+      ),
+    },
+    {
       accessorKey: "_count.attendance",
       header: "Attendance",
       cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Users className="w-4 h-4 text-gray-400" />
+        <Badge variant={row.original._count?.attendance > 0 ? "success" : "default"}>
           {row.original._count?.attendance ?? 0} recorded
-        </div>
+        </Badge>
       ),
     },
     {
@@ -224,12 +342,15 @@ export default function ClassesPage() {
     },
   ];
 
+  // Calculate total students across all classes
+  const totalStudents = classes.reduce((acc, c) => acc + (c._count?.students ?? 0), 0);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-gray-900">Classes</h1>
-          <p className="text-gray-500 mt-1">Manage class schedules</p>
+          <p className="text-gray-500 mt-1">Manage classes and assign students</p>
         </div>
         <Button onClick={() => openModal()}>
           <Plus className="w-4 h-4 mr-2" />
@@ -238,7 +359,7 @@ export default function ClassesPage() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
@@ -255,14 +376,27 @@ export default function ClassesPage() {
         <Card>
           <CardContent className="p-6">
             <div className="flex items-center gap-4">
+              <div className="p-3 rounded-lg bg-indigo-100">
+                <Users className="w-6 h-6 text-indigo-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalStudents}</p>
+                <p className="text-sm text-gray-500">Students Enrolled</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-6">
+            <div className="flex items-center gap-4">
               <div className="p-3 rounded-lg bg-green-100">
-                <Users className="w-6 h-6 text-green-600" />
+                <Check className="w-6 h-6 text-green-600" />
               </div>
               <div>
                 <p className="text-2xl font-bold">
-                  {classes.reduce((acc, c) => acc + c._count.attendance, 0)}
+                  {classes.reduce((acc, c) => acc + (c._count?.attendance ?? 0), 0)}
                 </p>
-                <p className="text-sm text-gray-500">Total Attendance Records</p>
+                <p className="text-sm text-gray-500">Attendance Records</p>
               </div>
             </div>
           </CardContent>
@@ -282,6 +416,22 @@ export default function ClassesPage() {
         </Card>
       </div>
 
+      {/* Info Card */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <Users className="w-5 h-5 text-blue-600 mt-0.5" />
+            <div>
+              <p className="font-medium text-blue-800">Student Management</p>
+              <p className="text-sm text-blue-600">
+                Click on the student count in any class row to add or remove students. 
+                Students must be assigned to classes for face training and attendance.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Data Table */}
       <Card>
         <CardContent className="p-0">
@@ -299,7 +449,7 @@ export default function ClassesPage() {
         </CardContent>
       </Card>
 
-      {/* Add/Edit Modal */}
+      {/* Add/Edit Class Modal */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -326,7 +476,7 @@ export default function ClassesPage() {
             <option value="">Select Batch</option>
             {batches.map((batch) => (
               <option key={batch.id} value={batch.id}>
-                {batch.name} - {batch.branch.branchName}
+                {batch.name} - {batch.branch.branchName}, {batch.branch.upazila}
               </option>
             ))}
           </Select>
@@ -374,6 +524,107 @@ export default function ClassesPage() {
             </Button>
           </div>
         </form>
+      </Modal>
+
+      {/* Student Management Modal */}
+      <Modal
+        isOpen={isStudentModalOpen}
+        onClose={() => setIsStudentModalOpen(false)}
+        title={`Manage Students - ${selectedClass?.name || ""}`}
+      >
+        <div className="space-y-4">
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search students..."
+              value={studentSearch}
+              onChange={(e) => setStudentSearch(e.target.value)}
+              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            />
+          </div>
+
+          {/* Selected count */}
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-600">
+              {selectedStudents.length} students selected
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                className="text-blue-600 hover:text-blue-700"
+                onClick={() => setSelectedStudents(allStudents.map((s) => s.id))}
+              >
+                Select All
+              </button>
+              <span className="text-gray-300">|</span>
+              <button
+                type="button"
+                className="text-gray-600 hover:text-gray-700"
+                onClick={() => setSelectedStudents([])}
+              >
+                Clear All
+              </button>
+            </div>
+          </div>
+
+          {/* Student List */}
+          <div className="max-h-[400px] overflow-y-auto space-y-2 border rounded-lg p-2">
+            {filteredStudents.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                No students found. Create students in the Users page first.
+              </div>
+            ) : (
+              filteredStudents.map((student) => (
+                <motion.div
+                  key={student.id}
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
+                    selectedStudents.includes(student.id)
+                      ? "bg-blue-50 border border-blue-300"
+                      : "bg-gray-50 border border-transparent hover:border-gray-200"
+                  }`}
+                  onClick={() => toggleStudent(student.id)}
+                >
+                  <div
+                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
+                      selectedStudents.includes(student.id)
+                        ? "bg-blue-600 border-blue-600"
+                        : "border-gray-300"
+                    }`}
+                  >
+                    {selectedStudents.includes(student.id) && (
+                      <Check className="w-3 h-3 text-white" />
+                    )}
+                  </div>
+                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-medium">
+                    {student.name.charAt(0)}
+                  </div>
+                  <div className="flex-1">
+                    <p className="font-medium text-sm">{student.name}</p>
+                    <p className="text-xs text-gray-500">{student.email}</p>
+                  </div>
+                </motion.div>
+              ))
+            )}
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button
+              variant="outline"
+              onClick={() => setIsStudentModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button onClick={saveClassStudents} isLoading={isSavingStudents}>
+              <Check className="w-4 h-4 mr-2" />
+              Save ({selectedStudents.length} students)
+            </Button>
+          </div>
+        </div>
       </Modal>
     </div>
   );

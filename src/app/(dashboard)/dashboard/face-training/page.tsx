@@ -15,7 +15,9 @@ import {
   Trash2,
   UserCheck,
   Loader2,
-  UserPlus
+  UserPlus,
+  Calendar,
+  Clock
 } from "lucide-react";
 import { 
   Button, 
@@ -27,6 +29,7 @@ import {
   Select,
   Modal
 } from "@/components/ui";
+import { formatDate } from "@/lib/utils";
 
 // Dynamic import to avoid SSR issues with Human.js
 const HumanFaceRecognition = dynamic(
@@ -42,22 +45,24 @@ const HumanFaceRecognition = dynamic(
   }
 );
 
-interface Batch {
+interface ClassInfo {
   id: string;
   name: string;
-  branch: {
-    id: string;
-    branchName: string;
-    upazila: string;
-    district: string;
-  };
-  cohort?: {
+  subject: string;
+  startDate: string;
+  startTime: string;
+  endTime: string;
+  batch: {
     id: string;
     name: string;
+    branch?: {
+      branchName: string;
+      upazila: string;
+      district: string;
+    };
   };
-  _count: { 
+  _count: {
     students: number;
-    classes: number;
   };
 }
 
@@ -73,9 +78,9 @@ export default function FaceTrainingPage() {
   const { data: session } = useSession();
   
   // Training state
-  const [batches, setBatches] = useState<Batch[]>([]);
-  const [selectedBatchId, setSelectedBatchId] = useState("");
-  const [selectedBatch, setSelectedBatch] = useState<Batch | null>(null);
+  const [classes, setClasses] = useState<ClassInfo[]>([]);
+  const [selectedClassId, setSelectedClassId] = useState("");
+  const [selectedClass, setSelectedClass] = useState<ClassInfo | null>(null);
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   
@@ -87,42 +92,42 @@ export default function FaceTrainingPage() {
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
 
-  // Fetch batches for trainer
+  // Fetch classes
   useEffect(() => {
-    const fetchBatches = async () => {
+    const fetchClasses = async () => {
       try {
-        const res = await fetch("/api/batches");
+        const res = await fetch("/api/classes");
         if (res.ok) {
           const data = await res.json();
-          setBatches(data);
+          setClasses(data);
         }
       } catch (error) {
-        console.error("Error fetching batches:", error);
+        console.error("Error fetching classes:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
-    fetchBatches();
+    fetchClasses();
   }, []);
 
-  // Fetch students when batch is selected
+  // Fetch students when class is selected
   useEffect(() => {
     const fetchStudents = async () => {
-      if (!selectedBatchId) {
+      if (!selectedClassId) {
         setStudents([]);
-        setSelectedBatch(null);
+        setSelectedClass(null);
         return;
       }
 
       setIsLoadingStudents(true);
       
-      // Find selected batch info
-      const batch = batches.find(b => b.id === selectedBatchId);
-      setSelectedBatch(batch || null);
+      // Find selected class info
+      const classInfo = classes.find(c => c.id === selectedClassId);
+      setSelectedClass(classInfo || null);
 
       try {
-        const res = await fetch(`/api/batches/${selectedBatchId}/students`);
+        const res = await fetch(`/api/classes/${selectedClassId}/students`);
         if (res.ok) {
           const data = await res.json();
           // Enrich with face encoding count
@@ -146,7 +151,7 @@ export default function FaceTrainingPage() {
     };
 
     fetchStudents();
-  }, [selectedBatchId, batches]);
+  }, [selectedClassId, classes]);
 
   // Handle face training complete
   const handleFaceTrained = async (embeddings: number[][]) => {
@@ -167,7 +172,6 @@ export default function FaceTrainingPage() {
         body: JSON.stringify({
           userId: selectedStudent.id,
           embedding: avgEmbedding,
-          label: selectedStudent.name,
         }),
       });
 
@@ -178,7 +182,7 @@ export default function FaceTrainingPage() {
         setStudents((prev) =>
           prev.map((s) =>
             s.id === selectedStudent.id 
-              ? { ...s, faceEncodingCount: s.faceEncodingCount + 1 } 
+              ? { ...s, faceEncodingCount: 1 } 
               : s
           )
         );
@@ -186,7 +190,7 @@ export default function FaceTrainingPage() {
         setSelectedStudent(null);
       } else {
         const error = await res.json();
-        setMessage({ type: "error", text: error.message || "Failed to save face data" });
+        setMessage({ type: "error", text: error.error || "Failed to save face data" });
       }
     } catch (error) {
       console.error("Error saving face encoding:", error);
@@ -226,11 +230,11 @@ export default function FaceTrainingPage() {
 
   // Refresh students
   const refreshStudents = async () => {
-    if (!selectedBatchId) return;
+    if (!selectedClassId) return;
     
     setIsLoadingStudents(true);
     try {
-      const res = await fetch(`/api/batches/${selectedBatchId}/students`);
+      const res = await fetch(`/api/classes/${selectedClassId}/students`);
       if (res.ok) {
         const data = await res.json();
         const enrichedStudents = await Promise.all(
@@ -304,36 +308,36 @@ export default function FaceTrainingPage() {
         )}
       </AnimatePresence>
 
-      {/* Batch Selection */}
+      {/* Class Selection */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <GraduationCap className="w-5 h-5" />
-            Select Batch
+            Select Class
           </CardTitle>
         </CardHeader>
         <CardContent>
           <Select
-            value={selectedBatchId}
+            value={selectedClassId}
             onChange={(e) => {
-              setSelectedBatchId(e.target.value);
+              setSelectedClassId(e.target.value);
               setSelectedStudent(null);
             }}
           >
-            <option value="">Select a batch...</option>
-            {batches.map((batch) => (
-              <option key={batch.id} value={batch.id}>
-                {batch.name} - {batch.branch.branchName}, {batch.branch.upazila} ({batch._count.students} students)
+            <option value="">Select a class...</option>
+            {classes.map((cls) => (
+              <option key={cls.id} value={cls.id}>
+                {cls.name} - {cls.batch.name} ({cls._count?.students ?? 0} students) • {formatDate(cls.startDate)}
               </option>
             ))}
           </Select>
           
-          {batches.length === 0 && (
+          {classes.length === 0 && (
             <div className="mt-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
               <p className="text-yellow-700">
-                No batches found. Please create a batch first in the{" "}
-                <Link href="/dashboard/batches" className="underline font-medium">
-                  Batches page
+                No classes found. Please create a class first in the{" "}
+                <Link href="/dashboard/classes" className="underline font-medium">
+                  Classes page
                 </Link>
                 .
               </p>
@@ -342,8 +346,39 @@ export default function FaceTrainingPage() {
         </CardContent>
       </Card>
 
+      {/* Selected Class Info */}
+      {selectedClass && (
+        <Card className="bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-white shadow-sm">
+                  <Calendar className="w-6 h-6 text-blue-600" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900">{selectedClass.name}</h3>
+                  <p className="text-sm text-gray-600">
+                    {selectedClass.batch.name} • {selectedClass.batch.branch?.branchName}, {selectedClass.batch.branch?.upazila}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-sm text-gray-600">
+                <div className="flex items-center gap-1">
+                  <Calendar className="w-4 h-4" />
+                  {formatDate(selectedClass.startDate)}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock className="w-4 h-4" />
+                  {selectedClass.startTime} - {selectedClass.endTime}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Stats */}
-      {selectedBatchId && (
+      {selectedClassId && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <Card>
             <CardContent className="p-4 text-center">
@@ -375,7 +410,7 @@ export default function FaceTrainingPage() {
       )}
 
       {/* Training Section */}
-      {selectedBatchId && (
+      {selectedClassId && (
         <div className="grid lg:grid-cols-2 gap-6">
           {/* Face Capture */}
           <Card>
@@ -432,7 +467,7 @@ export default function FaceTrainingPage() {
                   >
                     <RefreshCw className={`w-4 h-4 ${isLoadingStudents ? "animate-spin" : ""}`} />
                   </Button>
-                  <Link href="/dashboard/batches">
+                  <Link href="/dashboard/classes">
                     <Button size="sm" variant="outline">
                       <UserPlus className="w-4 h-4 mr-1" />
                       Manage Students
@@ -480,7 +515,7 @@ export default function FaceTrainingPage() {
                           {student.faceEncodingCount > 0 ? (
                             <span className="flex items-center gap-1">
                               <CheckCircle2 className="w-3 h-3" />
-                              {student.faceEncodingCount} faces
+                              Trained
                             </span>
                           ) : (
                             "Not Trained"
@@ -505,11 +540,11 @@ export default function FaceTrainingPage() {
                   {students.length === 0 && (
                     <div className="text-center py-12 text-gray-500">
                       <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
-                      <p className="font-medium">No students in this batch</p>
+                      <p className="font-medium">No students in this class</p>
                       <p className="text-sm mt-1">
-                        Add students to this batch from the{" "}
-                        <Link href="/dashboard/batches" className="text-blue-600 underline">
-                          Batches page
+                        Add students to this class from the{" "}
+                        <Link href="/dashboard/classes" className="text-blue-600 underline">
+                          Classes page
                         </Link>
                       </p>
                     </div>
@@ -521,37 +556,6 @@ export default function FaceTrainingPage() {
         </div>
       )}
 
-      {/* Selected Batch Info */}
-      {selectedBatch && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Batch Information</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-              <div>
-                <p className="text-gray-500">Batch Name</p>
-                <p className="font-medium">{selectedBatch.name}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Branch</p>
-                <p className="font-medium">{selectedBatch.branch.branchName}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Location</p>
-                <p className="font-medium">{selectedBatch.branch.upazila}, {selectedBatch.branch.district}</p>
-              </div>
-              {selectedBatch.cohort && (
-                <div>
-                  <p className="text-gray-500">Cohort</p>
-                  <p className="font-medium">{selectedBatch.cohort.name}</p>
-                </div>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
       {/* Instructions */}
       <Card>
         <CardHeader>
@@ -559,7 +563,7 @@ export default function FaceTrainingPage() {
         </CardHeader>
         <CardContent>
           <ol className="list-decimal list-inside space-y-2 text-gray-600">
-            <li>Select a batch from the dropdown above</li>
+            <li>Select a class from the dropdown above</li>
             <li>Click on a student from the list to start face registration</li>
             <li>Position the student clearly in front of the camera</li>
             <li>Click &quot;Start Capture&quot; - system will capture 5 images automatically</li>
@@ -572,10 +576,10 @@ export default function FaceTrainingPage() {
               <UserPlus className="w-4 h-4" />
               <span>
                 <strong>Need to add students?</strong> Go to{" "}
-                <Link href="/dashboard/batches" className="underline">
-                  Batches page
+                <Link href="/dashboard/classes" className="underline">
+                  Classes page
                 </Link>{" "}
-                → Click on student icon → Select students to add to batch.
+                → Click on student count → Select students to add to class.
               </span>
             </p>
           </div>

@@ -41,6 +41,15 @@ export async function GET() {
             name: true,
           },
         },
+        classes: {
+          include: {
+            _count: {
+              select: {
+                students: true,
+              },
+            },
+          },
+        },
         _count: {
           select: {
             students: true,
@@ -51,7 +60,21 @@ export async function GET() {
       orderBy: { createdAt: "desc" },
     });
 
-    return NextResponse.json(batches);
+    // Calculate total unique students from all classes in each batch
+    const batchesWithStudentCount = batches.map(batch => {
+      // Sum students from all classes
+      const classStudentCount = batch.classes.reduce((sum, cls) => sum + cls._count.students, 0);
+      return {
+        ...batch,
+        classes: undefined, // Remove classes array from response
+        _count: {
+          ...batch._count,
+          students: classStudentCount || batch._count.students, // Use class students if available, otherwise batch students
+        },
+      };
+    });
+
+    return NextResponse.json(batchesWithStudentCount);
   } catch (error) {
     console.error("Error fetching batches:", error);
     return NextResponse.json(
