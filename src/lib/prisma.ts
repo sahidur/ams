@@ -15,10 +15,17 @@ function createPrismaClient() {
       connectionString: process.env.DATABASE_URL,
       ssl: {
         rejectUnauthorized: false // Accept self-signed certificates
-      }
+      },
+      // Connection pool settings for better performance
+      max: 10, // Maximum number of connections
+      idleTimeoutMillis: 30000, // Close idle connections after 30 seconds
+      connectionTimeoutMillis: 10000, // Timeout after 10 seconds when acquiring connection
     });
     const adapter = new PrismaPg(pool);
-    return new PrismaClient({ adapter });
+    return new PrismaClient({ 
+      adapter,
+      log: process.env.NODE_ENV === 'development' ? ['error', 'warn'] : ['error'],
+    });
   }
   // Fallback for environments without DATABASE_URL (build time)
   return new PrismaClient();

@@ -69,6 +69,7 @@ export default function UsersPage() {
   const [passwordCopied, setPasswordCopied] = useState(false);
   const [resetPassword, setResetPassword] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>("active");
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Check if current user is Super Admin
   const isSuperAdmin = session?.user?.userRoleName === "Super Admin" || 
@@ -89,12 +90,22 @@ export default function UsersPage() {
   const displayedUsers = activeTab === "active" ? activeUsers : pendingUsers;
 
   const fetchUsers = async () => {
+    setFetchError(null);
     try {
-      const res = await fetch("/api/users");
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      
+      const res = await fetch("/api/users", { signal: controller.signal });
+      clearTimeout(timeoutId);
+      
+      if (!res.ok) {
+        throw new Error('Failed to fetch users');
+      }
       const data = await res.json();
       setUsers(data);
     } catch (error) {
       console.error("Error fetching users:", error);
+      setFetchError(error instanceof Error ? error.message : 'Failed to load users');
     } finally {
       setIsLoading(false);
     }
@@ -583,6 +594,13 @@ export default function UsersPage() {
           {isLoading ? (
             <div className="flex items-center justify-center h-64">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+            </div>
+          ) : fetchError ? (
+            <div className="flex flex-col items-center justify-center h-64 text-gray-500">
+              <p className="text-red-500 mb-4">{fetchError}</p>
+              <Button onClick={() => { setIsLoading(true); fetchUsers(); }} variant="outline">
+                Try Again
+              </Button>
             </div>
           ) : displayedUsers.length === 0 ? (
             <div className="text-center py-12 text-gray-500">

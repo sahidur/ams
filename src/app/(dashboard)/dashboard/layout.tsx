@@ -115,21 +115,48 @@ export default function DashboardLayout({
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [userPermissions, setUserPermissions] = useState<UserPermission[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
+  const [permissionsError, setPermissionsError] = useState(false);
 
-  // Fetch user permissions
+  // Fetch user permissions with retry
   useEffect(() => {
+    let isMounted = true;
+    let retryCount = 0;
+    const maxRetries = 2;
+    
     const fetchPermissions = async () => {
       if (session?.user?.id) {
         try {
-          const res = await fetch("/api/roles/modules?userPermissions=true");
-          if (res.ok) {
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), 10000);
+          
+          const res = await fetch("/api/roles/modules?userPermissions=true", {
+            signal: controller.signal,
+          });
+          clearTimeout(timeoutId);
+          
+          if (res.ok && isMounted) {
             const data = await res.json();
             setUserPermissions(data.permissions || []);
+            setPermissionsError(false);
+          } else if (isMounted && retryCount < maxRetries) {
+            retryCount++;
+            setTimeout(fetchPermissions, 1000);
+            return;
           }
         } catch (error) {
           console.error("Error fetching permissions:", error);
+          if (isMounted) {
+            if (retryCount < maxRetries) {
+              retryCount++;
+              setTimeout(fetchPermissions, 1000);
+              return;
+            }
+            setPermissionsError(true);
+          }
         } finally {
-          setPermissionsLoaded(true);
+          if (isMounted) {
+            setPermissionsLoaded(true);
+          }
         }
       }
     };
@@ -137,6 +164,10 @@ export default function DashboardLayout({
     if (status === "authenticated") {
       fetchPermissions();
     }
+    
+    return () => {
+      isMounted = false;
+    };
   }, [session?.user?.id, status]);
 
   // Check if user is Super Admin (should have access to everything)

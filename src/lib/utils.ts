@@ -5,6 +5,54 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// API fetch with timeout and better error handling
+export async function fetchWithTimeout(
+  url: string, 
+  options: RequestInit = {}, 
+  timeout = 15000
+): Promise<Response> {
+  const controller = new AbortController();
+  const id = setTimeout(() => controller.abort(), timeout);
+  
+  try {
+    const response = await fetch(url, {
+      ...options,
+      signal: controller.signal,
+    });
+    clearTimeout(id);
+    return response;
+  } catch (error) {
+    clearTimeout(id);
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Request timeout - please try again');
+    }
+    throw error;
+  }
+}
+
+// Safe JSON fetch with timeout
+export async function safeFetch<T>(
+  url: string, 
+  options: RequestInit = {}
+): Promise<{ data: T | null; error: string | null }> {
+  try {
+    const res = await fetchWithTimeout(url, options);
+    const data = await res.json();
+    
+    if (!res.ok) {
+      return { data: null, error: data.error || 'Request failed' };
+    }
+    
+    return { data, error: null };
+  } catch (error) {
+    console.error('Fetch error:', error);
+    return { 
+      data: null, 
+      error: error instanceof Error ? error.message : 'Network error' 
+    };
+  }
+}
+
 export function formatDate(date: Date | string): string {
   return new Date(date).toLocaleDateString("en-US", {
     year: "numeric",
