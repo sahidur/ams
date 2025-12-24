@@ -44,12 +44,24 @@ export async function GET() {
             },
           },
         },
-        attendances: true,
+        _count: {
+          select: {
+            attendances: true,
+          },
+        },
       },
       orderBy: { startDate: "desc" },
     });
 
-    return NextResponse.json(classes);
+    // Transform _count.attendances to _count.attendance for frontend compatibility
+    const transformedClasses = classes.map(c => ({
+      ...c,
+      _count: {
+        attendance: c._count.attendances,
+      },
+    }));
+
+    return NextResponse.json(transformedClasses);
   } catch (error) {
     console.error("Error fetching classes:", error);
     return NextResponse.json(

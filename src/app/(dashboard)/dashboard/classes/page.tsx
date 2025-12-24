@@ -195,7 +195,7 @@ export default function ClassesPage() {
       cell: ({ row }) => (
         <div className="flex items-center gap-2">
           <Users className="w-4 h-4 text-gray-400" />
-          {row.original._count.attendance} recorded
+          {row.original._count?.attendance ?? 0} recorded
         </div>
       ),
     },
