@@ -123,22 +123,56 @@ model User {
   @@map("users")
 }
 
-model Project {
-  id             String   @id @default(cuid())
-  name           String
-  donorName      String
-  startDate      DateTime
-  endDate        DateTime
-  description    String?
-  isActive       Boolean  @default(true)
-  focalPersonId  String?
-  focalPerson    User?    @relation("ProjectFocalPerson", fields: [focalPersonId], references: [id])
-  
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+model ProjectModelType {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  startDate   DateTime  @default(now())
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
   
   // Relations
-  cohorts        Cohort[]
+  projects    Project[]
+  
+  @@map("project_model_types")
+}
+
+model TrainingType {
+  id          String    @id @default(cuid())
+  name        String    @unique
+  description String?
+  startDate   DateTime  @default(now())
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  // Relations
+  projects    Project[]
+  
+  @@map("training_types")
+}
+
+model Project {
+  id              String   @id @default(cuid())
+  name            String
+  donorName       String
+  startDate       DateTime
+  endDate         DateTime
+  description     String?
+  isActive        Boolean  @default(true)
+  focalPersonId   String?
+  focalPerson     User?    @relation("ProjectFocalPerson", fields: [focalPersonId], references: [id])
+  modelTypeId     String?
+  modelType       ProjectModelType? @relation(fields: [modelTypeId], references: [id])
+  trainingTypeId  String?
+  trainingType    TrainingType?     @relation(fields: [trainingTypeId], references: [id])
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Relations
+  cohorts         Cohort[]
   userAssignments UserProjectAssignment[]
   
   @@map("projects")

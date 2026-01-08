@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { type ColumnDef } from "@tanstack/react-table";
-import { Plus, Pencil, Trash2, MoreHorizontal, Calendar, Users, ExternalLink, Clock, Search, X, User } from "lucide-react";
+import { Plus, Pencil, Trash2, MoreHorizontal, Calendar, Users, ExternalLink, Clock, Search, X, User, Layers, GraduationCap } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { 
   Button, 
@@ -28,6 +28,16 @@ interface FocalPerson {
   designation?: string;
 }
 
+interface ModelType {
+  id: string;
+  name: string;
+}
+
+interface TrainingType {
+  id: string;
+  name: string;
+}
+
 interface Project {
   id: string;
   name: string;
@@ -38,6 +48,10 @@ interface Project {
   isActive: boolean;
   focalPersonId: string | null;
   focalPerson: FocalPerson | null;
+  modelTypeId: string | null;
+  modelType: ModelType | null;
+  trainingTypeId: string | null;
+  trainingType: TrainingType | null;
   _count: {
     cohorts: number;
   };
@@ -59,6 +73,20 @@ export default function ProjectsPage() {
   const [isUserDropdownOpen, setIsUserDropdownOpen] = useState(false);
   const [selectedFocalPerson, setSelectedFocalPerson] = useState<FocalPerson | null>(null);
   const userDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Model Type search
+  const [modelTypes, setModelTypes] = useState<ModelType[]>([]);
+  const [modelTypeSearch, setModelTypeSearch] = useState("");
+  const [isModelTypeDropdownOpen, setIsModelTypeDropdownOpen] = useState(false);
+  const [selectedModelType, setSelectedModelType] = useState<ModelType | null>(null);
+  const modelTypeDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Training Type search
+  const [trainingTypes, setTrainingTypes] = useState<TrainingType[]>([]);
+  const [trainingTypeSearch, setTrainingTypeSearch] = useState("");
+  const [isTrainingTypeDropdownOpen, setIsTrainingTypeDropdownOpen] = useState(false);
+  const [selectedTrainingType, setSelectedTrainingType] = useState<TrainingType | null>(null);
+  const trainingTypeDropdownRef = useRef<HTMLDivElement>(null);
 
   const {
     register,
@@ -93,9 +121,35 @@ export default function ProjectsPage() {
     }
   };
 
+  const fetchModelTypes = async () => {
+    try {
+      const res = await fetch("/api/model-types?activeOnly=true");
+      if (res.ok) {
+        const data = await res.json();
+        setModelTypes(data);
+      }
+    } catch (error) {
+      console.error("Error fetching model types:", error);
+    }
+  };
+
+  const fetchTrainingTypes = async () => {
+    try {
+      const res = await fetch("/api/training-types?activeOnly=true");
+      if (res.ok) {
+        const data = await res.json();
+        setTrainingTypes(data);
+      }
+    } catch (error) {
+      console.error("Error fetching training types:", error);
+    }
+  };
+
   useEffect(() => {
     fetchProjects();
     fetchUsers();
+    fetchModelTypes();
+    fetchTrainingTypes();
   }, []);
 
   useEffect(() => {
@@ -112,6 +166,12 @@ export default function ProjectsPage() {
     const handleClickOutside = (event: MouseEvent) => {
       if (userDropdownRef.current && !userDropdownRef.current.contains(event.target as Node)) {
         setIsUserDropdownOpen(false);
+      }
+      if (modelTypeDropdownRef.current && !modelTypeDropdownRef.current.contains(event.target as Node)) {
+        setIsModelTypeDropdownOpen(false);
+      }
+      if (trainingTypeDropdownRef.current && !trainingTypeDropdownRef.current.contains(event.target as Node)) {
+        setIsTrainingTypeDropdownOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -131,6 +191,8 @@ export default function ProjectsPage() {
         body: JSON.stringify({
           ...data,
           focalPersonId: selectedFocalPerson?.id || null,
+          modelTypeId: selectedModelType?.id || null,
+          trainingTypeId: selectedTrainingType?.id || null,
           isActive: selectedProject?.isActive ?? true,
         }),
       });
@@ -160,6 +222,8 @@ export default function ProjectsPage() {
           endDate: selectedProject.endDate,
           description: selectedProject.description,
           focalPersonId: selectedProject.focalPersonId,
+          modelTypeId: selectedProject.modelTypeId,
+          trainingTypeId: selectedProject.trainingTypeId,
           isActive: !selectedProject.isActive,
         }),
       });
@@ -192,6 +256,8 @@ export default function ProjectsPage() {
   const openEditModal = (project: Project) => {
     setSelectedProject(project);
     setSelectedFocalPerson(project.focalPerson);
+    setSelectedModelType(project.modelType);
+    setSelectedTrainingType(project.trainingType);
     reset({
       name: project.name,
       donorName: project.donorName,
@@ -219,9 +285,23 @@ export default function ProjectsPage() {
     setIsModalOpen(false);
     setSelectedProject(null);
     setSelectedFocalPerson(null);
+    setSelectedModelType(null);
+    setSelectedTrainingType(null);
     setUserSearch("");
+    setModelTypeSearch("");
+    setTrainingTypeSearch("");
     reset();
   };
+
+  // Filter model types based on search
+  const filteredModelTypes = modelTypes.filter((mt) =>
+    mt.name.toLowerCase().includes(modelTypeSearch.toLowerCase())
+  );
+
+  // Filter training types based on search
+  const filteredTrainingTypes = trainingTypes.filter((tt) =>
+    tt.name.toLowerCase().includes(trainingTypeSearch.toLowerCase())
+  );
 
   const columns: ColumnDef<Project>[] = [
     {
@@ -235,6 +315,32 @@ export default function ProjectsPage() {
           <p className="font-medium text-gray-900 hover:text-blue-600">{row.original.name}</p>
           <p className="text-xs text-gray-500">Donor: {row.original.donorName}</p>
         </div>
+      ),
+    },
+    {
+      accessorKey: "modelType",
+      header: "Model Type",
+      cell: ({ row }) => (
+        row.original.modelType ? (
+          <Badge variant="default" className="bg-purple-100 text-purple-700">
+            {row.original.modelType.name}
+          </Badge>
+        ) : (
+          <span className="text-gray-400 text-sm">-</span>
+        )
+      ),
+    },
+    {
+      accessorKey: "trainingType",
+      header: "Training Type",
+      cell: ({ row }) => (
+        row.original.trainingType ? (
+          <Badge variant="info" className="bg-blue-100 text-blue-700">
+            {row.original.trainingType.name}
+          </Badge>
+        ) : (
+          <span className="text-gray-400 text-sm">-</span>
+        )
       ),
     },
     {
@@ -498,6 +604,127 @@ export default function ProjectsPage() {
                   )}
                 </>
               )}
+            </div>
+          </div>
+
+          {/* Model Type and Training Type Dropdowns */}
+          <div className="grid grid-cols-2 gap-4">
+            {/* Model Type Dropdown */}
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Model Type</label>
+              <div className="relative" ref={modelTypeDropdownRef}>
+                {selectedModelType ? (
+                  <div className="flex items-center justify-between p-3 border border-gray-300 rounded-lg bg-purple-50">
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-4 h-4 text-purple-600" />
+                      <span className="text-sm font-medium">{selectedModelType.name}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedModelType(null)}
+                      className="p-1 hover:bg-purple-100 rounded-full"
+                    >
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search model types..."
+                        value={modelTypeSearch}
+                        onChange={(e) => setModelTypeSearch(e.target.value)}
+                        onFocus={() => setIsModelTypeDropdownOpen(true)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-500"
+                      />
+                    </div>
+                    {isModelTypeDropdownOpen && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                        {filteredModelTypes.length > 0 ? (
+                          filteredModelTypes.map((mt) => (
+                            <button
+                              key={mt.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedModelType(mt);
+                                setIsModelTypeDropdownOpen(false);
+                                setModelTypeSearch("");
+                              }}
+                              className="w-full flex items-center gap-2 px-4 py-2 hover:bg-purple-50 text-left"
+                            >
+                              <Layers className="w-4 h-4 text-purple-600" />
+                              <span className="text-sm font-medium">{mt.name}</span>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="px-4 py-3 text-sm text-gray-500">No model types found</p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+
+            {/* Training Type Dropdown */}
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Training Type</label>
+              <div className="relative" ref={trainingTypeDropdownRef}>
+                {selectedTrainingType ? (
+                  <div className="flex items-center justify-between p-3 border border-gray-300 rounded-lg bg-blue-50">
+                    <div className="flex items-center gap-2">
+                      <GraduationCap className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-medium">{selectedTrainingType.name}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedTrainingType(null)}
+                      className="p-1 hover:bg-blue-100 rounded-full"
+                    >
+                      <X className="w-4 h-4 text-gray-500" />
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                      <input
+                        type="text"
+                        placeholder="Search training types..."
+                        value={trainingTypeSearch}
+                        onChange={(e) => setTrainingTypeSearch(e.target.value)}
+                        onFocus={() => setIsTrainingTypeDropdownOpen(true)}
+                        className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
+                    {isTrainingTypeDropdownOpen && (
+                      <div className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-auto">
+                        {filteredTrainingTypes.length > 0 ? (
+                          filteredTrainingTypes.map((tt) => (
+                            <button
+                              key={tt.id}
+                              type="button"
+                              onClick={() => {
+                                setSelectedTrainingType(tt);
+                                setIsTrainingTypeDropdownOpen(false);
+                                setTrainingTypeSearch("");
+                              }}
+                              className="w-full flex items-center gap-2 px-4 py-2 hover:bg-blue-50 text-left"
+                            >
+                              <GraduationCap className="w-4 h-4 text-blue-600" />
+                              <span className="text-sm font-medium">{tt.name}</span>
+                            </button>
+                          ))
+                        ) : (
+                          <p className="px-4 py-3 text-sm text-gray-500">No training types found</p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
             </div>
           </div>
 

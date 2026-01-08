@@ -32,6 +32,12 @@ export async function GET(
         focalPerson: {
           select: { id: true, name: true, email: true },
         },
+        modelType: {
+          select: { id: true, name: true },
+        },
+        trainingType: {
+          select: { id: true, name: true },
+        },
       },
     });
 
@@ -62,7 +68,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, donorName, startDate, endDate, description, isActive, focalPersonId } = body;
+    const { name, donorName, startDate, endDate, description, isActive, focalPersonId, modelTypeId, trainingTypeId } = body;
 
     // If trying to deactivate, check for active cohorts
     if (isActive === false) {
@@ -91,6 +97,8 @@ export async function PUT(
         description,
         isActive,
         focalPersonId: focalPersonId || null,
+        modelTypeId: modelTypeId || null,
+        trainingTypeId: trainingTypeId || null,
       },
     });
 

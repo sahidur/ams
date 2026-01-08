@@ -23,6 +23,12 @@ export async function GET(request: NextRequest) {
         focalPerson: {
           select: { id: true, name: true, email: true },
         },
+        modelType: {
+          select: { id: true, name: true },
+        },
+        trainingType: {
+          select: { id: true, name: true },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -46,7 +52,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { name, donorName, startDate, endDate, description, focalPersonId } = body;
+    const { name, donorName, startDate, endDate, description, focalPersonId, modelTypeId, trainingTypeId } = body;
 
     const project = await prisma.project.create({
       data: {
@@ -56,6 +62,8 @@ export async function POST(request: Request) {
         endDate: new Date(endDate),
         description,
         focalPersonId: focalPersonId || null,
+        modelTypeId: modelTypeId || null,
+        trainingTypeId: trainingTypeId || null,
       },
     });
 

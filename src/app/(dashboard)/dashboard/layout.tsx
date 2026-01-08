@@ -21,6 +21,8 @@ import {
   Settings,
   Camera,
   Shield,
+  Layers,
+  BookOpen,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -57,6 +59,18 @@ const navItems: NavItem[] = [
     title: "Projects",
     href: "/dashboard/projects",
     icon: FolderKanban,
+    module: "PROJECTS",
+  },
+  {
+    title: "Model Types",
+    href: "/dashboard/model-types",
+    icon: Layers,
+    module: "PROJECTS",
+  },
+  {
+    title: "Training Types",
+    href: "/dashboard/training-types",
+    icon: BookOpen,
     module: "PROJECTS",
   },
   {
