@@ -6,7 +6,6 @@ import { DataTable } from "@/components/ui/data-table";
 import { ColumnDef } from "@tanstack/react-table";
 import { 
   Plus, 
-  Search, 
   MoreVertical, 
   Edit, 
   Trash2, 
@@ -33,7 +32,6 @@ interface TrainingType {
 export default function TrainingTypesPage() {
   const [trainingTypes, setTrainingTypes] = useState<TrainingType[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
@@ -197,10 +195,6 @@ export default function TrainingTypesPage() {
       day: "numeric",
     });
   };
-
-  const filteredTrainingTypes = trainingTypes.filter((tt) =>
-    tt.name.toLowerCase().includes(searchTerm.toLowerCase())
-  );
 
   const columns: ColumnDef<TrainingType>[] = [
     {
@@ -367,20 +361,13 @@ export default function TrainingTypesPage() {
         </Card>
       </div>
 
-      {/* Search and Table */}
+      {/* Table */}
       <Card className="p-6">
-        <div className="mb-4">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <Input
-              placeholder="Search training types..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
-            />
-          </div>
-        </div>
-        <DataTable columns={columns} data={filteredTrainingTypes} />
+        <DataTable 
+          columns={columns} 
+          data={trainingTypes} 
+          searchPlaceholder="Search training types..."
+        />
       </Card>
 
       {/* Add/Edit Modal */}
