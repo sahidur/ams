@@ -271,15 +271,11 @@ export default function DashboardLayout({
       ? mainNavItems.filter((item) => item.alwaysShow || hasModuleAccess(item.module))
       : mainNavItems.filter((item) => item.alwaysShow);
 
-  // Filter admin tools items based on permissions
-  const filteredAdminToolsItems = isSuperAdmin
-    ? adminToolsSection.items
-    : permissionsLoaded
-      ? adminToolsSection.items.filter((item) => hasModuleAccess(item.module))
-      : [];
+  // Admin Tools section is only visible to Super Admin
+  const filteredAdminToolsItems = isSuperAdmin ? adminToolsSection.items : [];
 
-  // Check if admin tools section should be visible
-  const showAdminTools = filteredAdminToolsItems.length > 0;
+  // Check if admin tools section should be visible (Super Admin only)
+  const showAdminTools = isSuperAdmin;
 
   // For backward compatibility (used in permission checks)
   const filteredNavItems = isSuperAdmin
