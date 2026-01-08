@@ -368,8 +368,8 @@ export default function AuthPage() {
               <CalendarCheck className="w-8 h-8 text-white" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-white">AMS</h1>
-              <p className="text-slate-400 text-sm">Attendance Management System</p>
+              <h1 className="text-3xl font-bold text-white">Somadhanhobe</h1>
+              <p className="text-slate-400 text-sm">Programme Management System</p>
             </div>
           </motion.div>
 
@@ -381,13 +381,13 @@ export default function AuthPage() {
             className="mb-12"
           >
             <h2 className="text-4xl font-bold text-white leading-tight mb-4">
-              Manage Your Workforce
+              Programme Management
               <span className="block text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-indigo-400">
-                Seamlessly
+                Made Simple
               </span>
             </h2>
             <p className="text-slate-400 text-lg max-w-md">
-              AI-powered attendance tracking with face recognition, role-based access, and beautiful dashboards.
+              From Proposal Development to Operation to Impact - Complete programme lifecycle management.
             </p>
           </motion.div>
 
@@ -434,7 +434,7 @@ export default function AuthPage() {
             <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
               <CalendarCheck className="w-7 h-7 text-white" />
             </div>
-            <span className="text-2xl font-bold text-white">AMS</span>
+            <span className="text-2xl font-bold text-white">Somadhanhobe</span>
           </div>
 
           {/* Card */}
@@ -980,7 +980,7 @@ export default function AuthPage() {
             transition={{ delay: 0.5 }}
             className="text-center text-slate-500 text-sm mt-8"
           >
-            © {new Date().getFullYear()} AMS. All rights reserved.
+            © {new Date().getFullYear()} Somadhanhobe. All rights reserved.
           </motion.p>
         </motion.div>
       </div>

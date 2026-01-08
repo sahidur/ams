@@ -370,6 +370,19 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
       ),
     },
     {
+      accessorKey: "branches",
+      header: "Branches",
+      cell: ({ row }) => (
+        <Link
+          href={`/dashboard/cohorts/${row.original.id}`}
+          className="flex items-center gap-2 text-blue-600 hover:text-blue-800 hover:underline"
+        >
+          <MapPin className="w-4 h-4" />
+          <span>{row.original._count?.directBranches || 0} branches</span>
+        </Link>
+      ),
+    },
+    {
       accessorKey: "isActive",
       header: "Status",
       cell: ({ row }) => (
@@ -402,14 +415,6 @@ export default function ProjectDetailPage({ params }: { params: Promise<{ id: st
                 animate={{ opacity: 1, scale: 1 }}
                 className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
               >
-                <Link
-                  href={`/dashboard/cohorts/${row.original.id}`}
-                  onClick={() => setActionMenuOpen(null)}
-                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-blue-600 hover:bg-blue-50"
-                >
-                  <MapPin className="w-4 h-4" />
-                  View Branches ({row.original._count?.directBranches || 0})
-                </Link>
                 <button
                   onClick={(e) => {
                     e.stopPropagation();

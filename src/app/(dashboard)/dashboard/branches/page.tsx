@@ -18,7 +18,9 @@ import {
   ChevronDown,
   Building2,
   Layers,
-  Search
+  Search,
+  ToggleLeft,
+  ToggleRight
 } from "lucide-react";
 import { 
   Button, 
@@ -91,6 +93,7 @@ export default function BranchesPage() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
   const [selectedBranch, setSelectedBranch] = useState<Branch | null>(null);
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
   const [uploadData, setUploadData] = useState<BulkBranchInput[]>([]);
@@ -334,6 +337,42 @@ export default function BranchesPage() {
     setActionMenuOpen(null);
   };
 
+  const openStatusModal = (branch: Branch) => {
+    setSelectedBranch(branch);
+    setIsStatusModalOpen(true);
+    setActionMenuOpen(null);
+  };
+
+  const handleToggleStatus = async () => {
+    if (!selectedBranch) return;
+    try {
+      const res = await fetch(`/api/branches/${selectedBranch.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          division: selectedBranch.division,
+          district: selectedBranch.district,
+          upazila: selectedBranch.upazila,
+          branchName: selectedBranch.branchName,
+          branchCode: selectedBranch.branchCode,
+          cohortId: selectedBranch.cohort?.id || null,
+          isActive: !selectedBranch.isActive,
+        }),
+      });
+
+      if (res.ok) {
+        fetchBranches();
+        setIsStatusModalOpen(false);
+        setSelectedBranch(null);
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to update status");
+      }
+    } catch (error) {
+      console.error("Error updating status:", error);
+    }
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setSelectedBranch(null);
@@ -432,7 +471,7 @@ export default function BranchesPage() {
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="absolute right-0 top-full mt-1 w-40 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+                className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
               >
                 <button
                   onClick={() => openEditModal(row.original)}
@@ -440,6 +479,19 @@ export default function BranchesPage() {
                 >
                   <Pencil className="w-4 h-4" />
                   Edit
+                </button>
+                <button
+                  onClick={() => openStatusModal(row.original)}
+                  className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                    row.original.isActive ? "text-orange-600 hover:bg-orange-50" : "text-green-600 hover:bg-green-50"
+                  }`}
+                >
+                  {row.original.isActive ? (
+                    <ToggleLeft className="w-4 h-4" />
+                  ) : (
+                    <ToggleRight className="w-4 h-4" />
+                  )}
+                  {row.original.isActive ? "Deactivate" : "Activate"}
                 </button>
                 <button
                   onClick={() => openDeleteModal(row.original)}
@@ -801,6 +853,42 @@ export default function BranchesPage() {
             </Button>
             <Button variant="destructive" onClick={handleDelete} className="flex-1">
               Delete
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Status Change Confirmation Modal */}
+      <Modal
+        isOpen={isStatusModalOpen}
+        onClose={() => setIsStatusModalOpen(false)}
+        title={selectedBranch?.isActive ? "Deactivate Branch" : "Activate Branch"}
+        size="sm"
+      >
+        <div className="text-center">
+          <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
+            selectedBranch?.isActive ? "bg-orange-100" : "bg-green-100"
+          }`}>
+            {selectedBranch?.isActive ? (
+              <ToggleLeft className="w-6 h-6 text-orange-600" />
+            ) : (
+              <ToggleRight className="w-6 h-6 text-green-600" />
+            )}
+          </div>
+          <p className="text-gray-600 mb-6">
+            Are you sure you want to {selectedBranch?.isActive ? "deactivate" : "activate"}{" "}
+            branch <span className="font-semibold">&quot;{selectedBranch?.branchName}&quot;</span>?
+          </p>
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setIsStatusModalOpen(false)} className="flex-1">
+              Cancel
+            </Button>
+            <Button 
+              variant={selectedBranch?.isActive ? "destructive" : "success"}
+              onClick={handleToggleStatus} 
+              className="flex-1"
+            >
+              {selectedBranch?.isActive ? "Deactivate" : "Activate"}
             </Button>
           </div>
         </div>

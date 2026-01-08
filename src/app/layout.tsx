@@ -8,7 +8,7 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "AMS - Attendance Management System",
+  title: "Somadhanhobe - Programme Management System",
   description: "AI-Powered Project and Workforce Management System with Face Recognition Attendance",
 };
 
