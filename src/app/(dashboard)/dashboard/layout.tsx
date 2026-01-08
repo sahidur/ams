@@ -23,6 +23,7 @@ import {
   Shield,
   Layers,
   BookOpen,
+  Wrench,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -35,7 +36,15 @@ interface NavItem {
   alwaysShow?: boolean; // For items that should always show (Dashboard, Profile)
 }
 
-const navItems: NavItem[] = [
+interface NavSection {
+  title: string;
+  icon: React.ComponentType<{ className?: string }>;
+  items: NavItem[];
+  module?: string; // Optional module check for entire section
+}
+
+// Main navigation items (not in a section)
+const mainNavItems: NavItem[] = [
   {
     title: "Dashboard",
     href: "/dashboard",
@@ -50,27 +59,9 @@ const navItems: NavItem[] = [
     module: "USERS",
   },
   {
-    title: "Roles",
-    href: "/dashboard/roles",
-    icon: Shield,
-    module: "ROLES",
-  },
-  {
     title: "Projects",
     href: "/dashboard/projects",
     icon: FolderKanban,
-    module: "PROJECTS",
-  },
-  {
-    title: "Model Types",
-    href: "/dashboard/model-types",
-    icon: Layers,
-    module: "PROJECTS",
-  },
-  {
-    title: "Training Types",
-    href: "/dashboard/training-types",
-    icon: BookOpen,
     module: "PROJECTS",
   },
   {
@@ -112,6 +103,39 @@ const navItems: NavItem[] = [
   },
 ];
 
+// Admin Tools section
+const adminToolsSection: NavSection = {
+  title: "Admin Tools",
+  icon: Wrench,
+  items: [
+    {
+      title: "Roles",
+      href: "/dashboard/roles",
+      icon: Shield,
+      module: "ROLES",
+    },
+    {
+      title: "Model Types",
+      href: "/dashboard/model-types",
+      icon: Layers,
+      module: "PROJECTS",
+    },
+    {
+      title: "Training Types",
+      href: "/dashboard/training-types",
+      icon: BookOpen,
+      module: "PROJECTS",
+    },
+  ],
+};
+
+// Keep navItems for backward compatibility (flattened list)
+const navItems: NavItem[] = [
+  ...mainNavItems.slice(0, 2), // Dashboard, Users
+  ...adminToolsSection.items, // Roles, Model Types, Training Types
+  ...mainNavItems.slice(2), // Rest of items
+];
+
 interface UserPermission {
   module: string;
   action: string;
@@ -127,9 +151,18 @@ export default function DashboardLayout({
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [adminToolsOpen, setAdminToolsOpen] = useState(false);
   const [userPermissions, setUserPermissions] = useState<UserPermission[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [permissionsError, setPermissionsError] = useState(false);
+
+  // Auto-expand Admin Tools if current page is within it
+  useEffect(() => {
+    const isInAdminTools = adminToolsSection.items.some(item => pathname === item.href);
+    if (isInAdminTools) {
+      setAdminToolsOpen(true);
+    }
+  }, [pathname]);
 
   // Fetch user permissions with retry
   useEffect(() => {
@@ -231,16 +264,41 @@ export default function DashboardLayout({
     return null;
   }
 
-  // Super Admin sees all menus, others wait for permissions to load
+  // Filter main nav items based on permissions
+  const filteredMainNavItems = isSuperAdmin
+    ? mainNavItems
+    : permissionsLoaded
+      ? mainNavItems.filter((item) => item.alwaysShow || hasModuleAccess(item.module))
+      : mainNavItems.filter((item) => item.alwaysShow);
+
+  // Filter admin tools items based on permissions
+  const filteredAdminToolsItems = isSuperAdmin
+    ? adminToolsSection.items
+    : permissionsLoaded
+      ? adminToolsSection.items.filter((item) => hasModuleAccess(item.module))
+      : [];
+
+  // Check if admin tools section should be visible
+  const showAdminTools = filteredAdminToolsItems.length > 0;
+
+  // For backward compatibility (used in permission checks)
   const filteredNavItems = isSuperAdmin
-    ? navItems // Super Admin sees all
+    ? navItems
     : permissionsLoaded
       ? navItems.filter((item) => item.alwaysShow || hasModuleAccess(item.module))
-      : navItems.filter((item) => item.alwaysShow); // Show only always-visible items while loading
+      : navItems.filter((item) => item.alwaysShow);
 
   const handleSignOut = () => {
     signOut({ callbackUrl: "/" });
   };
+
+  // Split main items to insert Admin Tools after Users
+  const topNavItems = filteredMainNavItems.filter(item => 
+    item.href === "/dashboard" || item.href === "/dashboard/users"
+  );
+  const bottomNavItems = filteredMainNavItems.filter(item => 
+    item.href !== "/dashboard" && item.href !== "/dashboard/users"
+  );
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -279,8 +337,88 @@ export default function DashboardLayout({
           </button>
         </div>
 
-        <nav className="p-4 space-y-1">
-          {filteredNavItems.map((item) => {
+        <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-4rem)]">
+          {/* Top nav items (Dashboard, Users) */}
+          {topNavItems.map((item) => {
+            const isActive = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={() => setSidebarOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                  isActive
+                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                )}
+              >
+                <item.icon className="w-5 h-5" />
+                {item.title}
+              </Link>
+            );
+          })}
+
+          {/* Admin Tools Section */}
+          {showAdminTools && (
+            <div className="pt-2">
+              <button
+                onClick={() => setAdminToolsOpen(!adminToolsOpen)}
+                className={cn(
+                  "w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                  adminToolsOpen || adminToolsSection.items.some(item => pathname === item.href)
+                    ? "bg-gray-100 text-gray-900"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <Wrench className="w-5 h-5" />
+                  Admin Tools
+                </div>
+                <ChevronDown className={cn(
+                  "w-4 h-4 transition-transform duration-200",
+                  adminToolsOpen ? "rotate-180" : ""
+                )} />
+              </button>
+              
+              <AnimatePresence>
+                {adminToolsOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pl-4 pt-1 space-y-1">
+                      {filteredAdminToolsItems.map((item) => {
+                        const isActive = pathname === item.href;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setSidebarOpen(false)}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                              isActive
+                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                            )}
+                          >
+                            <item.icon className="w-4 h-4" />
+                            {item.title}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Bottom nav items (Projects, Branches, etc.) */}
+          {bottomNavItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
