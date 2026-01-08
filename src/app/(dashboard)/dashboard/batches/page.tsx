@@ -1,8 +1,23 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, Edit2, Trash2, Users, GraduationCap, X } from "lucide-react";
+import { 
+  Plus, 
+  Edit2, 
+  Trash2, 
+  Users, 
+  GraduationCap, 
+  X, 
+  ChevronRight,
+  ChevronLeft,
+  FolderKanban,
+  Layers,
+  Building2,
+  Search,
+  Check
+} from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { 
@@ -10,7 +25,6 @@ import {
   Card, 
   CardContent, 
   Input, 
-  Select, 
   Modal, 
   Badge,
   DataTable,
@@ -33,6 +47,10 @@ interface Batch {
   cohort?: {
     id: string;
     name: string;
+    project?: {
+      id: string;
+      name: string;
+    };
   };
   trainer?: {
     id: string;
@@ -49,11 +67,24 @@ interface Branch {
   branchName: string;
   district: string;
   upazila: string;
+  cohort?: {
+    id: string;
+    name: string;
+  };
 }
 
 interface Cohort {
   id: string;
+  cohortId: string;
   name: string;
+  isActive: boolean;
+}
+
+interface Project {
+  id: string;
+  name: string;
+  isActive: boolean;
+  cohorts: Cohort[];
 }
 
 interface Trainer {
@@ -67,10 +98,15 @@ interface Student {
   email: string;
 }
 
+// Trainer role name
+const TRAINER_ROLE = "Trainer";
+
 export default function BatchesPage() {
+  const { data: session } = useSession();
   const [batches, setBatches] = useState<Batch[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
-  const [cohorts, setCohorts] = useState<Cohort[]>([]);
+  const [filteredBranches, setFilteredBranches] = useState<Branch[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [trainers, setTrainers] = useState<Trainer[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -81,10 +117,37 @@ export default function BatchesPage() {
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [batchStudents, setBatchStudents] = useState<Student[]>([]);
 
+  // Step-based form state
+  const [currentStep, setCurrentStep] = useState(1);
+  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [selectedCohortId, setSelectedCohortId] = useState("");
+  
+  // Searchable dropdowns state
+  const [projectSearch, setProjectSearch] = useState("");
+  const [cohortSearch, setCohortSearch] = useState("");
+  const [trainerSearch, setTrainerSearch] = useState("");
+  const [branchSearch, setBranchSearch] = useState("");
+  const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
+  const [isCohortDropdownOpen, setIsCohortDropdownOpen] = useState(false);
+  const [isTrainerDropdownOpen, setIsTrainerDropdownOpen] = useState(false);
+  const [isBranchDropdownOpen, setIsBranchDropdownOpen] = useState(false);
+  const [selectedTrainerId, setSelectedTrainerId] = useState("");
+  const [selectedBranchId, setSelectedBranchId] = useState("");
+  
+  // Refs for dropdown click outside handling
+  const projectDropdownRef = useRef<HTMLDivElement>(null);
+  const cohortDropdownRef = useRef<HTMLDivElement>(null);
+  const trainerDropdownRef = useRef<HTMLDivElement>(null);
+  const branchDropdownRef = useRef<HTMLDivElement>(null);
+
+  const userRoleName = session?.user?.userRoleName || "";
+  const isTrainer = userRoleName === TRAINER_ROLE;
+
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<BatchFormData>({
     resolver: zodResolver(batchSchema),
@@ -102,39 +165,134 @@ export default function BatchesPage() {
     }
   }, []);
 
-  const fetchOptions = useCallback(async () => {
+  const fetchUserProjects = useCallback(async () => {
     try {
-      const [branchRes, cohortRes, trainerRes, studentRes] = await Promise.all([
-        fetch("/api/branches"),
-        fetch("/api/cohorts"),
-        fetch("/api/users?role=TRAINER"),
-        fetch("/api/users?role=STUDENT"),
-      ]);
-      
-      const [branchData, cohortData, trainerData, studentData] = await Promise.all([
-        branchRes.json(),
-        cohortRes.json(),
-        trainerRes.json(),
-        studentRes.json(),
-      ]);
-
-      setBranches(branchData);
-      setCohorts(cohortData);
-      setTrainers(trainerData);
-      setStudents(studentData);
+      const res = await fetch("/api/users/my-projects?activeOnly=true");
+      const data = await res.json();
+      setProjects(data.projects || []);
     } catch (error) {
-      console.error("Error fetching options:", error);
+      console.error("Error fetching projects:", error);
+    }
+  }, []);
+
+  const fetchBranches = useCallback(async () => {
+    try {
+      const res = await fetch("/api/branches?activeOnly=true");
+      const data = await res.json();
+      setBranches(data);
+    } catch (error) {
+      console.error("Error fetching branches:", error);
+    }
+  }, []);
+
+  const fetchTrainers = useCallback(async () => {
+    try {
+      const res = await fetch("/api/users?role=TRAINER");
+      const data = await res.json();
+      setTrainers(data);
+    } catch (error) {
+      console.error("Error fetching trainers:", error);
+    }
+  }, []);
+
+  const fetchStudents = useCallback(async () => {
+    try {
+      const res = await fetch("/api/users?role=STUDENT");
+      const data = await res.json();
+      setStudents(data);
+    } catch (error) {
+      console.error("Error fetching students:", error);
     }
   }, []);
 
   useEffect(() => {
     fetchBatches();
-    fetchOptions();
-  }, [fetchBatches, fetchOptions]);
+    fetchUserProjects();
+    fetchBranches();
+    fetchTrainers();
+    fetchStudents();
+  }, [fetchBatches, fetchUserProjects, fetchBranches, fetchTrainers, fetchStudents]);
+
+  // Filter branches based on selected cohort
+  useEffect(() => {
+    if (selectedCohortId) {
+      const cohortBranches = branches.filter(b => b.cohort?.id === selectedCohortId);
+      setFilteredBranches(cohortBranches);
+      // Reset branch selection if not in filtered list
+      if (!cohortBranches.find(b => b.id === selectedBranchId)) {
+        setSelectedBranchId("");
+        setValue("branchId", "");
+      }
+    } else {
+      setFilteredBranches([]);
+      setSelectedBranchId("");
+      setValue("branchId", "");
+    }
+  }, [selectedCohortId, branches, selectedBranchId, setValue]);
+
+  // Auto-fill trainer if user is a Trainer
+  useEffect(() => {
+    if (isTrainer && session?.user?.id && !editingBatch) {
+      setSelectedTrainerId(session.user.id);
+      setValue("trainerId", session.user.id);
+    }
+  }, [isTrainer, session?.user?.id, editingBatch, setValue]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (projectDropdownRef.current && !projectDropdownRef.current.contains(event.target as Node)) {
+        setIsProjectDropdownOpen(false);
+      }
+      if (cohortDropdownRef.current && !cohortDropdownRef.current.contains(event.target as Node)) {
+        setIsCohortDropdownOpen(false);
+      }
+      if (trainerDropdownRef.current && !trainerDropdownRef.current.contains(event.target as Node)) {
+        setIsTrainerDropdownOpen(false);
+      }
+      if (branchDropdownRef.current && !branchDropdownRef.current.contains(event.target as Node)) {
+        setIsBranchDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Get cohorts for selected project
+  const selectedProject = projects.find(p => p.id === selectedProjectId);
+  const cohorts = selectedProject?.cohorts || [];
+
+  // Get selected entities for display
+  const selectedProjectName = selectedProject?.name || "";
+  const selectedCohortName = cohorts.find(c => c.id === selectedCohortId)?.name || "";
+  const selectedTrainerName = trainers.find(t => t.id === selectedTrainerId)?.name || "";
+  const selectedBranchName = filteredBranches.find(b => b.id === selectedBranchId)?.branchName || "";
+
+  // Filtered lists for search
+  const filteredProjects = projects.filter(p => 
+    p.name.toLowerCase().includes(projectSearch.toLowerCase())
+  );
+  const filteredCohorts = cohorts.filter(c => 
+    c.name.toLowerCase().includes(cohortSearch.toLowerCase()) ||
+    c.cohortId.toLowerCase().includes(cohortSearch.toLowerCase())
+  );
+  const filteredTrainers = trainers.filter(t => 
+    t.name.toLowerCase().includes(trainerSearch.toLowerCase())
+  );
+  const filteredBranchList = filteredBranches.filter(b => 
+    b.branchName.toLowerCase().includes(branchSearch.toLowerCase()) ||
+    b.district.toLowerCase().includes(branchSearch.toLowerCase()) ||
+    b.upazila.toLowerCase().includes(branchSearch.toLowerCase())
+  );
 
   const openModal = (batch?: Batch) => {
     if (batch) {
       setEditingBatch(batch);
+      setSelectedProjectId(batch.cohort?.project?.id || "");
+      setSelectedCohortId(batch.cohort?.id || "");
+      setSelectedBranchId(batch.branch.id);
+      setSelectedTrainerId(batch.trainer?.id || "");
+      setCurrentStep(3); // Skip to step 3 when editing
       reset({
         name: batch.name,
         branchId: batch.branch.id,
@@ -145,15 +303,24 @@ export default function BatchesPage() {
       });
     } else {
       setEditingBatch(null);
+      setSelectedProjectId("");
+      setSelectedCohortId("");
+      setSelectedBranchId("");
+      setSelectedTrainerId(isTrainer && session?.user?.id ? session.user.id : "");
+      setCurrentStep(1);
       reset({
         name: "",
         branchId: "",
         cohortId: "",
-        trainerId: "",
+        trainerId: isTrainer && session?.user?.id ? session.user.id : "",
         startDate: "",
         endDate: "",
       });
     }
+    setProjectSearch("");
+    setCohortSearch("");
+    setTrainerSearch("");
+    setBranchSearch("");
     setIsModalOpen(true);
   };
 
@@ -170,8 +337,30 @@ export default function BatchesPage() {
     setIsStudentModalOpen(true);
   };
 
+  const nextStep = () => {
+    if (currentStep === 1 && selectedProjectId) {
+      setCurrentStep(2);
+    } else if (currentStep === 2 && selectedCohortId) {
+      setValue("cohortId", selectedCohortId);
+      setCurrentStep(3);
+    }
+  };
+
+  const prevStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
+
   const onSubmit = async (data: BatchFormData) => {
     try {
+      const submitData = {
+        ...data,
+        branchId: selectedBranchId,
+        cohortId: selectedCohortId,
+        trainerId: selectedTrainerId || undefined,
+      };
+
       const url = editingBatch
         ? `/api/batches/${editingBatch.id}`
         : "/api/batches";
@@ -180,13 +369,16 @@ export default function BatchesPage() {
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(submitData),
       });
 
       if (res.ok) {
         fetchBatches();
         setIsModalOpen(false);
         reset();
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to save batch");
       }
     } catch (error) {
       console.error("Error saving batch:", error);
@@ -237,6 +429,16 @@ export default function BatchesPage() {
       ),
     },
     {
+      accessorKey: "cohort.project.name",
+      header: "Project",
+      cell: ({ row }) => row.original.cohort?.project?.name || "-",
+    },
+    {
+      accessorKey: "cohort.name",
+      header: "Cohort",
+      cell: ({ row }) => row.original.cohort?.name || "-",
+    },
+    {
       accessorKey: "branch.branchName",
       header: "Branch",
       cell: ({ row }) => (
@@ -247,11 +449,6 @@ export default function BatchesPage() {
           </p>
         </div>
       ),
-    },
-    {
-      accessorKey: "cohort.name",
-      header: "Cohort",
-      cell: ({ row }) => row.original.cohort?.name || "-",
     },
     {
       accessorKey: "trainer.name",
@@ -309,6 +506,13 @@ export default function BatchesPage() {
         </div>
       ),
     },
+  ];
+
+  // Step indicator
+  const steps = [
+    { number: 1, title: "Project", icon: FolderKanban },
+    { number: 2, title: "Cohort", icon: Layers },
+    { number: 3, title: "Details", icon: GraduationCap },
   ];
 
   return (
@@ -386,85 +590,425 @@ export default function BatchesPage() {
         </CardContent>
       </Card>
 
-      {/* Add/Edit Modal */}
+      {/* Add/Edit Modal with Steps */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         title={editingBatch ? "Edit Batch" : "Add Batch"}
+        size="lg"
       >
+        {/* Step Indicator */}
+        {!editingBatch && (
+          <div className="flex items-center justify-center mb-6">
+            {steps.map((step, index) => (
+              <div key={step.number} className="flex items-center">
+                <div className={`flex items-center gap-2 px-3 py-2 rounded-lg ${
+                  currentStep === step.number 
+                    ? "bg-blue-100 text-blue-700" 
+                    : currentStep > step.number 
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-100 text-gray-500"
+                }`}>
+                  {currentStep > step.number ? (
+                    <Check className="w-4 h-4" />
+                  ) : (
+                    <step.icon className="w-4 h-4" />
+                  )}
+                  <span className="text-sm font-medium">{step.title}</span>
+                </div>
+                {index < steps.length - 1 && (
+                  <ChevronRight className="w-4 h-4 mx-2 text-gray-400" />
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <Input
-            label="Batch Name"
-            {...register("name")}
-            error={errors.name?.message}
-          />
+          {/* Step 1: Select Project */}
+          {currentStep === 1 && !editingBatch && (
+            <div className="space-y-4">
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-semibold">Select Project</h3>
+                <p className="text-sm text-gray-500">Choose the project for this batch</p>
+              </div>
 
-          <Select
-            label="Branch"
-            {...register("branchId")}
-            error={errors.branchId?.message}
-          >
-            <option value="">Select Branch</option>
-            {branches.map((branch) => (
-              <option key={branch.id} value={branch.id}>
-                {branch.branchName} - {branch.upazila}, {branch.district}
-              </option>
-            ))}
-          </Select>
+              {projects.length === 0 ? (
+                <div className="text-center py-8">
+                  <FolderKanban className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500">No projects assigned to you</p>
+                  <p className="text-sm text-gray-400">Contact admin for project assignment</p>
+                </div>
+              ) : (
+                <div ref={projectDropdownRef} className="relative">
+                  <div 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg cursor-pointer flex items-center justify-between hover:border-blue-500 transition-colors"
+                    onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <FolderKanban className="w-5 h-5 text-gray-400" />
+                      <span className={selectedProjectName ? "text-gray-900" : "text-gray-400"}>
+                        {selectedProjectName || "Select a project..."}
+                      </span>
+                    </div>
+                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isProjectDropdownOpen ? "rotate-90" : ""}`} />
+                  </div>
 
-          <Select
-            label="Cohort (Optional)"
-            {...register("cohortId")}
-            error={errors.cohortId?.message}
-          >
-            <option value="">Select Cohort</option>
-            {cohorts.map((cohort) => (
-              <option key={cohort.id} value={cohort.id}>
-                {cohort.name}
-              </option>
-            ))}
-          </Select>
+                  <AnimatePresence>
+                    {isProjectDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-hidden"
+                      >
+                        <div className="p-2 border-b">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                              type="text"
+                              placeholder="Search projects..."
+                              value={projectSearch}
+                              onChange={(e) => setProjectSearch(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        </div>
+                        <div className="overflow-y-auto max-h-48">
+                          {filteredProjects.map((project) => (
+                            <div
+                              key={project.id}
+                              className={`px-4 py-3 cursor-pointer hover:bg-gray-50 flex items-center justify-between ${
+                                selectedProjectId === project.id ? "bg-blue-50" : ""
+                              }`}
+                              onClick={() => {
+                                setSelectedProjectId(project.id);
+                                setSelectedCohortId("");
+                                setIsProjectDropdownOpen(false);
+                                setProjectSearch("");
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <FolderKanban className="w-4 h-4 text-blue-500" />
+                                <span className="font-medium">{project.name}</span>
+                              </div>
+                              <Badge variant="info">{project.cohorts.length} cohorts</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
 
-          <Select
-            label="Trainer"
-            {...register("trainerId")}
-            error={errors.trainerId?.message}
-          >
-            <option value="">Select Trainer</option>
-            {trainers.map((trainer) => (
-              <option key={trainer.id} value={trainer.id}>
-                {trainer.name}
-              </option>
-            ))}
-          </Select>
+              <div className="flex justify-end pt-4">
+                <Button
+                  type="button"
+                  onClick={nextStep}
+                  disabled={!selectedProjectId}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          )}
 
-          <div className="grid grid-cols-2 gap-4">
-            <Input
-              type="date"
-              label="Start Date"
-              {...register("startDate")}
-              error={errors.startDate?.message}
-            />
-            <Input
-              type="date"
-              label="End Date"
-              {...register("endDate")}
-              error={errors.endDate?.message}
-            />
-          </div>
+          {/* Step 2: Select Cohort */}
+          {currentStep === 2 && !editingBatch && (
+            <div className="space-y-4">
+              <div className="text-center mb-4">
+                <h3 className="text-lg font-semibold">Select Cohort</h3>
+                <p className="text-sm text-gray-500">
+                  Choose a cohort from <span className="font-medium text-blue-600">{selectedProjectName}</span>
+                </p>
+              </div>
 
-          <div className="flex justify-end gap-2 mt-6">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsModalOpen(false)}
-            >
-              Cancel
-            </Button>
-            <Button type="submit" isLoading={isSubmitting}>
-              {editingBatch ? "Update" : "Create"}
-            </Button>
-          </div>
+              {cohorts.length === 0 ? (
+                <div className="text-center py-8">
+                  <Layers className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500">No cohorts available in this project</p>
+                </div>
+              ) : (
+                <div ref={cohortDropdownRef} className="relative">
+                  <div 
+                    className="w-full px-4 py-3 border border-gray-300 rounded-lg cursor-pointer flex items-center justify-between hover:border-blue-500 transition-colors"
+                    onClick={() => setIsCohortDropdownOpen(!isCohortDropdownOpen)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Layers className="w-5 h-5 text-gray-400" />
+                      <span className={selectedCohortName ? "text-gray-900" : "text-gray-400"}>
+                        {selectedCohortName || "Select a cohort..."}
+                      </span>
+                    </div>
+                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isCohortDropdownOpen ? "rotate-90" : ""}`} />
+                  </div>
+
+                  <AnimatePresence>
+                    {isCohortDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-hidden"
+                      >
+                        <div className="p-2 border-b">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                              type="text"
+                              placeholder="Search cohorts..."
+                              value={cohortSearch}
+                              onChange={(e) => setCohortSearch(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        </div>
+                        <div className="overflow-y-auto max-h-48">
+                          {filteredCohorts.map((cohort) => (
+                            <div
+                              key={cohort.id}
+                              className={`px-4 py-3 cursor-pointer hover:bg-gray-50 flex items-center justify-between ${
+                                selectedCohortId === cohort.id ? "bg-blue-50" : ""
+                              }`}
+                              onClick={() => {
+                                setSelectedCohortId(cohort.id);
+                                setIsCohortDropdownOpen(false);
+                                setCohortSearch("");
+                              }}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Layers className="w-4 h-4 text-green-500" />
+                                <span className="font-medium">{cohort.name}</span>
+                              </div>
+                              <Badge variant="default">{cohort.cohortId}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+
+              <div className="flex justify-between pt-4">
+                <Button type="button" variant="outline" onClick={prevStep}>
+                  <ChevronLeft className="w-4 h-4 mr-2" />
+                  Back
+                </Button>
+                <Button
+                  type="button"
+                  onClick={nextStep}
+                  disabled={!selectedCohortId}
+                >
+                  Next
+                  <ChevronRight className="w-4 h-4 ml-2" />
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Step 3: Batch Details */}
+          {(currentStep === 3 || editingBatch) && (
+            <div className="space-y-4">
+              {!editingBatch && (
+                <div className="bg-gray-50 p-3 rounded-lg mb-4">
+                  <div className="flex items-center gap-4 text-sm">
+                    <div className="flex items-center gap-1">
+                      <FolderKanban className="w-4 h-4 text-blue-500" />
+                      <span className="font-medium">{selectedProjectName}</span>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                    <div className="flex items-center gap-1">
+                      <Layers className="w-4 h-4 text-green-500" />
+                      <span className="font-medium">{selectedCohortName}</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <Input
+                label="Batch Name"
+                {...register("name")}
+                error={errors.name?.message}
+              />
+
+              {/* Searchable Branch Dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Branch</label>
+                <div ref={branchDropdownRef} className="relative">
+                  <div 
+                    className={`w-full px-4 py-2.5 border rounded-lg cursor-pointer flex items-center justify-between hover:border-blue-500 transition-colors ${
+                      errors.branchId ? "border-red-300" : "border-gray-300"
+                    }`}
+                    onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Building2 className="w-4 h-4 text-gray-400" />
+                      <span className={selectedBranchName ? "text-gray-900" : "text-gray-400"}>
+                        {selectedBranchName || (filteredBranches.length === 0 ? "No branches in this cohort" : "Select branch...")}
+                      </span>
+                    </div>
+                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isBranchDropdownOpen ? "rotate-90" : ""}`} />
+                  </div>
+
+                  <AnimatePresence>
+                    {isBranchDropdownOpen && filteredBranches.length > 0 && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-hidden"
+                      >
+                        <div className="p-2 border-b">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                              type="text"
+                              placeholder="Search branches..."
+                              value={branchSearch}
+                              onChange={(e) => setBranchSearch(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        </div>
+                        <div className="overflow-y-auto max-h-36">
+                          {filteredBranchList.map((branch) => (
+                            <div
+                              key={branch.id}
+                              className={`px-4 py-2 cursor-pointer hover:bg-gray-50 ${
+                                selectedBranchId === branch.id ? "bg-blue-50" : ""
+                              }`}
+                              onClick={() => {
+                                setSelectedBranchId(branch.id);
+                                setValue("branchId", branch.id);
+                                setIsBranchDropdownOpen(false);
+                                setBranchSearch("");
+                              }}
+                            >
+                              <p className="font-medium">{branch.branchName}</p>
+                              <p className="text-xs text-gray-500">{branch.upazila}, {branch.district}</p>
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+                {errors.branchId && <p className="text-sm text-red-500 mt-1">{errors.branchId.message}</p>}
+              </div>
+
+              {/* Searchable Trainer Dropdown */}
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Trainer {isTrainer && "(Auto-filled)"}
+                </label>
+                <div ref={trainerDropdownRef} className="relative">
+                  <div 
+                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg cursor-pointer flex items-center justify-between hover:border-blue-500 transition-colors"
+                    onClick={() => setIsTrainerDropdownOpen(!isTrainerDropdownOpen)}
+                  >
+                    <div className="flex items-center gap-2">
+                      <Users className="w-4 h-4 text-gray-400" />
+                      <span className={selectedTrainerName ? "text-gray-900" : "text-gray-400"}>
+                        {selectedTrainerName || "Select trainer..."}
+                      </span>
+                    </div>
+                    <ChevronRight className={`w-4 h-4 text-gray-400 transition-transform ${isTrainerDropdownOpen ? "rotate-90" : ""}`} />
+                  </div>
+
+                  <AnimatePresence>
+                    {isTrainerDropdownOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-hidden"
+                      >
+                        <div className="p-2 border-b">
+                          <div className="relative">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                            <input
+                              type="text"
+                              placeholder="Search trainers..."
+                              value={trainerSearch}
+                              onChange={(e) => setTrainerSearch(e.target.value)}
+                              className="w-full pl-9 pr-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                        </div>
+                        <div className="overflow-y-auto max-h-36">
+                          {filteredTrainers.map((trainer) => (
+                            <div
+                              key={trainer.id}
+                              className={`px-4 py-2 cursor-pointer hover:bg-gray-50 flex items-center gap-2 ${
+                                selectedTrainerId === trainer.id ? "bg-blue-50" : ""
+                              }`}
+                              onClick={() => {
+                                setSelectedTrainerId(trainer.id);
+                                setValue("trainerId", trainer.id);
+                                setIsTrainerDropdownOpen(false);
+                                setTrainerSearch("");
+                              }}
+                            >
+                              <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-medium">
+                                {trainer.name.charAt(0)}
+                              </div>
+                              <span className="font-medium">{trainer.name}</span>
+                              {trainer.id === session?.user?.id && (
+                                <Badge variant="info" className="ml-auto">You</Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <Input
+                  type="date"
+                  label="Start Date"
+                  {...register("startDate")}
+                  error={errors.startDate?.message}
+                />
+                <Input
+                  type="date"
+                  label="End Date"
+                  {...register("endDate")}
+                  error={errors.endDate?.message}
+                />
+              </div>
+
+              <div className="flex justify-between pt-4">
+                {!editingBatch && (
+                  <Button type="button" variant="outline" onClick={prevStep}>
+                    <ChevronLeft className="w-4 h-4 mr-2" />
+                    Back
+                  </Button>
+                )}
+                <div className={`flex gap-2 ${editingBatch ? "w-full justify-end" : ""}`}>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsModalOpen(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button type="submit" isLoading={isSubmitting}>
+                    {editingBatch ? "Update" : "Create"}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
         </form>
       </Modal>
 

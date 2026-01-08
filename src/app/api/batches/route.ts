@@ -33,6 +33,12 @@ export async function GET() {
           select: {
             id: true,
             name: true,
+            project: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
         trainer: {

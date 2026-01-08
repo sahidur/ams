@@ -35,22 +35,18 @@ import {
 } from "@/components/ui";
 import { branchSchema, type BranchInput } from "@/lib/validations";
 
-interface Project {
-  id: string;
-  name: string;
-  isActive: boolean;
-}
-
 interface Cohort {
   id: string;
   cohortId: string;
   name: string;
   isActive: boolean;
-  project?: {
-    id: string;
-    name: string;
-    isActive: boolean;
-  };
+}
+
+interface Project {
+  id: string;
+  name: string;
+  isActive: boolean;
+  cohorts: Cohort[];
 }
 
 interface Branch {
@@ -88,7 +84,6 @@ interface ValidationError {
 export default function BranchesPage() {
   const [branches, setBranches] = useState<Branch[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
-  const [cohorts, setCohorts] = useState<Cohort[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -103,7 +98,10 @@ export default function BranchesPage() {
   // Form dropdowns
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [selectedCohortId, setSelectedCohortId] = useState<string>("");
-  const [filteredCohorts, setFilteredCohorts] = useState<Cohort[]>([]);
+  
+  // Get cohorts from selected project
+  const selectedProject = projects.find(p => p.id === selectedProjectId);
+  const filteredCohorts = selectedProject?.cohorts || [];
   
   // Dropdown states
   const [isProjectDropdownOpen, setIsProjectDropdownOpen] = useState(false);
@@ -134,46 +132,33 @@ export default function BranchesPage() {
     }
   };
 
-  const fetchProjects = async () => {
+  const fetchUserProjects = async () => {
     try {
-      const res = await fetch("/api/projects?activeOnly=true");
+      const res = await fetch("/api/users/my-projects?activeOnly=true");
       const data = await res.json();
-      setProjects(data);
+      setProjects(data.projects || []);
     } catch (error) {
       console.error("Error fetching projects:", error);
     }
   };
 
-  const fetchCohorts = async () => {
-    try {
-      const res = await fetch("/api/cohorts?activeOnly=true");
-      const data = await res.json();
-      setCohorts(data);
-    } catch (error) {
-      console.error("Error fetching cohorts:", error);
-    }
-  };
-
   useEffect(() => {
     fetchBranches();
-    fetchProjects();
-    fetchCohorts();
+    fetchUserProjects();
   }, []);
 
-  // Filter cohorts when project changes
+  // Reset cohort when project changes
   useEffect(() => {
-    if (selectedProjectId) {
-      const filtered = cohorts.filter(c => c.project?.id === selectedProjectId);
-      setFilteredCohorts(filtered);
-      // Reset cohort selection if it's not in the filtered list
-      if (!filtered.find(c => c.id === selectedCohortId)) {
+    if (!selectedProjectId) {
+      setSelectedCohortId("");
+    } else {
+      // Reset cohort if not in new project's cohorts
+      const projectCohorts = projects.find(p => p.id === selectedProjectId)?.cohorts || [];
+      if (!projectCohorts.find(c => c.id === selectedCohortId)) {
         setSelectedCohortId("");
       }
-    } else {
-      setFilteredCohorts([]);
-      setSelectedCohortId("");
     }
-  }, [selectedProjectId, cohorts, selectedCohortId]);
+  }, [selectedProjectId, projects, selectedCohortId]);
 
   // Close dropdowns when clicking outside
   useEffect(() => {
