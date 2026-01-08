@@ -26,9 +26,9 @@ echo "🗄️ Updating database..."
 npx prisma generate
 npx prisma db push
 
-# Build application
+# Build application with increased memory
 echo "🔨 Building application..."
-npm run build
+NODE_OPTIONS="--max-old-space-size=2048" npm run build
 
 # Restart PM2
 echo "🔄 Restarting application..."
