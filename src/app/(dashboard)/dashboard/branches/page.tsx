@@ -573,7 +573,7 @@ export default function BranchesPage() {
                     />
                   </div>
                 </div>
-                <div className="max-h-48 overflow-y-auto">
+                <div className="max-h-64 overflow-y-auto">
                   {filteredProjectsList.length === 0 ? (
                     <p className="px-4 py-3 text-sm text-gray-500">No projects found</p>
                   ) : (
@@ -639,7 +639,7 @@ export default function BranchesPage() {
                     />
                   </div>
                 </div>
-                <div className="max-h-48 overflow-y-auto">
+                <div className="max-h-64 overflow-y-auto">
                   {filteredCohortsList.length === 0 ? (
                     <p className="px-4 py-3 text-sm text-gray-500">No cohorts found</p>
                   ) : (
@@ -767,7 +767,7 @@ export default function BranchesPage() {
               <p className="text-sm text-green-600 font-medium">
                 ✓ {uploadData.length} valid branches found
               </p>
-              <div className="max-h-48 overflow-y-auto border rounded-lg">
+              <div className="max-h-64 overflow-y-auto border rounded-lg">
                 <table className="w-full text-sm">
                   <thead className="bg-gray-50 sticky top-0">
                     <tr>

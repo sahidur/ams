@@ -660,7 +660,7 @@ export default function BatchesPage() {
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-hidden"
+                        className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden"
                       >
                         <div className="p-2 border-b">
                           <div className="relative">
@@ -675,7 +675,7 @@ export default function BatchesPage() {
                             />
                           </div>
                         </div>
-                        <div className="overflow-y-auto max-h-48">
+                        <div className="overflow-y-auto max-h-64">
                           {filteredProjects.map((project) => (
                             <div
                               key={project.id}
@@ -752,7 +752,7 @@ export default function BatchesPage() {
                         initial={{ opacity: 0, y: -10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-hidden"
+                        className="absolute z-50 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-80 overflow-hidden"
                       >
                         <div className="p-2 border-b">
                           <div className="relative">
@@ -767,7 +767,7 @@ export default function BatchesPage() {
                             />
                           </div>
                         </div>
-                        <div className="overflow-y-auto max-h-48">
+                        <div className="overflow-y-auto max-h-64">
                           {filteredCohorts.map((cohort) => (
                             <div
                               key={cohort.id}

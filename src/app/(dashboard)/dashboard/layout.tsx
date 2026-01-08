@@ -288,14 +288,6 @@ export default function DashboardLayout({
     signOut({ callbackUrl: "/" });
   };
 
-  // Split main items to insert Admin Tools after Users
-  const topNavItems = filteredMainNavItems.filter(item => 
-    item.href === "/dashboard" || item.href === "/dashboard/users"
-  );
-  const bottomNavItems = filteredMainNavItems.filter(item => 
-    item.href !== "/dashboard" && item.href !== "/dashboard/users"
-  );
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Mobile sidebar overlay */}
@@ -334,8 +326,8 @@ export default function DashboardLayout({
         </div>
 
         <nav className="p-4 space-y-1 overflow-y-auto max-h-[calc(100vh-4rem)]">
-          {/* Top nav items (Dashboard, Users) */}
-          {topNavItems.map((item) => {
+          {/* Main nav items */}
+          {filteredMainNavItems.map((item) => {
             const isActive = pathname === item.href;
             return (
               <Link
@@ -355,9 +347,9 @@ export default function DashboardLayout({
             );
           })}
 
-          {/* Admin Tools Section */}
+          {/* Admin Tools Section - at the end */}
           {showAdminTools && (
-            <div className="pt-2">
+            <div className="pt-2 border-t border-gray-200 mt-2">
               <button
                 onClick={() => setAdminToolsOpen(!adminToolsOpen)}
                 className={cn(
@@ -412,27 +404,6 @@ export default function DashboardLayout({
               </AnimatePresence>
             </div>
           )}
-
-          {/* Bottom nav items (Projects, Branches, etc.) */}
-          {bottomNavItems.map((item) => {
-            const isActive = pathname === item.href;
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                onClick={() => setSidebarOpen(false)}
-                className={cn(
-                  "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
-                  isActive
-                    ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
-                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
-                )}
-              >
-                <item.icon className="w-5 h-5" />
-                {item.title}
-              </Link>
-            );
-          })}
         </nav>
       </aside>
 
