@@ -22,7 +22,7 @@ export async function GET(
         cohorts: {
           include: {
             _count: {
-              select: { batches: true, branches: true },
+              select: { batches: true, directBranches: true },
             },
             focalPerson: {
               select: { id: true, name: true, email: true },

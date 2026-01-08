@@ -200,7 +200,8 @@ model Cohort {
   updatedAt             DateTime @updatedAt
   
   // Relations
-  branches              CohortBranch[]
+  cohortBranches        CohortBranch[]  // Legacy many-to-many
+  directBranches        Branch[]        @relation("CohortBranches")  // Direct branches
   batches               Batch[]
   classes               Class[]
   userAssignments       UserProjectAssignment[]
@@ -215,12 +216,17 @@ model Branch {
   upazila     String
   branchName  String
   branchCode  String?  @unique
+  isActive    Boolean  @default(true)
+  
+  // Direct cohort relationship (each branch belongs to one cohort)
+  cohortId    String?
+  cohort      Cohort?  @relation("CohortBranches", fields: [cohortId], references: [id], onDelete: SetNull)
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
   // Relations
-  cohorts     CohortBranch[]
+  cohorts     CohortBranch[]  // Legacy many-to-many relationship
   batches     Batch[]
   
   @@unique([division, district, upazila, branchName])

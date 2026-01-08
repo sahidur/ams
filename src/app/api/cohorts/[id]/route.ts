@@ -34,11 +34,25 @@ export async function GET(
     const cohort = await prisma.cohort.findUnique({
       where: { id },
       include: {
-        project: true,
+        project: {
+          select: {
+            id: true,
+            name: true,
+            donorName: true,
+            isActive: true,
+          },
+        },
         batches: true,
-        branches: {
+        cohortBranches: {
           include: {
             branch: true,
+          },
+        },
+        directBranches: true,
+        _count: {
+          select: {
+            directBranches: true,
+            batches: true,
           },
         },
       },

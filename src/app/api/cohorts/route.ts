@@ -57,7 +57,8 @@ export async function GET(request: NextRequest) {
         _count: {
           select: {
             batches: true,
-            branches: true,
+            cohortBranches: true,
+            directBranches: true,
           },
         },
       },

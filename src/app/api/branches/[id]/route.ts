@@ -20,6 +20,21 @@ export async function GET(
       where: { id },
       include: {
         batches: true,
+        cohort: {
+          select: {
+            id: true,
+            cohortId: true,
+            name: true,
+            isActive: true,
+            project: {
+              select: {
+                id: true,
+                name: true,
+                isActive: true,
+              },
+            },
+          },
+        },
         cohorts: {
           include: {
             cohort: true,
@@ -55,7 +70,31 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { division, district, upazila, branchName, branchCode } = body;
+    const { division, district, upazila, branchName, branchCode, cohortId, isActive } = body;
+
+    // If cohortId is provided, validate it exists and is active
+    if (cohortId) {
+      const cohort = await prisma.cohort.findUnique({
+        where: { id: cohortId },
+        include: {
+          project: {
+            select: { isActive: true },
+          },
+        },
+      });
+
+      if (!cohort) {
+        return NextResponse.json({ error: "Cohort not found" }, { status: 400 });
+      }
+
+      if (!cohort.isActive) {
+        return NextResponse.json({ error: "Cohort is not active" }, { status: 400 });
+      }
+
+      if (!cohort.project.isActive) {
+        return NextResponse.json({ error: "Project is not active" }, { status: 400 });
+      }
+    }
 
     const branch = await prisma.branch.update({
       where: { id },
@@ -65,6 +104,23 @@ export async function PUT(
         upazila,
         branchName,
         branchCode: branchCode || null,
+        cohortId: cohortId || null,
+        isActive: isActive !== undefined ? isActive : undefined,
+      },
+      include: {
+        cohort: {
+          select: {
+            id: true,
+            cohortId: true,
+            name: true,
+            project: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+          },
+        },
       },
     });
 
