@@ -70,6 +70,7 @@ export const branchSchema = z.object({
   division: z.string().min(1, "Division is required"),
   district: z.string().min(1, "District is required"),
   upazila: z.string().min(1, "Upazila is required"),
+  union: z.string().optional(),
   branchName: z.string().min(1, "Branch name is required"),
   branchCode: z.string().optional(),
 });

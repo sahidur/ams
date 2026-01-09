@@ -5,11 +5,14 @@ export type ModuleName =
   | "USERS"
   | "ROLES"
   | "PROJECTS"
+  | "COHORTS"
   | "BRANCHES"
   | "BATCHES"
   | "CLASSES"
   | "ATTENDANCE"
   | "FACE_TRAINING"
+  | "MODEL_TYPES"
+  | "TRAINING_TYPES"
   | "PROFILE";
 
 export type PermissionAction = "READ" | "WRITE" | "DELETE" | "ALL";
@@ -77,12 +80,14 @@ function checkLegacyPermission(role: string, module: ModuleName, action: Permiss
   const legacyPermissions: Record<string, Record<string, string[]>> = {
     ADMIN: {
       DASHBOARD: ["ALL"], USERS: ["ALL"], ROLES: ["ALL"], PROJECTS: ["ALL"],
-      BRANCHES: ["ALL"], BATCHES: ["ALL"], CLASSES: ["ALL"], ATTENDANCE: ["ALL"],
-      FACE_TRAINING: ["ALL"], PROFILE: ["ALL"]
+      COHORTS: ["ALL"], BRANCHES: ["ALL"], BATCHES: ["ALL"], CLASSES: ["ALL"], 
+      ATTENDANCE: ["ALL"], FACE_TRAINING: ["ALL"], MODEL_TYPES: ["ALL"], 
+      TRAINING_TYPES: ["ALL"], PROFILE: ["ALL"]
     },
     HO_USER: {
-      DASHBOARD: ["READ"], PROJECTS: ["READ"], BRANCHES: ["READ"],
-      BATCHES: ["READ"], CLASSES: ["READ"], ATTENDANCE: ["READ"], PROFILE: ["ALL"]
+      DASHBOARD: ["READ"], PROJECTS: ["READ"], COHORTS: ["READ"], BRANCHES: ["READ"],
+      BATCHES: ["READ"], CLASSES: ["READ"], ATTENDANCE: ["READ"], 
+      MODEL_TYPES: ["READ"], TRAINING_TYPES: ["READ"], PROFILE: ["ALL"]
     },
     TRAINER: {
       DASHBOARD: ["READ"], BATCHES: ["READ"], CLASSES: ["READ", "WRITE"],

@@ -69,12 +69,17 @@ export default function LoginPage() {
             <motion.div
               initial={{ scale: 0.8 }}
               animate={{ scale: 1 }}
-              className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center mb-4"
+              className="mx-auto w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-600 flex items-center justify-center mb-4 shadow-lg shadow-blue-500/25"
             >
               <CalendarCheck className="w-8 h-8 text-white" />
             </motion.div>
-            <CardTitle className="text-2xl">Welcome Back</CardTitle>
-            <CardDescription>Sign in to your account</CardDescription>
+            <CardTitle className="text-2xl bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600">
+              Somadhanhobe
+            </CardTitle>
+            <CardDescription className="text-gray-600">
+              Programme Management System
+            </CardDescription>
+            <p className="text-sm text-gray-500 mt-2">Sign in to your account</p>
           </CardHeader>
           <CardContent className="pt-6">
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">

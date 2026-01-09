@@ -59,7 +59,7 @@ const Modal: React.FC<ModalProps> = ({
             exit={{ opacity: 0, scale: 0.95, y: 20 }}
             transition={{ type: "spring", duration: 0.3 }}
             className={cn(
-              "fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white shadow-2xl flex flex-col max-h-[90vh]",
+              "fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 rounded-xl bg-white shadow-2xl flex flex-col max-h-[85vh]",
               sizes[size]
             )}
           >
@@ -72,7 +72,7 @@ const Modal: React.FC<ModalProps> = ({
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-6 pt-4 overflow-y-auto flex-1">
+            <div className="p-6 pt-4 overflow-y-auto overflow-x-visible flex-1 pb-8 min-h-[300px]" style={{ overflowY: 'auto', overflowX: 'visible' }}>
               {children}
             </div>
           </motion.div>

@@ -185,16 +185,20 @@ export default function ProjectsPage() {
         : "/api/projects";
       const method = selectedProject ? "PUT" : "POST";
 
+      const payload = {
+        ...data,
+        focalPersonId: selectedFocalPerson?.id || null,
+        modelTypeId: selectedModelType?.id || null,
+        trainingTypeId: selectedTrainingType?.id || null,
+        isActive: selectedProject?.isActive ?? true,
+      };
+
+      console.log("Submitting project with payload:", payload);
+
       const res = await fetch(url, {
         method,
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...data,
-          focalPersonId: selectedFocalPerson?.id || null,
-          modelTypeId: selectedModelType?.id || null,
-          trainingTypeId: selectedTrainingType?.id || null,
-          isActive: selectedProject?.isActive ?? true,
-        }),
+        body: JSON.stringify(payload),
       });
 
       if (res.ok) {

@@ -119,6 +119,7 @@ model User {
   focalProjects     Project[]      @relation("ProjectFocalPerson")
   focalCohorts      Cohort[]       @relation("CohortFocalPerson")
   projectAssignments UserProjectAssignment[]
+  branchAssignments  UserBranchAssignment[]
   
   @@map("users")
 }
@@ -174,6 +175,7 @@ model Project {
   // Relations
   cohorts         Cohort[]
   userAssignments UserProjectAssignment[]
+  branchAssignments UserBranchAssignment[] @relation("ProjectBranchAssignments")
   
   @@map("projects")
 }
@@ -205,6 +207,7 @@ model Cohort {
   batches               Batch[]
   classes               Class[]
   userAssignments       UserProjectAssignment[]
+  branchAssignments     UserBranchAssignment[] @relation("CohortBranchAssignments")
   
   @@map("cohorts")
 }
@@ -214,6 +217,7 @@ model Branch {
   division    String
   district    String
   upazila     String
+  union       String?
   branchName  String
   branchCode  String?  @unique
   isActive    Boolean  @default(true)
@@ -228,6 +232,7 @@ model Branch {
   // Relations
   cohorts     CohortBranch[]  // Legacy many-to-many relationship
   batches     Batch[]
+  userBranchAssignments UserBranchAssignment[]
   
   @@unique([division, district, upazila, branchName])
   @@map("branches")
@@ -375,4 +380,100 @@ model UserProjectAssignment {
   
   @@unique([userId, projectId, cohortId])
   @@map("user_project_assignments")
+}
+
+// User Branch Assignments (multiple branches per user per project/cohort)
+model UserBranchAssignment {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projectId   String
+  project     Project  @relation("ProjectBranchAssignments", fields: [projectId], references: [id], onDelete: Cascade)
+  cohortId    String
+  cohort      Cohort   @relation("CohortBranchAssignments", fields: [cohortId], references: [id], onDelete: Cascade)
+  branchId    String
+  branch      Branch   @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([userId, projectId, cohortId, branchId])
+  @@map("user_branch_assignments")
+}
+
+// Bangladesh Geo-Location Models
+model Division {
+  id          String   @id @default(cuid())
+  geoId       String   @unique  // Original ID from geo data
+  name        String   @unique
+  bnName      String?  // Bengali name
+  url         String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  districts   District[]
+  
+  @@map("divisions")
+}
+
+model District {
+  id          String   @id @default(cuid())
+  geoId       String   @unique  // Original ID from geo data
+  divisionId  String
+  division    Division @relation(fields: [divisionId], references: [id], onDelete: Cascade)
+  name        String
+  bnName      String?  // Bengali name
+  lat         String?
+  lon         String?
+  url         String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  upazilas    Upazila[]
+  
+  @@unique([divisionId, name])
+  @@map("districts")
+}
+
+model Upazila {
+  id          String   @id @default(cuid())
+  geoId       String   @unique  // Original ID from geo data
+  districtId  String
+  district    District @relation(fields: [districtId], references: [id], onDelete: Cascade)
+  name        String
+  bnName      String?  // Bengali name
+  url         String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  unions      Union[]
+  
+  @@unique([districtId, name])
+  @@map("upazilas")
+}
+
+model Union {
+  id          String   @id @default(cuid())
+  geoId       String   @unique  // Original ID from geo data
+  upazilaId   String
+  upazila     Upazila  @relation(fields: [upazilaId], references: [id], onDelete: Cascade)
+  name        String
+  bnName      String?  // Bengali name
+  url         String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([upazilaId, name])
+  @@map("unions")
 }

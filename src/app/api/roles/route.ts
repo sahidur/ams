@@ -4,7 +4,7 @@ import prisma from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 // Type definitions for role management
-type SystemModule = "DASHBOARD" | "USERS" | "ROLES" | "PROJECTS" | "BRANCHES" | "BATCHES" | "CLASSES" | "ATTENDANCE" | "FACE_TRAINING" | "PROFILE";
+type SystemModule = "DASHBOARD" | "USERS" | "ROLES" | "PROJECTS" | "COHORTS" | "BRANCHES" | "BATCHES" | "CLASSES" | "ATTENDANCE" | "FACE_TRAINING" | "MODEL_TYPES" | "TRAINING_TYPES" | "PROFILE";
 type PermissionAction = "READ" | "WRITE" | "DELETE" | "ALL";
 
 interface RolePermissionInput {
@@ -18,11 +18,14 @@ export const SYSTEM_MODULES = [
   { id: "USERS", name: "Users", description: "User management" },
   { id: "ROLES", name: "Roles", description: "Role management" },
   { id: "PROJECTS", name: "Projects", description: "Project management" },
+  { id: "COHORTS", name: "Cohorts", description: "Cohort management" },
   { id: "BRANCHES", name: "Branches", description: "Branch management" },
   { id: "BATCHES", name: "Batches", description: "Batch management" },
   { id: "CLASSES", name: "Classes", description: "Class management" },
   { id: "ATTENDANCE", name: "Attendance", description: "Attendance management" },
   { id: "FACE_TRAINING", name: "Face Training", description: "Face recognition training" },
+  { id: "MODEL_TYPES", name: "Model Types", description: "Model type management" },
+  { id: "TRAINING_TYPES", name: "Training Types", description: "Training type management" },
   { id: "PROFILE", name: "Profile", description: "User profile (default access)" },
 ] as const;
 
