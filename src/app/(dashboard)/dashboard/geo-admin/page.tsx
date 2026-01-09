@@ -14,7 +14,6 @@ import {
   Layers,
   Home,
   RefreshCw,
-  Database,
   Search,
   X
 } from "lucide-react";
@@ -81,7 +80,6 @@ interface FormData {
 export default function GeoAdminPage() {
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isSeedLoading, setIsSeedLoading] = useState(false);
   const [expandedDivisions, setExpandedDivisions] = useState<Set<string>>(new Set());
   const [expandedDistricts, setExpandedDistricts] = useState<Set<string>>(new Set());
   const [expandedUpazilas, setExpandedUpazilas] = useState<Set<string>>(new Set());
@@ -113,28 +111,6 @@ export default function GeoAdminPage() {
   useEffect(() => {
     fetchGeoData();
   }, [fetchGeoData]);
-
-  const seedGeoData = async () => {
-    if (!confirm("This will replace all existing geo data. Continue?")) return;
-    
-    setIsSeedLoading(true);
-    try {
-      const res = await fetch("/api/geo/seed", { method: "POST" });
-      const data = await res.json();
-      
-      if (res.ok) {
-        alert(`Successfully seeded: ${data.counts.divisions} divisions, ${data.counts.districts} districts, ${data.counts.upazilas} upazilas, ${data.counts.unions} unions`);
-        fetchGeoData();
-      } else {
-        alert(data.error || "Failed to seed data");
-      }
-    } catch (error) {
-      console.error("Error seeding geo data:", error);
-      alert("Failed to seed geo data");
-    } finally {
-      setIsSeedLoading(false);
-    }
-  };
 
   const toggleDivision = (id: string) => {
     const newSet = new Set(expandedDivisions);
@@ -284,14 +260,6 @@ export default function GeoAdminPage() {
           <p className="text-gray-500 mt-1">Manage Bangladesh geographic data hierarchy</p>
         </div>
         <div className="flex gap-3">
-          <Button 
-            variant="outline" 
-            onClick={seedGeoData}
-            isLoading={isSeedLoading}
-          >
-            <Database className="w-4 h-4 mr-2" />
-            Seed From JSON
-          </Button>
           <Button variant="outline" onClick={fetchGeoData}>
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh

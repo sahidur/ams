@@ -47,7 +47,7 @@ export async function GET(request: NextRequest) {
       attendanceStats
     ] = await Promise.all([
       // Total users
-      prisma.user.count({ where: { isApproved: true, isActive: true } }),
+      prisma.user.count({ where: { isActive: true } }),
       
       // Active projects
       prisma.project.count({ where: { isActive: true } }),
@@ -60,12 +60,14 @@ export async function GET(request: NextRequest) {
         where: cohortId ? { branch: { cohortId } } : projectId ? { branch: { cohort: { projectId } } } : undefined
       }),
       
-      // Classes today
+      // Classes today (classes where today falls between startDate and endDate)
       prisma.class.count({
         where: {
-          date: {
+          startDate: {
+            lte: new Date(new Date().setHours(23, 59, 59, 999)),
+          },
+          endDate: {
             gte: new Date(new Date().setHours(0, 0, 0, 0)),
-            lt: new Date(new Date().setHours(23, 59, 59, 999)),
           }
         }
       }),
@@ -119,8 +121,8 @@ export async function GET(request: NextRequest) {
       
       // Attendance stats (last 7 days)
       prisma.attendance.groupBy({
-        by: ["status"],
-        _count: { status: true },
+        by: ["isPresent"],
+        _count: { isPresent: true },
         where: {
           createdAt: {
             gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
@@ -130,14 +132,14 @@ export async function GET(request: NextRequest) {
     ]);
 
     // Calculate attendance rate
-    const presentCount = attendanceStats.find(s => s.status === "PRESENT")?._count.status || 0;
-    const totalAttendance = attendanceStats.reduce((sum, s) => sum + s._count.status, 0);
+    const presentCount = attendanceStats.find(s => s.isPresent === true)?._count.isPresent || 0;
+    const totalAttendance = attendanceStats.reduce((sum, s) => sum + s._count.isPresent, 0);
     const attendanceRate = totalAttendance > 0 ? Math.round((presentCount / totalAttendance) * 100) : 0;
 
     // Format recent activities
     const formattedActivities = recentActivities.map(c => ({
       id: c.id,
-      action: `Class "${c.title}" scheduled`,
+      action: `Class "${c.name}" scheduled`,
       details: `${c.batch.branch.branchName} - ${c.batch.trainer?.name || "No trainer"}`,
       time: formatTimeAgo(c.createdAt),
       type: "class"
