@@ -12,6 +12,9 @@ export async function GET(request: NextRequest) {
     const divisions = await prisma.division.findMany({
       where,
       orderBy: { name: "asc" },
+      include: {
+        _count: { select: { districts: true } }
+      },
     });
     return NextResponse.json(divisions);
   } catch (error) {

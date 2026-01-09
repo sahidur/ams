@@ -15,7 +15,21 @@ export async function GET(request: NextRequest) {
     const unions = await prisma.union.findMany({
       where,
       orderBy: { name: "asc" },
-      include: { upazila: { select: { name: true, district: { select: { name: true } } } } },
+      include: { 
+        upazila: { 
+          select: { 
+            id: true, 
+            name: true, 
+            district: { 
+              select: { 
+                id: true, 
+                name: true, 
+                division: { select: { id: true, name: true } } 
+              } 
+            } 
+          } 
+        } 
+      },
     });
     return NextResponse.json(unions);
   } catch (error) {
@@ -28,9 +42,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, bnName, parentId } = body;
+    const { name, bnName, upazilaId, parentId } = body;
+    const actualUpazilaId = upazilaId || parentId;
 
-    if (!name || !parentId) {
+    if (!name || !actualUpazilaId) {
       return NextResponse.json({ error: "Name and upazila are required" }, { status: 400 });
     }
 
@@ -45,7 +60,7 @@ export async function POST(request: NextRequest) {
     const union = await prisma.union.create({
       data: {
         geoId: newGeoId,
-        upazilaId: parentId,
+        upazilaId: actualUpazilaId,
         name,
         bnName: bnName || null,
       },

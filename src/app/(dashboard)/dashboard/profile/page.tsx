@@ -249,7 +249,8 @@ export default function ProfilePage() {
       if (!session?.user?.id) return;
       setIsLoadingProjects(true);
       try {
-        const res = await fetch("/api/users/my-projects");
+        // Use explicitOnly=true to show only explicitly assigned projects (not all for Super Admin)
+        const res = await fetch("/api/users/my-projects?explicitOnly=true");
         const data = await res.json();
         
         // Group by project
@@ -561,21 +562,23 @@ export default function ProfilePage() {
         </CardHeader>
         <CardContent className="p-0">
           {/* Tabs */}
-          <div className="flex border-b overflow-x-auto">
-            {tabs.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors whitespace-nowrap ${
-                  activeTab === tab.id
-                    ? "text-blue-600 border-b-2 border-blue-600"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                <tab.icon className="w-4 h-4" />
-                {tab.label}
-              </button>
-            ))}
+          <div className="border-b border-gray-200">
+            <nav className="flex gap-4 overflow-x-auto px-4">
+              {tabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors whitespace-nowrap ${
+                    activeTab === tab.id
+                      ? "border-blue-600 text-blue-600"
+                      : "border-transparent text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <tab.icon className="w-4 h-4" />
+                  {tab.label}
+                </button>
+              ))}
+            </nav>
           </div>
 
           {/* Tab Content */}

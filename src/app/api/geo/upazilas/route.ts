@@ -15,7 +15,10 @@ export async function GET(request: NextRequest) {
     const upazilas = await prisma.upazila.findMany({
       where,
       orderBy: { name: "asc" },
-      include: { district: { select: { name: true, division: { select: { name: true } } } } },
+      include: { 
+        district: { select: { id: true, name: true, division: { select: { id: true, name: true } } } },
+        _count: { select: { unions: true } },
+      },
     });
     return NextResponse.json(upazilas);
   } catch (error) {
@@ -28,9 +31,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, bnName, parentId } = body;
+    const { name, bnName, districtId, parentId } = body;
+    const actualDistrictId = districtId || parentId;
 
-    if (!name || !parentId) {
+    if (!name || !actualDistrictId) {
       return NextResponse.json({ error: "Name and district are required" }, { status: 400 });
     }
 
@@ -45,7 +49,7 @@ export async function POST(request: NextRequest) {
     const upazila = await prisma.upazila.create({
       data: {
         geoId: newGeoId,
-        districtId: parentId,
+        districtId: actualDistrictId,
         name,
         bnName: bnName || null,
       },

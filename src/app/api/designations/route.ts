@@ -18,6 +18,11 @@ export async function GET(request: Request) {
     const designations = await prisma.designation.findMany({
       where: activeOnly ? { isActive: true } : undefined,
       orderBy: { name: "asc" },
+      include: {
+        _count: {
+          select: { users: true }
+        }
+      }
     });
 
     return NextResponse.json(designations);

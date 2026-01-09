@@ -15,7 +15,10 @@ export async function GET(request: NextRequest) {
     const districts = await prisma.district.findMany({
       where,
       orderBy: { name: "asc" },
-      include: { division: { select: { name: true } } },
+      include: { 
+        division: { select: { id: true, name: true } },
+        _count: { select: { upazilas: true } },
+      },
     });
     return NextResponse.json(districts);
   } catch (error) {
@@ -28,9 +31,10 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { name, bnName, parentId } = body;
+    const { name, bnName, divisionId, parentId } = body;
+    const actualDivisionId = divisionId || parentId;
 
-    if (!name || !parentId) {
+    if (!name || !actualDivisionId) {
       return NextResponse.json({ error: "Name and division are required" }, { status: 400 });
     }
 
@@ -45,7 +49,7 @@ export async function POST(request: NextRequest) {
     const district = await prisma.district.create({
       data: {
         geoId: newGeoId,
-        divisionId: parentId,
+        divisionId: actualDivisionId,
         name,
         bnName: bnName || null,
       },

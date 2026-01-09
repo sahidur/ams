@@ -239,6 +239,39 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const [pendingAttachments, setPendingAttachments] = useState<{ fileName: string; fileUrl: string; fileType: string; fileSize: number }[]>([]);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
 
+  // Edit user modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editModalTab, setEditModalTab] = useState<"personal" | "job">("personal");
+  const [isEditSubmitting, setIsEditSubmitting] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    whatsappNumber: "",
+    dateOfBirth: "",
+    gender: "",
+    address: "",
+    employeeId: "",
+    designationId: "",
+    department: "",
+    userRoleId: "",
+    employmentStatusId: "",
+    employmentTypeId: "",
+    joiningDateBrac: "",
+    joiningDateCurrentBase: "",
+    joiningDateCurrentPosition: "",
+    contractEndDate: "",
+    firstSupervisorId: "",
+    jobGrade: "",
+    yearsOfExperience: "",
+    salary: "",
+  });
+  const [roles, setRoles] = useState<{ id: string; name: string; displayName: string }[]>([]);
+  const [designations, setDesignations] = useState<{ id: string; name: string }[]>([]);
+  const [employmentStatuses, setEmploymentStatuses] = useState<{ id: string; name: string }[]>([]);
+  const [employmentTypes, setEmploymentTypes] = useState<{ id: string; name: string }[]>([]);
+  const [allUsers, setAllUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+
   // Check if current user is Super Admin
   const isSuperAdmin = session?.user?.userRoleName === "Super Admin" || 
     (session?.user as { userRole?: { name: string } })?.userRole?.name === "SUPER_ADMIN";
@@ -367,6 +400,95 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       console.error("Error fetching comments:", error);
     } finally {
       setCommentsLoading(false);
+    }
+  };
+
+  // Edit modal functions
+  const fetchEditFormData = async () => {
+    try {
+      const [rolesRes, designationsRes, statusesRes, typesRes, usersRes] = await Promise.all([
+        fetch("/api/roles?activeOnly=true"),
+        fetch("/api/designations"),
+        fetch("/api/employment-statuses"),
+        fetch("/api/employment-types"),
+        fetch("/api/users"),
+      ]);
+
+      if (rolesRes.ok) {
+        const data = await rolesRes.json();
+        setRoles(data);
+      }
+      if (designationsRes.ok) {
+        const data = await designationsRes.json();
+        setDesignations(data);
+      }
+      if (statusesRes.ok) {
+        const data = await statusesRes.json();
+        setEmploymentStatuses(data);
+      }
+      if (typesRes.ok) {
+        const data = await typesRes.json();
+        setEmploymentTypes(data);
+      }
+      if (usersRes.ok) {
+        const data = await usersRes.json();
+        setAllUsers(data.filter((u: { id: string }) => u.id !== id));
+      }
+    } catch (error) {
+      console.error("Error fetching edit form data:", error);
+    }
+  };
+
+  const openEditModal = () => {
+    if (!user) return;
+    setEditFormData({
+      name: user.name || "",
+      email: user.email || "",
+      phone: user.phone || "",
+      whatsappNumber: user.whatsappNumber || "",
+      dateOfBirth: user.dateOfBirth?.split("T")[0] || "",
+      gender: user.gender || "",
+      address: user.address || "",
+      employeeId: user.employeeId || "",
+      designationId: user.designationId || "",
+      department: user.department || "",
+      userRoleId: user.userRoleId || "",
+      employmentStatusId: user.employmentStatusId || "",
+      employmentTypeId: user.employmentTypeId || "",
+      joiningDateBrac: user.joiningDateBrac?.split("T")[0] || "",
+      joiningDateCurrentBase: user.joiningDateCurrentBase?.split("T")[0] || "",
+      joiningDateCurrentPosition: user.joiningDateCurrentPosition?.split("T")[0] || "",
+      contractEndDate: user.contractEndDate?.split("T")[0] || "",
+      firstSupervisorId: user.firstSupervisorId || "",
+      jobGrade: user.jobGrade?.toString() || "",
+      yearsOfExperience: user.yearsOfExperience?.toString() || "",
+      salary: user.salary?.toString() || "",
+    });
+    setEditModalTab("personal");
+    fetchEditFormData();
+    setIsEditModalOpen(true);
+  };
+
+  const handleEditSubmit = async () => {
+    setIsEditSubmitting(true);
+    try {
+      const res = await fetch(`/api/users/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editFormData),
+      });
+
+      if (res.ok) {
+        fetchUser();
+        setIsEditModalOpen(false);
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to update user");
+      }
+    } catch (error) {
+      console.error("Error updating user:", error);
+    } finally {
+      setIsEditSubmitting(false);
     }
   };
 
@@ -685,7 +807,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
           </div>
         </div>
         {canEdit && (
-          <Button onClick={() => router.push(`/dashboard/users?edit=${user.id}`)}>
+          <Button onClick={openEditModal}>
             <Pencil className="w-4 h-4 mr-2" />
             Edit User
           </Button>
@@ -1752,6 +1874,289 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             </Button>
             <Button variant="destructive" onClick={handleDeleteComment} className="flex-1">
               Delete
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Edit User Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit User"
+        size="lg"
+      >
+        <div className="space-y-6">
+          {/* Modal Tabs */}
+          <div className="border-b border-gray-200">
+            <nav className="flex gap-4">
+              <button
+                onClick={() => setEditModalTab("personal")}
+                className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+                  editModalTab === "personal"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <User className="w-4 h-4" />
+                Personal Details
+              </button>
+              <button
+                onClick={() => setEditModalTab("job")}
+                className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+                  editModalTab === "job"
+                    ? "border-blue-600 text-blue-600"
+                    : "border-transparent text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                <Briefcase className="w-4 h-4" />
+                Job Information
+              </button>
+            </nav>
+          </div>
+
+          {/* Personal Details Tab */}
+          {editModalTab === "personal" && (
+            <div className="grid md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Full Name</label>
+                <input
+                  type="text"
+                  value={editFormData.name}
+                  onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Email</label>
+                <input
+                  type="email"
+                  value={editFormData.email}
+                  onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Phone</label>
+                <input
+                  type="text"
+                  value={editFormData.phone}
+                  onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">WhatsApp</label>
+                <input
+                  type="text"
+                  value={editFormData.whatsappNumber}
+                  onChange={(e) => setEditFormData({ ...editFormData, whatsappNumber: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Date of Birth</label>
+                <input
+                  type="date"
+                  value={editFormData.dateOfBirth}
+                  onChange={(e) => setEditFormData({ ...editFormData, dateOfBirth: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Gender</label>
+                <select
+                  value={editFormData.gender}
+                  onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select gender</option>
+                  <option value="male">Male</option>
+                  <option value="female">Female</option>
+                  <option value="other">Other</option>
+                </select>
+              </div>
+              <div className="space-y-1 md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700">Address</label>
+                <textarea
+                  value={editFormData.address}
+                  onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
+                  rows={2}
+                  className="flex w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Job Information Tab */}
+          {editModalTab === "job" && (
+            <div className="grid md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto">
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Employee ID</label>
+                <input
+                  type="text"
+                  value={editFormData.employeeId}
+                  onChange={(e) => setEditFormData({ ...editFormData, employeeId: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Role</label>
+                <select
+                  value={editFormData.userRoleId}
+                  onChange={(e) => setEditFormData({ ...editFormData, userRoleId: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select role</option>
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.id}>{role.displayName}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Designation</label>
+                <select
+                  value={editFormData.designationId}
+                  onChange={(e) => setEditFormData({ ...editFormData, designationId: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select designation</option>
+                  {designations.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Department</label>
+                <input
+                  type="text"
+                  value={editFormData.department}
+                  onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Employment Status</label>
+                <select
+                  value={editFormData.employmentStatusId}
+                  onChange={(e) => setEditFormData({ ...editFormData, employmentStatusId: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select status</option>
+                  {employmentStatuses.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Employment Type</label>
+                <select
+                  value={editFormData.employmentTypeId}
+                  onChange={(e) => setEditFormData({ ...editFormData, employmentTypeId: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select type</option>
+                  {employmentTypes.map((t) => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">1st Supervisor</label>
+                <select
+                  value={editFormData.firstSupervisorId}
+                  onChange={(e) => setEditFormData({ ...editFormData, firstSupervisorId: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Select supervisor</option>
+                  {allUsers.map((u) => (
+                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Job Grade</label>
+                <input
+                  type="number"
+                  value={editFormData.jobGrade}
+                  onChange={(e) => setEditFormData({ ...editFormData, jobGrade: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Years of Experience</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  value={editFormData.yearsOfExperience}
+                  onChange={(e) => setEditFormData({ ...editFormData, yearsOfExperience: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Salary</label>
+                <input
+                  type="number"
+                  value={editFormData.salary}
+                  onChange={(e) => setEditFormData({ ...editFormData, salary: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Joining Date (BRAC)</label>
+                <input
+                  type="date"
+                  value={editFormData.joiningDateBrac}
+                  onChange={(e) => setEditFormData({ ...editFormData, joiningDateBrac: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Joining Date (Current Base)</label>
+                <input
+                  type="date"
+                  value={editFormData.joiningDateCurrentBase}
+                  onChange={(e) => setEditFormData({ ...editFormData, joiningDateCurrentBase: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Joining Date (Current Position)</label>
+                <input
+                  type="date"
+                  value={editFormData.joiningDateCurrentPosition}
+                  onChange={(e) => setEditFormData({ ...editFormData, joiningDateCurrentPosition: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="block text-sm font-medium text-gray-700">Contract End Date</label>
+                <input
+                  type="date"
+                  value={editFormData.contractEndDate}
+                  onChange={(e) => setEditFormData({ ...editFormData, contractEndDate: e.target.value })}
+                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons */}
+          <div className="flex gap-3 pt-4 border-t">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsEditModalOpen(false)}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleEditSubmit}
+              isLoading={isEditSubmitting}
+              className="flex-1"
+            >
+              Save Changes
             </Button>
           </div>
         </div>

@@ -18,6 +18,11 @@ export async function GET(request: Request) {
     const types = await prisma.employmentType.findMany({
       where: activeOnly ? { isActive: true } : undefined,
       orderBy: { name: "asc" },
+      include: {
+        _count: {
+          select: { users: true }
+        }
+      }
     });
 
     return NextResponse.json(types);

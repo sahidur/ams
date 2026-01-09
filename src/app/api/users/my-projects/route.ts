@@ -7,7 +7,7 @@ import prisma from "@/lib/prisma";
 const UNRESTRICTED_ROLES = ["Super Admin", "HO Management"];
 
 // GET user's assigned projects and cohorts
-// Super Admin and HO Management see all active projects
+// Super Admin and HO Management see all active projects (unless explicitOnly=true)
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -17,11 +17,13 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const activeOnly = searchParams.get("activeOnly") !== "false";
+    const explicitOnly = searchParams.get("explicitOnly") === "true";
 
     const userRoleName = session.user.userRoleName || "";
     const isUnrestricted = UNRESTRICTED_ROLES.includes(userRoleName);
 
-    if (isUnrestricted) {
+    // If explicitOnly is true, fetch only explicitly assigned projects (even for unrestricted roles)
+    if (isUnrestricted && !explicitOnly) {
       // Super Admin and HO Management see all projects
       const projects = await prisma.project.findMany({
         where: activeOnly ? { isActive: true } : {},
