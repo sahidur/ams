@@ -120,6 +120,8 @@ model User {
   focalCohorts      Cohort[]       @relation("CohortFocalPerson")
   projectAssignments UserProjectAssignment[]
   branchAssignments  UserBranchAssignment[]
+  receivedComments   AdminComment[]  @relation("UserComments")
+  writtenComments    AdminComment[]  @relation("CommentAuthor")
   
   @@map("users")
 }
@@ -399,6 +401,20 @@ model UserBranchAssignment {
   
   @@unique([userId, projectId, cohortId, branchId])
   @@map("user_branch_assignments")
+}
+
+model AdminComment {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("UserComments", fields: [userId], references: [id], onDelete: Cascade)
+  authorId    String
+  author      User     @relation("CommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  comment     String
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("admin_comments")
 }
 
 // Bangladesh Geo-Location Models

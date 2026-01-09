@@ -666,6 +666,11 @@ export default function BranchesPage() {
       header: "Upazila",
     },
     {
+      accessorKey: "union",
+      header: "Union",
+      cell: ({ row }) => row.original.union || "-",
+    },
+    {
       accessorKey: "isActive",
       header: "Status",
       cell: ({ row }) => (

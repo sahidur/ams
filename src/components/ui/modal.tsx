@@ -72,7 +72,7 @@ const Modal: React.FC<ModalProps> = ({
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-6 pt-4 overflow-y-auto overflow-x-visible flex-1 pb-8 min-h-[300px]" style={{ overflowY: 'auto', overflowX: 'visible' }}>
+            <div className="p-6 pt-4 overflow-y-auto flex-1 pb-16 min-h-[350px]">
               {children}
             </div>
           </motion.div>

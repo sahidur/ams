@@ -17,7 +17,10 @@ import {
   ChevronDown,
   X,
   Check,
-  Plus
+  Plus,
+  MessageSquare,
+  Pencil,
+  Trash2
 } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, Input, Badge } from "@/components/ui";
 
@@ -65,10 +68,23 @@ interface BranchAssignment {
   branch: Branch;
 }
 
+interface AdminComment {
+  id: string;
+  comment: string;
+  createdAt: string;
+  updatedAt: string;
+  author: {
+    id: string;
+    name: string;
+    profileImage: string | null;
+    userRole: { displayName: string } | null;
+  };
+}
+
 export default function ProfilePage() {
   const { data: session, update: updateSession } = useSession();
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"personal" | "job" | "branches" | "password">("personal");
+  const [activeTab, setActiveTab] = useState<"personal" | "job" | "branches" | "comments" | "password">("personal");
   const [successMessage, setSuccessMessage] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -91,6 +107,10 @@ export default function ProfilePage() {
   const projectDropdownRef = useRef<HTMLDivElement>(null);
   const cohortDropdownRef = useRef<HTMLDivElement>(null);
   const branchDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Admin comments state
+  const [adminComments, setAdminComments] = useState<AdminComment[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
 
   // Get cohorts from selected project
   const selectedProject = projects.find(p => p.id === selectedProjectId);
@@ -183,6 +203,24 @@ export default function ProfilePage() {
     };
     fetchAssignments();
   }, []);
+
+  // Fetch admin comments for current user
+  useEffect(() => {
+    const fetchComments = async () => {
+      if (!session?.user?.id) return;
+      setIsLoadingComments(true);
+      try {
+        const res = await fetch(`/api/users/${session.user.id}/comments`);
+        const data = await res.json();
+        setAdminComments(data.comments || []);
+      } catch (error) {
+        console.error("Error fetching comments:", error);
+      } finally {
+        setIsLoadingComments(false);
+      }
+    };
+    fetchComments();
+  }, [session?.user?.id]);
 
   // Load existing branch selections when project/cohort changes
   useEffect(() => {
@@ -379,6 +417,7 @@ export default function ProfilePage() {
     { id: "personal" as const, label: "Personal Details", icon: User },
     { id: "job" as const, label: "Job Information", icon: Briefcase },
     { id: "branches" as const, label: "My Branches", icon: MapPin },
+    { id: "comments" as const, label: "Admin Comments", icon: MessageSquare },
     { id: "password" as const, label: "Change Password", icon: Lock },
   ];
 
@@ -799,6 +838,82 @@ export default function ProfilePage() {
                     </Button>
                   )}
                 </div>
+              </div>
+            )}
+
+            {activeTab === "comments" && (
+              <div className="space-y-6">
+                <div className="border-b pb-4">
+                  <h3 className="text-lg font-medium text-gray-900">Admin Comments</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Comments added by your supervisors and administrators
+                  </p>
+                </div>
+                
+                {isLoadingComments ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  </div>
+                ) : adminComments.length === 0 ? (
+                  <div className="text-center py-8">
+                    <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500">No comments yet</p>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    {/* Timeline line */}
+                    <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
+                    
+                    <div className="space-y-6">
+                      {adminComments.map((comment) => (
+                        <div key={comment.id} className="relative pl-10">
+                          {/* Timeline dot */}
+                          <div className="absolute left-2.5 w-3 h-3 bg-blue-500 rounded-full border-2 border-white" />
+                          
+                          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center gap-3">
+                                {comment.author.profileImage ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={comment.author.profileImage}
+                                    alt={comment.author.name}
+                                    className="w-8 h-8 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold">
+                                    {comment.author.name?.charAt(0) || "U"}
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="font-medium text-gray-900">{comment.author.name}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {comment.author.userRole?.displayName || "User"}
+                                  </p>
+                                </div>
+                              </div>
+                              <span className="text-xs text-gray-400">
+                                {new Date(comment.createdAt).toLocaleDateString("en-US", {
+                                  year: "numeric",
+                                  month: "short",
+                                  day: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </span>
+                            </div>
+                            <p className="mt-3 text-gray-700 whitespace-pre-wrap">{comment.comment}</p>
+                            {comment.updatedAt !== comment.createdAt && (
+                              <p className="mt-2 text-xs text-gray-400 italic">
+                                (edited)
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 

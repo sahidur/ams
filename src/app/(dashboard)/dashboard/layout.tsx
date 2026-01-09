@@ -24,6 +24,7 @@ import {
   Layers,
   BookOpen,
   Wrench,
+  MapPin,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -125,6 +126,12 @@ const adminToolsSection: NavSection = {
       href: "/dashboard/training-types",
       icon: BookOpen,
       module: "PROJECTS",
+    },
+    {
+      title: "Geo Admin",
+      href: "/dashboard/geo-admin",
+      icon: MapPin,
+      module: "BRANCHES",
     },
   ],
 };

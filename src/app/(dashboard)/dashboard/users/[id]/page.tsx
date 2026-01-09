@@ -24,6 +24,9 @@ import {
   ChevronDown,
   ChevronRight,
   Layers,
+  MessageSquare,
+  Send,
+  Loader2,
 } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Modal } from "@/components/ui";
 import { formatDate, getRoleDisplayName } from "@/lib/utils";
@@ -76,7 +79,39 @@ interface ProjectAssignment {
   }[];
 }
 
-type TabType = "personal" | "job" | "projects";
+interface Branch {
+  id: string;
+  branchName: string;
+  branchCode: string | null;
+  division: string;
+  district: string;
+  upazila: string;
+}
+
+interface BranchAssignment {
+  id: string;
+  projectId: string;
+  cohortId: string;
+  branchId: string;
+  project: { id: string; name: string };
+  cohort: { id: string; cohortId: string; name: string };
+  branch: Branch;
+}
+
+interface AdminComment {
+  id: string;
+  comment: string;
+  createdAt: string;
+  updatedAt: string;
+  author: {
+    id: string;
+    name: string;
+    profileImage: string | null;
+    userRole: { displayName: string } | null;
+  };
+}
+
+type TabType = "personal" | "job" | "projects" | "branches" | "comments";
 
 export default function UserProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -105,6 +140,27 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   // Delete modal state
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [assignmentToDelete, setAssignmentToDelete] = useState<{ id: string; projectName: string; cohortName: string } | null>(null);
+
+  // Branch assignments state
+  const [branchAssignments, setBranchAssignments] = useState<BranchAssignment[]>([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [allBranches, setAllBranches] = useState<Branch[]>([]);
+  const [branchProjectId, setBranchProjectId] = useState("");
+  const [branchCohortId, setBranchCohortId] = useState("");
+  const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
+  const [branchCohorts, setBranchCohorts] = useState<Cohort[]>([]);
+  const [isSavingBranches, setIsSavingBranches] = useState(false);
+
+  // Admin comments state
+  const [adminComments, setAdminComments] = useState<AdminComment[]>([]);
+  const [commentsLoading, setCommentsLoading] = useState(false);
+  const [canEditComments, setCanEditComments] = useState(false);
+  const [newComment, setNewComment] = useState("");
+  const [isAddingComment, setIsAddingComment] = useState(false);
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentText, setEditCommentText] = useState("");
+  const [isDeleteCommentModalOpen, setIsDeleteCommentModalOpen] = useState(false);
+  const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
 
   // Check if current user is Super Admin
   const isSuperAdmin = session?.user?.userRoleName === "Super Admin" || 
@@ -182,6 +238,142 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     }
   };
 
+  const fetchBranchAssignments = async () => {
+    setBranchesLoading(true);
+    try {
+      const res = await fetch(`/api/users/${id}/branch-assignments`);
+      if (res.ok) {
+        const data = await res.json();
+        setBranchAssignments(data);
+      }
+    } catch (error) {
+      console.error("Error fetching branch assignments:", error);
+    } finally {
+      setBranchesLoading(false);
+    }
+  };
+
+  const fetchBranchesForCohort = async (cohortId: string) => {
+    try {
+      const res = await fetch(`/api/branches?cohortId=${cohortId}`);
+      if (res.ok) {
+        const data = await res.json();
+        setAllBranches(data);
+      }
+    } catch (error) {
+      console.error("Error fetching branches:", error);
+    }
+  };
+
+  const fetchBranchCohorts = async (projectId: string) => {
+    try {
+      const res = await fetch(`/api/cohorts?projectId=${projectId}&activeOnly=true`);
+      if (res.ok) {
+        const data = await res.json();
+        setBranchCohorts(data);
+      }
+    } catch (error) {
+      console.error("Error fetching cohorts:", error);
+    }
+  };
+
+  const fetchComments = async () => {
+    setCommentsLoading(true);
+    try {
+      const res = await fetch(`/api/users/${id}/comments`);
+      if (res.ok) {
+        const data = await res.json();
+        setAdminComments(data.comments || []);
+        setCanEditComments(data.canEdit || false);
+      }
+    } catch (error) {
+      console.error("Error fetching comments:", error);
+    } finally {
+      setCommentsLoading(false);
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+    setIsAddingComment(true);
+    try {
+      const res = await fetch(`/api/users/${id}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment: newComment }),
+      });
+      if (res.ok) {
+        setNewComment("");
+        fetchComments();
+      }
+    } catch (error) {
+      console.error("Error adding comment:", error);
+    } finally {
+      setIsAddingComment(false);
+    }
+  };
+
+  const handleUpdateComment = async (commentId: string) => {
+    if (!editCommentText.trim()) return;
+    try {
+      const res = await fetch(`/api/users/${id}/comments/${commentId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ comment: editCommentText }),
+      });
+      if (res.ok) {
+        setEditingCommentId(null);
+        setEditCommentText("");
+        fetchComments();
+      }
+    } catch (error) {
+      console.error("Error updating comment:", error);
+    }
+  };
+
+  const handleDeleteComment = async () => {
+    if (!commentToDelete) return;
+    try {
+      const res = await fetch(`/api/users/${id}/comments/${commentToDelete}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        setIsDeleteCommentModalOpen(false);
+        setCommentToDelete(null);
+        fetchComments();
+      }
+    } catch (error) {
+      console.error("Error deleting comment:", error);
+    }
+  };
+
+  const handleSaveBranchAssignments = async () => {
+    if (!branchProjectId || !branchCohortId || selectedBranchIds.length === 0) return;
+    setIsSavingBranches(true);
+    try {
+      const res = await fetch(`/api/users/${id}/branch-assignments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          projectId: branchProjectId,
+          cohortId: branchCohortId,
+          branchIds: selectedBranchIds,
+        }),
+      });
+      if (res.ok) {
+        fetchBranchAssignments();
+        setBranchProjectId("");
+        setBranchCohortId("");
+        setSelectedBranchIds([]);
+        setAllBranches([]);
+      }
+    } catch (error) {
+      console.error("Error saving branch assignments:", error);
+    } finally {
+      setIsSavingBranches(false);
+    }
+  };
+
   useEffect(() => {
     if (id) {
       fetchUser();
@@ -195,6 +387,41 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, id]);
+
+  useEffect(() => {
+    if (activeTab === "branches" && id) {
+      fetchBranchAssignments();
+      fetchProjects();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, id]);
+
+  useEffect(() => {
+    if (activeTab === "comments" && id) {
+      fetchComments();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, id]);
+
+  useEffect(() => {
+    if (branchProjectId) {
+      fetchBranchCohorts(branchProjectId);
+      setBranchCohortId("");
+      setSelectedBranchIds([]);
+      setAllBranches([]);
+    }
+  }, [branchProjectId]);
+
+  useEffect(() => {
+    if (branchCohortId) {
+      fetchBranchesForCohort(branchCohortId);
+      // Load existing selections for this project/cohort
+      const existing = branchAssignments.filter(
+        a => a.projectId === branchProjectId && a.cohortId === branchCohortId
+      );
+      setSelectedBranchIds(existing.map(a => a.branchId));
+    }
+  }, [branchCohortId, branchProjectId, branchAssignments]);
 
   useEffect(() => {
     if (selectedProjectId) {
@@ -297,6 +524,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     { id: "personal" as TabType, label: "Personal Details", icon: User },
     { id: "job" as TabType, label: "Job Information", icon: Briefcase },
     { id: "projects" as TabType, label: "Project Assignments", icon: FolderKanban },
+    { id: "branches" as TabType, label: "Branch Assignment", icon: MapPin },
+    { id: "comments" as TabType, label: "Admin Comments", icon: MessageSquare },
   ];
 
   return (
@@ -629,6 +858,333 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             </Card>
           </motion.div>
         )}
+
+        {activeTab === "branches" && (
+          <motion.div
+            key="branches"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5" />
+                  Branch Assignments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {branchesLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600" />
+                  </div>
+                ) : (
+                  <div className="space-y-6">
+                    {/* Current Assignments */}
+                    {branchAssignments.length > 0 && (
+                      <div className="space-y-4">
+                        <h4 className="text-sm font-medium text-gray-700">Current Assignments</h4>
+                        {Object.values(
+                          branchAssignments.reduce((acc, assignment) => {
+                            const key = `${assignment.projectId}-${assignment.cohortId}`;
+                            if (!acc[key]) {
+                              acc[key] = {
+                                project: assignment.project,
+                                cohort: assignment.cohort,
+                                branches: []
+                              };
+                            }
+                            acc[key].branches.push(assignment.branch);
+                            return acc;
+                          }, {} as Record<string, { project: { id: string; name: string }; cohort: { id: string; cohortId: string; name: string }; branches: Branch[] }>)
+                        ).map((group) => (
+                          <div 
+                            key={`${group.project.id}-${group.cohort.id}`}
+                            className="p-4 border border-gray-200 rounded-lg bg-gray-50"
+                          >
+                            <div className="flex items-center gap-2 mb-3">
+                              <Building className="w-4 h-4 text-blue-500" />
+                              <span className="font-medium">{group.project.name}</span>
+                              <span className="text-gray-400">→</span>
+                              <Layers className="w-4 h-4 text-green-500" />
+                              <span>{group.cohort.name}</span>
+                              <Badge variant="info" className="text-xs">{group.cohort.cohortId}</Badge>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {group.branches.map(branch => (
+                                <Badge key={branch.id} variant="default" className="flex items-center gap-1">
+                                  <MapPin className="w-3 h-3" />
+                                  {branch.branchName}
+                                  <span className="text-xs text-gray-400">({branch.district})</span>
+                                </Badge>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {branchAssignments.length === 0 && (
+                      <div className="text-center py-8 text-gray-500">
+                        <MapPin className="w-12 h-12 mx-auto text-gray-300 mb-3" />
+                        <p>No branch assignments yet</p>
+                      </div>
+                    )}
+
+                    {/* Add Assignment Form */}
+                    {canEdit && (
+                      <div className="border-t pt-6">
+                        <h4 className="text-sm font-medium text-gray-700 mb-4">Add Branch Assignment</h4>
+                        <div className="grid md:grid-cols-2 gap-4">
+                          {/* Project Selection */}
+                          <div className="space-y-1">
+                            <label className="block text-sm font-medium text-gray-700">Project</label>
+                            <select
+                              value={branchProjectId}
+                              onChange={(e) => setBranchProjectId(e.target.value)}
+                              className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
+                            >
+                              <option value="">Select project</option>
+                              {projects.map(project => (
+                                <option key={project.id} value={project.id}>{project.name}</option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {/* Cohort Selection */}
+                          <div className="space-y-1">
+                            <label className="block text-sm font-medium text-gray-700">Cohort</label>
+                            <select
+                              value={branchCohortId}
+                              onChange={(e) => setBranchCohortId(e.target.value)}
+                              disabled={!branchProjectId}
+                              className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm disabled:bg-gray-100"
+                            >
+                              <option value="">Select cohort</option>
+                              {branchCohorts.map(cohort => (
+                                <option key={cohort.id} value={cohort.id}>{cohort.name} ({cohort.cohortId})</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Branch Selection */}
+                        {branchCohortId && (
+                          <div className="mt-4 space-y-2">
+                            <label className="block text-sm font-medium text-gray-700">Select Branches</label>
+                            <div className="border border-gray-300 rounded-lg max-h-48 overflow-y-auto">
+                              {allBranches.length === 0 ? (
+                                <p className="p-4 text-gray-500 text-sm">No branches available for this cohort</p>
+                              ) : (
+                                allBranches.map(branch => (
+                                  <label 
+                                    key={branch.id}
+                                    className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
+                                  >
+                                    <input
+                                      type="checkbox"
+                                      checked={selectedBranchIds.includes(branch.id)}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          setSelectedBranchIds([...selectedBranchIds, branch.id]);
+                                        } else {
+                                          setSelectedBranchIds(selectedBranchIds.filter(id => id !== branch.id));
+                                        }
+                                      }}
+                                      className="w-4 h-4 rounded border-gray-300"
+                                    />
+                                    <div>
+                                      <span className="font-medium">{branch.branchName}</span>
+                                      <span className="text-xs text-gray-500 ml-2">
+                                        {branch.division} → {branch.district} → {branch.upazila}
+                                      </span>
+                                    </div>
+                                  </label>
+                                ))
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {branchProjectId && branchCohortId && (
+                          <Button 
+                            onClick={handleSaveBranchAssignments} 
+                            isLoading={isSavingBranches}
+                            disabled={selectedBranchIds.length === 0}
+                            className="mt-4"
+                          >
+                            Save Branch Assignments
+                          </Button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
+
+        {activeTab === "comments" && (
+          <motion.div
+            key="comments"
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+          >
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageSquare className="w-5 h-5" />
+                  Admin Comments
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {/* Add Comment Form */}
+                <div className="mb-6 pb-6 border-b">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Add a Comment</label>
+                  <div className="flex gap-2">
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      placeholder="Write a comment about this user..."
+                      className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm min-h-[80px] resize-none"
+                    />
+                  </div>
+                  <Button 
+                    onClick={handleAddComment} 
+                    isLoading={isAddingComment}
+                    disabled={!newComment.trim()}
+                    className="mt-2"
+                  >
+                    <Send className="w-4 h-4 mr-2" />
+                    Add Comment
+                  </Button>
+                </div>
+
+                {/* Comments Timeline */}
+                {commentsLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                  </div>
+                ) : adminComments.length === 0 ? (
+                  <div className="text-center py-8">
+                    <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-3" />
+                    <p className="text-gray-500">No comments yet</p>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    {/* Timeline line */}
+                    <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
+                    
+                    <div className="space-y-6">
+                      {adminComments.map((comment) => (
+                        <div key={comment.id} className="relative pl-10">
+                          {/* Timeline dot */}
+                          <div className="absolute left-2.5 w-3 h-3 bg-blue-500 rounded-full border-2 border-white" />
+                          
+                          <div className="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                            <div className="flex items-start justify-between">
+                              <div className="flex items-center gap-3">
+                                {comment.author.profileImage ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={comment.author.profileImage}
+                                    alt={comment.author.name}
+                                    className="w-8 h-8 rounded-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-bold">
+                                    {comment.author.name?.charAt(0) || "U"}
+                                  </div>
+                                )}
+                                <div>
+                                  <p className="font-medium text-gray-900">{comment.author.name}</p>
+                                  <p className="text-xs text-gray-500">
+                                    {comment.author.userRole?.displayName || "User"}
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs text-gray-400">
+                                  {new Date(comment.createdAt).toLocaleDateString("en-US", {
+                                    year: "numeric",
+                                    month: "short",
+                                    day: "numeric",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })}
+                                </span>
+                                {canEditComments && (
+                                  <div className="flex items-center gap-1">
+                                    <button
+                                      onClick={() => {
+                                        setEditingCommentId(comment.id);
+                                        setEditCommentText(comment.comment);
+                                      }}
+                                      className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                                      title="Edit"
+                                    >
+                                      <Pencil className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => {
+                                        setCommentToDelete(comment.id);
+                                        setIsDeleteCommentModalOpen(true);
+                                      }}
+                                      className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded"
+                                      title="Delete"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            
+                            {editingCommentId === comment.id ? (
+                              <div className="mt-3">
+                                <textarea
+                                  value={editCommentText}
+                                  onChange={(e) => setEditCommentText(e.target.value)}
+                                  className="w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm min-h-[80px] resize-none"
+                                />
+                                <div className="flex gap-2 mt-2">
+                                  <Button 
+                                    size="sm" 
+                                    onClick={() => handleUpdateComment(comment.id)}
+                                  >
+                                    Save
+                                  </Button>
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditingCommentId(null);
+                                      setEditCommentText("");
+                                    }}
+                                  >
+                                    Cancel
+                                  </Button>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="mt-3 text-gray-700 whitespace-pre-wrap">{comment.comment}</p>
+                            )}
+                            
+                            {comment.updatedAt !== comment.createdAt && editingCommentId !== comment.id && (
+                              <p className="mt-2 text-xs text-gray-400 italic">(edited)</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </motion.div>
+        )}
       </AnimatePresence>
 
       {/* Add Assignment Modal */}
@@ -745,6 +1301,41 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             </Button>
             <Button variant="destructive" onClick={handleDeleteAssignment} className="flex-1">
               Remove
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Delete Comment Confirmation Modal */}
+      <Modal
+        isOpen={isDeleteCommentModalOpen}
+        onClose={() => {
+          setIsDeleteCommentModalOpen(false);
+          setCommentToDelete(null);
+        }}
+        title="Delete Comment"
+        size="sm"
+      >
+        <div className="text-center">
+          <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+            <Trash2 className="w-6 h-6 text-red-600" />
+          </div>
+          <p className="text-gray-600 mb-6">
+            Are you sure you want to delete this comment? This action cannot be undone.
+          </p>
+          <div className="flex gap-3">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setIsDeleteCommentModalOpen(false);
+                setCommentToDelete(null);
+              }} 
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteComment} className="flex-1">
+              Delete
             </Button>
           </div>
         </div>
