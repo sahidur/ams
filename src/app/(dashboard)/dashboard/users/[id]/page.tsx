@@ -27,6 +27,19 @@ import {
   MessageSquare,
   Send,
   Loader2,
+  DollarSign,
+  Star,
+  AlertTriangle,
+  Award,
+  TrendingUp,
+  Users,
+  Paperclip,
+  Download,
+  FileText,
+  Image as ImageIcon,
+  Video,
+  Music,
+  X,
 } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Modal } from "@/components/ui";
 import { formatDate, getRoleDisplayName } from "@/lib/utils";
@@ -36,6 +49,7 @@ interface UserProfile {
   name: string;
   email: string;
   phone: string | null;
+  whatsappNumber: string | null;
   role: string;
   userRoleId: string | null;
   userRole?: {
@@ -52,9 +66,58 @@ interface UserProfile {
   address: string | null;
   profileImage: string | null;
   designation: string | null;
+  designationId: string | null;
+  designationRef?: {
+    id: string;
+    name: string;
+  } | null;
   department: string | null;
   joiningDate: string | null;
   employeeId: string | null;
+  // New job fields
+  joiningDateBrac: string | null;
+  joiningDateCurrentBase: string | null;
+  joiningDateCurrentPosition: string | null;
+  contractEndDate: string | null;
+  employmentStatusId: string | null;
+  employmentStatus?: {
+    id: string;
+    name: string;
+  } | null;
+  employmentTypeId: string | null;
+  employmentType?: {
+    id: string;
+    name: string;
+  } | null;
+  firstSupervisorId: string | null;
+  firstSupervisor?: {
+    id: string;
+    name: string;
+    email: string;
+    firstSupervisorId: string | null;
+    firstSupervisor?: {
+      id: string;
+      name: string;
+      email: string;
+    } | null;
+  } | null;
+  jobGrade: number | null;
+  yearsOfExperience: number | null;
+  salary: number | null;
+  // Performance fields
+  slab: number | null;
+  lastSlabChange: string | null;
+  secondLastSlabChange: string | null;
+  lastGradeChange: string | null;
+  secondLastGradeChange: string | null;
+  lastOneOffBonus: string | null;
+  secondLastOneOffBonus: string | null;
+  pmsMarkLastYear: string | null;
+  pmsMarkSecondLastYear: string | null;
+  pmsMarkThirdLastYear: string | null;
+  lastWarningDate: string | null;
+  secondLastWarningDate: string | null;
+  thirdLastWarningDate: string | null;
   createdAt: string;
 }
 
@@ -98,6 +161,15 @@ interface BranchAssignment {
   branch: Branch;
 }
 
+interface CommentAttachment {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: number;
+  createdAt: string;
+}
+
 interface AdminComment {
   id: string;
   comment: string;
@@ -109,6 +181,7 @@ interface AdminComment {
     profileImage: string | null;
     userRole: { displayName: string } | null;
   };
+  attachments: CommentAttachment[];
 }
 
 type TabType = "personal" | "job" | "projects" | "branches" | "comments";
@@ -161,6 +234,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const [editCommentText, setEditCommentText] = useState("");
   const [isDeleteCommentModalOpen, setIsDeleteCommentModalOpen] = useState(false);
   const [commentToDelete, setCommentToDelete] = useState<string | null>(null);
+  
+  // Attachment state
+  const [pendingAttachments, setPendingAttachments] = useState<{ fileName: string; fileUrl: string; fileType: string; fileSize: number }[]>([]);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
 
   // Check if current user is Super Admin
   const isSuperAdmin = session?.user?.userRoleName === "Super Admin" || 
@@ -300,10 +377,14 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       const res = await fetch(`/api/users/${id}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ comment: newComment }),
+        body: JSON.stringify({ 
+          comment: newComment,
+          attachments: pendingAttachments,
+        }),
       });
       if (res.ok) {
         setNewComment("");
+        setPendingAttachments([]);
         fetchComments();
       }
     } catch (error) {
@@ -311,6 +392,63 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     } finally {
       setIsAddingComment(false);
     }
+  };
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+    
+    setIsUploadingAttachment(true);
+    try {
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("type", "comment-attachment");
+        
+        const res = await fetch("/api/upload", {
+          method: "POST",
+          body: formData,
+        });
+        
+        if (res.ok) {
+          const data = await res.json();
+          setPendingAttachments(prev => [...prev, {
+            fileName: file.name,
+            fileUrl: data.url,
+            fileType: file.type,
+            fileSize: file.size,
+          }]);
+        } else {
+          const error = await res.json();
+          alert(error.error || `Failed to upload ${file.name}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error uploading file:", error);
+    } finally {
+      setIsUploadingAttachment(false);
+      e.target.value = "";
+    }
+  };
+
+  const removePendingAttachment = (index: number) => {
+    setPendingAttachments(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const getFileIcon = (fileType: string) => {
+    if (fileType.startsWith("image/")) return <ImageIcon className="w-4 h-4" />;
+    if (fileType.startsWith("video/")) return <Video className="w-4 h-4" />;
+    if (fileType.startsWith("audio/")) return <Music className="w-4 h-4" />;
+    return <FileText className="w-4 h-4" />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
   const handleUpdateComment = async (commentId: string) => {
@@ -661,6 +799,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                     <p className="font-medium">{user.phone || "-"}</p>
                   </div>
                   <div>
+                    <p className="text-sm text-gray-500 mb-1">WhatsApp Number</p>
+                    <p className="font-medium">{user.whatsappNumber || "-"}</p>
+                  </div>
+                  <div>
                     <p className="text-sm text-gray-500 mb-1">Date of Birth</p>
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4 text-gray-400" />
@@ -691,57 +833,256 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -10 }}
           >
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Briefcase className="w-5 h-5" />
-                  Job Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid md:grid-cols-2 gap-6">
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Employee ID</p>
-                    <div className="flex items-center gap-2">
-                      <IdCard className="w-4 h-4 text-gray-400" />
-                      <p className="font-medium">{user.employeeId || "-"}</p>
+            <div className="space-y-6">
+              {/* Basic Job Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Briefcase className="w-5 h-5" />
+                    Job Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Employee ID</p>
+                      <div className="flex items-center gap-2">
+                        <IdCard className="w-4 h-4 text-gray-400" />
+                        <p className="font-medium">{user.employeeId || "-"}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Designation</p>
+                      <p className="font-medium">{user.designationRef?.name || user.designation || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Department</p>
+                      <div className="flex items-center gap-2">
+                        <Building className="w-4 h-4 text-gray-400" />
+                        <p className="font-medium">{user.department || "-"}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Employment Status</p>
+                      <p className="font-medium">{user.employmentStatus?.name || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Employment Type</p>
+                      <p className="font-medium">{user.employmentType?.name || "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Job Grade</p>
+                      <p className="font-medium">{user.jobGrade ? `Grade ${user.jobGrade}` : "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Years of Experience</p>
+                      <p className="font-medium">{user.yearsOfExperience ? `${user.yearsOfExperience} years` : "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Salary</p>
+                      <div className="flex items-center gap-2">
+                        <DollarSign className="w-4 h-4 text-gray-400" />
+                        <p className="font-medium">{user.salary ? `৳${user.salary.toLocaleString()}` : "-"}</p>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Role</p>
+                      <div className="flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-gray-400" />
+                        <p className="font-medium">{user.userRole?.displayName || getRoleDisplayName(user.role)}</p>
+                      </div>
                     </div>
                   </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Designation</p>
-                    <p className="font-medium">{user.designation || "-"}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Department</p>
-                    <div className="flex items-center gap-2">
-                      <Building className="w-4 h-4 text-gray-400" />
-                      <p className="font-medium">{user.department || "-"}</p>
+                </CardContent>
+              </Card>
+
+              {/* Dates Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Calendar className="w-5 h-5" />
+                    Important Dates
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid md:grid-cols-3 gap-6">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Joining Date (BRAC)</p>
+                      <p className="font-medium">{user.joiningDateBrac ? formatDate(user.joiningDateBrac) : "-"}</p>
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Joining Date</p>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-gray-400" />
-                      <p className="font-medium">{user.joiningDate ? formatDate(user.joiningDate) : "-"}</p>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Joining Date (Current Base)</p>
+                      <p className="font-medium">{user.joiningDateCurrentBase ? formatDate(user.joiningDateCurrentBase) : "-"}</p>
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Role</p>
-                    <div className="flex items-center gap-2">
-                      <Shield className="w-4 h-4 text-gray-400" />
-                      <p className="font-medium">{user.userRole?.displayName || getRoleDisplayName(user.role)}</p>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Joining Date (Current Position)</p>
+                      <p className="font-medium">{user.joiningDateCurrentPosition ? formatDate(user.joiningDateCurrentPosition) : "-"}</p>
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-sm text-gray-500 mb-1">Account Created</p>
-                    <div className="flex items-center gap-2">
-                      <Calendar className="w-4 h-4 text-gray-400" />
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Contract End Date</p>
+                      <p className="font-medium">{user.contractEndDate ? formatDate(user.contractEndDate) : "-"}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">Account Created</p>
                       <p className="font-medium">{formatDate(user.createdAt)}</p>
                     </div>
                   </div>
-                </div>
-              </CardContent>
-            </Card>
+                </CardContent>
+              </Card>
+
+              {/* Supervisors Section */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Users className="w-5 h-5" />
+                    Supervisors
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid md:grid-cols-2 gap-6">
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">1st Supervisor</p>
+                      {user.firstSupervisor ? (
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-medium">
+                            {user.firstSupervisor.name.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-medium">{user.firstSupervisor.name}</p>
+                            <p className="text-xs text-gray-500">{user.firstSupervisor.email}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="font-medium">-</p>
+                      )}
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 mb-1">2nd Supervisor</p>
+                      {user.firstSupervisor?.firstSupervisor ? (
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white text-sm font-medium">
+                            {user.firstSupervisor.firstSupervisor.name.charAt(0)}
+                          </div>
+                          <div>
+                            <p className="font-medium">{user.firstSupervisor.firstSupervisor.name}</p>
+                            <p className="text-xs text-gray-500">{user.firstSupervisor.firstSupervisor.email}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="font-medium text-gray-400 italic">Auto-populated from 1st supervisor</p>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Performance Information */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="w-5 h-5" />
+                    Performance Information
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Slab & Grade */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">Slab & Grade</h4>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <p className="text-xs text-gray-500 mb-1">Current Slab</p>
+                        <p className="font-semibold text-lg">{user.slab || "-"}</p>
+                      </div>
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <p className="text-xs text-gray-500 mb-1">Last Slab Change</p>
+                        <p className="font-medium">{user.lastSlabChange ? formatDate(user.lastSlabChange) : "-"}</p>
+                      </div>
+                      <div className="p-3 bg-gray-50 rounded-lg">
+                        <p className="text-xs text-gray-500 mb-1">Second Last Slab Change</p>
+                        <p className="font-medium">{user.secondLastSlabChange ? formatDate(user.secondLastSlabChange) : "-"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Grade Changes */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-3">Grade Changes</h4>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <p className="text-xs text-blue-600 mb-1">Last Grade Change</p>
+                        <p className="font-medium">{user.lastGradeChange ? formatDate(user.lastGradeChange) : "-"}</p>
+                      </div>
+                      <div className="p-3 bg-blue-50 rounded-lg">
+                        <p className="text-xs text-blue-600 mb-1">Second Last Grade Change</p>
+                        <p className="font-medium">{user.secondLastGradeChange ? formatDate(user.secondLastGradeChange) : "-"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bonuses */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                      <Award className="w-4 h-4" />
+                      One-off Bonuses
+                    </h4>
+                    <div className="grid md:grid-cols-2 gap-4">
+                      <div className="p-3 bg-green-50 rounded-lg">
+                        <p className="text-xs text-green-600 mb-1">Last One-off Bonus</p>
+                        <p className="font-medium">{user.lastOneOffBonus ? formatDate(user.lastOneOffBonus) : "-"}</p>
+                      </div>
+                      <div className="p-3 bg-green-50 rounded-lg">
+                        <p className="text-xs text-green-600 mb-1">Second Last One-off Bonus</p>
+                        <p className="font-medium">{user.secondLastOneOffBonus ? formatDate(user.secondLastOneOffBonus) : "-"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* PMS Marks */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                      <Star className="w-4 h-4" />
+                      PMS Marks
+                    </h4>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <div className="p-3 bg-purple-50 rounded-lg">
+                        <p className="text-xs text-purple-600 mb-1">Last Year</p>
+                        <p className="font-semibold text-lg">{user.pmsMarkLastYear || "-"}</p>
+                      </div>
+                      <div className="p-3 bg-purple-50 rounded-lg">
+                        <p className="text-xs text-purple-600 mb-1">Second Last Year</p>
+                        <p className="font-semibold text-lg">{user.pmsMarkSecondLastYear || "-"}</p>
+                      </div>
+                      <div className="p-3 bg-purple-50 rounded-lg">
+                        <p className="text-xs text-purple-600 mb-1">Third Last Year</p>
+                        <p className="font-semibold text-lg">{user.pmsMarkThirdLastYear || "-"}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Warnings */}
+                  <div>
+                    <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4" />
+                      Warning Dates
+                    </h4>
+                    <div className="grid md:grid-cols-3 gap-4">
+                      <div className="p-3 bg-red-50 rounded-lg">
+                        <p className="text-xs text-red-600 mb-1">Last Warning</p>
+                        <p className="font-medium">{user.lastWarningDate ? formatDate(user.lastWarningDate) : "-"}</p>
+                      </div>
+                      <div className="p-3 bg-red-50 rounded-lg">
+                        <p className="text-xs text-red-600 mb-1">Second Last Warning</p>
+                        <p className="font-medium">{user.secondLastWarningDate ? formatDate(user.secondLastWarningDate) : "-"}</p>
+                      </div>
+                      <div className="p-3 bg-red-50 rounded-lg">
+                        <p className="text-xs text-red-600 mb-1">Third Last Warning</p>
+                        <p className="font-medium">{user.thirdLastWarningDate ? formatDate(user.thirdLastWarningDate) : "-"}</p>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
           </motion.div>
         )}
 
@@ -1051,11 +1392,57 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                       className="flex-1 rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm min-h-[80px] resize-none"
                     />
                   </div>
+                  
+                  {/* Pending Attachments */}
+                  {pendingAttachments.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      <p className="text-xs font-medium text-gray-500">Attachments:</p>
+                      <div className="flex flex-wrap gap-2">
+                        {pendingAttachments.map((att, index) => (
+                          <div 
+                            key={index} 
+                            className="flex items-center gap-2 px-3 py-2 bg-gray-100 rounded-lg text-sm"
+                          >
+                            {getFileIcon(att.fileType)}
+                            <span className="max-w-[150px] truncate">{att.fileName}</span>
+                            <span className="text-xs text-gray-400">({formatFileSize(att.fileSize)})</span>
+                            <button
+                              onClick={() => removePendingAttachment(index)}
+                              className="p-1 hover:bg-gray-200 rounded"
+                            >
+                              <X className="w-3 h-3" />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2 mt-3">
+                    <label className="flex items-center gap-2 px-3 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors">
+                      {isUploadingAttachment ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Paperclip className="w-4 h-4" />
+                      )}
+                      <span className="text-sm">Attach Files</span>
+                      <input
+                        type="file"
+                        multiple
+                        onChange={handleFileUpload}
+                        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.xls,.xlsx"
+                        className="hidden"
+                        disabled={isUploadingAttachment}
+                      />
+                    </label>
+                    <span className="text-xs text-gray-400">PDF, images, video, audio (max 2GB each)</span>
+                  </div>
+
                   <Button 
                     onClick={handleAddComment} 
                     isLoading={isAddingComment}
-                    disabled={!newComment.trim()}
-                    className="mt-2"
+                    disabled={!newComment.trim() || isUploadingAttachment}
+                    className="mt-3"
                   >
                     <Send className="w-4 h-4 mr-2" />
                     Add Comment
@@ -1169,7 +1556,36 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                                 </div>
                               </div>
                             ) : (
-                              <p className="mt-3 text-gray-700 whitespace-pre-wrap">{comment.comment}</p>
+                              <>
+                                <p className="mt-3 text-gray-700 whitespace-pre-wrap">{comment.comment}</p>
+                                
+                                {/* Attachments */}
+                                {comment.attachments && comment.attachments.length > 0 && (
+                                  <div className="mt-3 pt-3 border-t border-gray-200">
+                                    <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                                      <Paperclip className="w-3 h-3" />
+                                      Attachments ({comment.attachments.length})
+                                    </p>
+                                    <div className="flex flex-wrap gap-2">
+                                      {comment.attachments.map((att) => (
+                                        <a
+                                          key={att.id}
+                                          href={att.fileUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          download={att.fileName}
+                                          className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                                        >
+                                          {getFileIcon(att.fileType)}
+                                          <span className="max-w-[150px] truncate">{att.fileName}</span>
+                                          <span className="text-xs text-gray-400">({formatFileSize(att.fileSize)})</span>
+                                          <Download className="w-3 h-3 text-blue-500" />
+                                        </a>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </>
                             )}
                             
                             {comment.updatedAt !== comment.createdAt && editingCommentId !== comment.id && (

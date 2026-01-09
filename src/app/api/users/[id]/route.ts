@@ -24,6 +24,7 @@ export async function GET(
         name: true,
         email: true,
         phone: true,
+        whatsappNumber: true,
         role: true,
         userRoleId: true,
         userRole: {
@@ -42,9 +43,68 @@ export async function GET(
         address: true,
         profileImage: true,
         designation: true,
+        designationId: true,
+        designationRef: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         department: true,
         joiningDate: true,
         employeeId: true,
+        // New job fields
+        joiningDateBrac: true,
+        joiningDateCurrentBase: true,
+        joiningDateCurrentPosition: true,
+        contractEndDate: true,
+        employmentStatusId: true,
+        employmentStatus: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        employmentTypeId: true,
+        employmentType: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
+        firstSupervisorId: true,
+        firstSupervisor: {
+          select: {
+            id: true,
+            name: true,
+            email: true,
+            firstSupervisorId: true,
+            firstSupervisor: {
+              select: {
+                id: true,
+                name: true,
+                email: true,
+              },
+            },
+          },
+        },
+        jobGrade: true,
+        yearsOfExperience: true,
+        salary: true,
+        // Performance fields
+        slab: true,
+        lastSlabChange: true,
+        secondLastSlabChange: true,
+        lastGradeChange: true,
+        secondLastGradeChange: true,
+        lastOneOffBonus: true,
+        secondLastOneOffBonus: true,
+        pmsMarkLastYear: true,
+        pmsMarkSecondLastYear: true,
+        pmsMarkThirdLastYear: true,
+        lastWarningDate: true,
+        secondLastWarningDate: true,
+        thirdLastWarningDate: true,
         createdAt: true,
       },
     });
@@ -107,7 +167,18 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { name, email, phone, role, designation, department, dateOfBirth, gender, address, userRoleId, resetPassword, isActive } = body;
+    const { 
+      name, email, phone, role, designation, department, dateOfBirth, gender, address, 
+      userRoleId, resetPassword, isActive, whatsappNumber,
+      // New job fields
+      designationId, joiningDateBrac, joiningDateCurrentBase, joiningDateCurrentPosition,
+      contractEndDate, employmentStatusId, employmentTypeId, firstSupervisorId,
+      jobGrade, yearsOfExperience, salary,
+      // Performance fields
+      slab, lastSlabChange, secondLastSlabChange, lastGradeChange, secondLastGradeChange,
+      lastOneOffBonus, secondLastOneOffBonus, pmsMarkLastYear, pmsMarkSecondLastYear,
+      pmsMarkThirdLastYear, lastWarningDate, secondLastWarningDate, thirdLastWarningDate
+    } = body;
 
     // Check if user is Super Admin for password reset
     let generatedPassword: string | null = null;
@@ -158,6 +229,33 @@ export async function PUT(
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
       gender,
       address,
+      whatsappNumber: whatsappNumber || null,
+      // New job fields
+      designationId: designationId || null,
+      joiningDateBrac: joiningDateBrac ? new Date(joiningDateBrac) : null,
+      joiningDateCurrentBase: joiningDateCurrentBase ? new Date(joiningDateCurrentBase) : null,
+      joiningDateCurrentPosition: joiningDateCurrentPosition ? new Date(joiningDateCurrentPosition) : null,
+      contractEndDate: contractEndDate ? new Date(contractEndDate) : null,
+      employmentStatusId: employmentStatusId || null,
+      employmentTypeId: employmentTypeId || null,
+      firstSupervisorId: firstSupervisorId || null,
+      jobGrade: jobGrade ? parseInt(jobGrade) : null,
+      yearsOfExperience: yearsOfExperience ? parseFloat(yearsOfExperience) : null,
+      salary: salary ? parseFloat(salary) : null,
+      // Performance fields
+      slab: slab ? parseInt(slab) : null,
+      lastSlabChange: lastSlabChange ? new Date(lastSlabChange) : null,
+      secondLastSlabChange: secondLastSlabChange ? new Date(secondLastSlabChange) : null,
+      lastGradeChange: lastGradeChange ? new Date(lastGradeChange) : null,
+      secondLastGradeChange: secondLastGradeChange ? new Date(secondLastGradeChange) : null,
+      lastOneOffBonus: lastOneOffBonus ? new Date(lastOneOffBonus) : null,
+      secondLastOneOffBonus: secondLastOneOffBonus ? new Date(secondLastOneOffBonus) : null,
+      pmsMarkLastYear: pmsMarkLastYear || null,
+      pmsMarkSecondLastYear: pmsMarkSecondLastYear || null,
+      pmsMarkThirdLastYear: pmsMarkThirdLastYear || null,
+      lastWarningDate: lastWarningDate ? new Date(lastWarningDate) : null,
+      secondLastWarningDate: secondLastWarningDate ? new Date(secondLastWarningDate) : null,
+      thirdLastWarningDate: thirdLastWarningDate ? new Date(thirdLastWarningDate) : null,
     };
 
     // Add isActive if provided

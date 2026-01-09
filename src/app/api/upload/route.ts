@@ -8,6 +8,7 @@ import {
   isAllowedFileType,
   ALLOWED_IMAGE_TYPES,
   ALLOWED_DOCUMENT_TYPES,
+  ALLOWED_ATTACHMENT_TYPES,
   MAX_FILE_SIZES,
 } from "@/lib/spaces";
 import prisma from "@/lib/prisma";
@@ -47,6 +48,11 @@ export async function POST(request: NextRequest) {
         allowedTypes = [...ALLOWED_IMAGE_TYPES, ...ALLOWED_DOCUMENT_TYPES];
         maxSize = MAX_FILE_SIZES.document;
         folder = "documents";
+        break;
+      case "comment-attachment":
+        allowedTypes = ALLOWED_ATTACHMENT_TYPES;
+        maxSize = MAX_FILE_SIZES.attachment;
+        folder = "comment-attachments";
         break;
       default:
         return NextResponse.json({ error: "Invalid upload type" }, { status: 400 });

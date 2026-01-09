@@ -20,7 +20,15 @@ import {
   Plus,
   MessageSquare,
   Pencil,
-  Trash2
+  Trash2,
+  Paperclip,
+  Download,
+  FileText,
+  Image as ImageIcon,
+  Video,
+  Music,
+  FolderKanban,
+  ChevronRight,
 } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, Input, Badge } from "@/components/ui";
 
@@ -68,6 +76,15 @@ interface BranchAssignment {
   branch: Branch;
 }
 
+interface CommentAttachment {
+  id: string;
+  fileName: string;
+  fileUrl: string;
+  fileType: string;
+  fileSize: number;
+  createdAt: string;
+}
+
 interface AdminComment {
   id: string;
   comment: string;
@@ -79,16 +96,22 @@ interface AdminComment {
     profileImage: string | null;
     userRole: { displayName: string } | null;
   };
+  attachments: CommentAttachment[];
 }
 
 export default function ProfilePage() {
   const { data: session, update: updateSession } = useSession();
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"personal" | "job" | "branches" | "comments" | "password">("personal");
+  const [activeTab, setActiveTab] = useState<"personal" | "job" | "projects" | "branches" | "comments" | "password">("personal");
   const [successMessage, setSuccessMessage] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Project assignments state (view-only)
+  const [projectAssignments, setProjectAssignments] = useState<{ project: { id: string; name: string; isActive: boolean }; cohorts: { cohort: { id: string; cohortId: string; name: string; isActive: boolean } }[] }[]>([]);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
   // Branch assignment state
   const [projects, setProjects] = useState<Project[]>([]);
@@ -111,6 +134,22 @@ export default function ProfilePage() {
   // Admin comments state
   const [adminComments, setAdminComments] = useState<AdminComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
+
+  // Helper functions for attachments
+  const getFileIcon = (fileType: string) => {
+    if (fileType.startsWith("image/")) return <ImageIcon className="w-4 h-4" />;
+    if (fileType.startsWith("video/")) return <Video className="w-4 h-4" />;
+    if (fileType.startsWith("audio/")) return <Music className="w-4 h-4" />;
+    return <FileText className="w-4 h-4" />;
+  };
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return "0 Bytes";
+    const k = 1024;
+    const sizes = ["Bytes", "KB", "MB", "GB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
 
   // Get cohorts from selected project
   const selectedProject = projects.find(p => p.id === selectedProjectId);
@@ -203,6 +242,33 @@ export default function ProfilePage() {
     };
     fetchAssignments();
   }, []);
+
+  // Fetch project assignments for view-only display
+  useEffect(() => {
+    const fetchProjectAssignments = async () => {
+      if (!session?.user?.id) return;
+      setIsLoadingProjects(true);
+      try {
+        const res = await fetch("/api/users/my-projects");
+        const data = await res.json();
+        
+        // Group by project
+        const grouped = (data.projects || []).map((project: { id: string; name: string; isActive: boolean; cohorts: { id: string; cohortId: string; name: string; isActive: boolean }[] }) => ({
+          project: { id: project.id, name: project.name, isActive: project.isActive },
+          cohorts: project.cohorts.map((cohort: { id: string; cohortId: string; name: string; isActive: boolean }) => ({
+            cohort: { id: cohort.id, cohortId: cohort.cohortId, name: cohort.name, isActive: cohort.isActive }
+          }))
+        }));
+        
+        setProjectAssignments(grouped);
+      } catch (error) {
+        console.error("Error fetching project assignments:", error);
+      } finally {
+        setIsLoadingProjects(false);
+      }
+    };
+    fetchProjectAssignments();
+  }, [session?.user?.id]);
 
   // Fetch admin comments for current user
   useEffect(() => {
@@ -416,6 +482,7 @@ export default function ProfilePage() {
   const tabs = [
     { id: "personal" as const, label: "Personal Details", icon: User },
     { id: "job" as const, label: "Job Information", icon: Briefcase },
+    { id: "projects" as const, label: "Project Assignments", icon: FolderKanban },
     { id: "branches" as const, label: "My Branches", icon: MapPin },
     { id: "comments" as const, label: "Admin Comments", icon: MessageSquare },
     { id: "password" as const, label: "Change Password", icon: Lock },
@@ -560,12 +627,101 @@ export default function ProfilePage() {
               </form>
             )}
 
+            {activeTab === "projects" && (
+              <div className="space-y-6">
+                <div className="border-b pb-4">
+                  <h3 className="text-lg font-medium text-gray-900">Project Assignments</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Your assigned projects and cohorts (view-only)
+                  </p>
+                </div>
+
+                {isLoadingProjects ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+                  </div>
+                ) : projectAssignments.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <FolderKanban className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>No project assignments found.</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {projectAssignments.map((assignment) => (
+                      <div
+                        key={assignment.project.id}
+                        className="border border-gray-200 rounded-lg overflow-hidden"
+                      >
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const newExpanded = new Set(expandedProjects);
+                            if (newExpanded.has(assignment.project.id)) {
+                              newExpanded.delete(assignment.project.id);
+                            } else {
+                              newExpanded.add(assignment.project.id);
+                            }
+                            setExpandedProjects(newExpanded);
+                          }}
+                          className="w-full flex items-center justify-between p-4 bg-gray-50 hover:bg-gray-100 transition-colors"
+                        >
+                          <div className="flex items-center gap-3">
+                            <Building2 className="w-5 h-5 text-blue-500" />
+                            <span className="font-medium text-gray-900">{assignment.project.name}</span>
+                            {!assignment.project.isActive && (
+                              <Badge variant="warning">Inactive</Badge>
+                            )}
+                            <Badge variant="info">{assignment.cohorts.length} cohort(s)</Badge>
+                          </div>
+                          <ChevronRight
+                            className={`w-5 h-5 text-gray-400 transition-transform ${
+                              expandedProjects.has(assignment.project.id) ? "rotate-90" : ""
+                            }`}
+                          />
+                        </button>
+
+                        {expandedProjects.has(assignment.project.id) && (
+                          <div className="p-4 bg-white border-t border-gray-200">
+                            <div className="space-y-2">
+                              {assignment.cohorts.map((c) => (
+                                <div
+                                  key={c.cohort.id}
+                                  className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg"
+                                >
+                                  <Layers className="w-4 h-4 text-green-500" />
+                                  <span className="text-sm font-medium">{c.cohort.name}</span>
+                                  <Badge variant="default" className="text-xs">{c.cohort.cohortId}</Badge>
+                                  {!c.cohort.isActive && (
+                                    <Badge variant="warning" className="text-xs">Inactive</Badge>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {activeTab === "branches" && (
               <div className="space-y-6">
-                {/* Current Assignments */}
-                {Object.keys(groupedAssignments).length > 0 && (
+                <div className="border-b pb-4">
+                  <h3 className="text-lg font-medium text-gray-900">My Branch Assignments</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    Your assigned branches across projects and cohorts (view-only)
+                  </p>
+                </div>
+
+                {Object.keys(groupedAssignments).length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <MapPin className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>No branch assignments found.</p>
+                  </div>
+                ) : (
                   <div className="space-y-4">
-                    <h3 className="text-lg font-medium text-gray-900">Current Branch Assignments</h3>
                     <div className="space-y-3">
                       {Object.values(groupedAssignments).map((group) => (
                         <div 
@@ -594,250 +750,6 @@ export default function ProfilePage() {
                     </div>
                   </div>
                 )}
-
-                {/* Add/Edit Assignment */}
-                <div className="border-t pt-6">
-                  <h3 className="text-lg font-medium text-gray-900 mb-4 flex items-center gap-2">
-                    <Plus className="w-5 h-5" />
-                    Add/Update Branch Assignment
-                  </h3>
-
-                  <div className="grid md:grid-cols-2 gap-4 mb-4">
-                    {/* Project Dropdown */}
-                    <div ref={projectDropdownRef} className="relative">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Select Project
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setIsProjectDropdownOpen(!isProjectDropdownOpen)}
-                        className="w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Building2 className="w-4 h-4 text-gray-400" />
-                          <span className={selectedProjectId ? "text-gray-900" : "text-gray-400"}>
-                            {selectedProjectId
-                              ? projects.find(p => p.id === selectedProjectId)?.name
-                              : "Select a project"}
-                          </span>
-                        </div>
-                        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isProjectDropdownOpen ? "rotate-180" : ""}`} />
-                      </button>
-                      {isProjectDropdownOpen && (
-                        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
-                          <div className="p-2 border-b">
-                            <div className="relative">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                              <input
-                                type="text"
-                                value={projectSearch}
-                                onChange={(e) => setProjectSearch(e.target.value)}
-                                placeholder="Search projects..."
-                                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
-                            </div>
-                          </div>
-                          <div className="max-h-48 overflow-y-auto">
-                            {filteredProjectsList.length === 0 ? (
-                              <p className="px-4 py-3 text-sm text-gray-500">No projects found</p>
-                            ) : (
-                              filteredProjectsList.map(project => (
-                                <button
-                                  key={project.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedProjectId(project.id);
-                                    setSelectedCohortId("");
-                                    setIsProjectDropdownOpen(false);
-                                    setProjectSearch("");
-                                  }}
-                                  className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${
-                                    selectedProjectId === project.id ? "bg-blue-50 text-blue-600" : ""
-                                  }`}
-                                >
-                                  <span>{project.name}</span>
-                                  {selectedProjectId === project.id && <Check className="w-4 h-4 text-blue-600" />}
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    {/* Cohort Dropdown */}
-                    <div ref={cohortDropdownRef} className="relative">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Select Cohort
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => selectedProjectId && setIsCohortDropdownOpen(!isCohortDropdownOpen)}
-                        disabled={!selectedProjectId}
-                        className={`w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                          !selectedProjectId ? "opacity-50 cursor-not-allowed" : ""
-                        }`}
-                      >
-                        <div className="flex items-center gap-2">
-                          <Layers className="w-4 h-4 text-gray-400" />
-                          <span className={selectedCohortId ? "text-gray-900" : "text-gray-400"}>
-                            {selectedCohortId
-                              ? filteredCohorts.find(c => c.id === selectedCohortId)?.name
-                              : selectedProjectId ? "Select a cohort" : "Select project first"}
-                          </span>
-                        </div>
-                        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isCohortDropdownOpen ? "rotate-180" : ""}`} />
-                      </button>
-                      {isCohortDropdownOpen && (
-                        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
-                          <div className="p-2 border-b">
-                            <div className="relative">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                              <input
-                                type="text"
-                                value={cohortSearch}
-                                onChange={(e) => setCohortSearch(e.target.value)}
-                                placeholder="Search cohorts..."
-                                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
-                            </div>
-                          </div>
-                          <div className="max-h-48 overflow-y-auto">
-                            {filteredCohortsList.length === 0 ? (
-                              <p className="px-4 py-3 text-sm text-gray-500">No cohorts found</p>
-                            ) : (
-                              filteredCohortsList.map(cohort => (
-                                <button
-                                  key={cohort.id}
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedCohortId(cohort.id);
-                                    setIsCohortDropdownOpen(false);
-                                    setCohortSearch("");
-                                  }}
-                                  className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${
-                                    selectedCohortId === cohort.id ? "bg-blue-50 text-blue-600" : ""
-                                  }`}
-                                >
-                                  <div>
-                                    <span>{cohort.name}</span>
-                                    <span className="ml-2 text-xs text-gray-400">({cohort.cohortId})</span>
-                                  </div>
-                                  {selectedCohortId === cohort.id && <Check className="w-4 h-4 text-blue-600" />}
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Branch Multi-Select */}
-                  {selectedCohortId && (
-                    <div ref={branchDropdownRef} className="relative mb-4">
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Select Branches (Multiple)
-                      </label>
-                      <button
-                        type="button"
-                        onClick={() => setIsBranchDropdownOpen(!isBranchDropdownOpen)}
-                        className="w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500"
-                      >
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <MapPin className="w-4 h-4 text-gray-400 flex-shrink-0" />
-                          {selectedBranchIds.length === 0 ? (
-                            <span className="text-gray-400">Select branches...</span>
-                          ) : (
-                            <span className="text-gray-900">
-                              {selectedBranchIds.length} branch{selectedBranchIds.length > 1 ? "es" : ""} selected
-                            </span>
-                          )}
-                        </div>
-                        <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isBranchDropdownOpen ? "rotate-180" : ""}`} />
-                      </button>
-                      
-                      {/* Selected branches tags */}
-                      {selectedBranchIds.length > 0 && (
-                        <div className="flex flex-wrap gap-2 mt-2">
-                          {selectedBranchIds.map(branchId => {
-                            const branch = branches.find(b => b.id === branchId);
-                            if (!branch) return null;
-                            return (
-                              <Badge key={branchId} variant="info" className="flex items-center gap-1">
-                                {branch.branchName}
-                                <button
-                                  type="button"
-                                  onClick={() => handleBranchToggle(branchId)}
-                                  className="ml-1 hover:text-red-500"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </Badge>
-                            );
-                          })}
-                        </div>
-                      )}
-
-                      {isBranchDropdownOpen && (
-                        <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
-                          <div className="p-2 border-b">
-                            <div className="relative">
-                              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                              <input
-                                type="text"
-                                value={branchSearch}
-                                onChange={(e) => setBranchSearch(e.target.value)}
-                                placeholder="Search branches..."
-                                className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                              />
-                            </div>
-                          </div>
-                          <div className="max-h-64 overflow-y-auto">
-                            {filteredBranchesList.length === 0 ? (
-                              <p className="px-4 py-3 text-sm text-gray-500">No branches found in this cohort</p>
-                            ) : (
-                              filteredBranchesList.map(branch => (
-                                <button
-                                  key={branch.id}
-                                  type="button"
-                                  onClick={() => handleBranchToggle(branch.id)}
-                                  className={`w-full px-4 py-3 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${
-                                    selectedBranchIds.includes(branch.id) ? "bg-blue-50" : ""
-                                  }`}
-                                >
-                                  <div>
-                                    <p className="font-medium">{branch.branchName}</p>
-                                    <p className="text-xs text-gray-500">
-                                      {branch.upazila}, {branch.district}
-                                    </p>
-                                  </div>
-                                  <div className={`w-5 h-5 rounded border flex items-center justify-center ${
-                                    selectedBranchIds.includes(branch.id) 
-                                      ? "bg-blue-600 border-blue-600 text-white" 
-                                      : "border-gray-300"
-                                  }`}>
-                                    {selectedBranchIds.includes(branch.id) && <Check className="w-3 h-3" />}
-                                  </div>
-                                </button>
-                              ))
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {selectedProjectId && selectedCohortId && (
-                    <Button 
-                      onClick={handleSaveBranches} 
-                      isLoading={isSavingBranches}
-                      disabled={selectedBranchIds.length === 0}
-                    >
-                      Save Branch Assignments
-                    </Button>
-                  )}
-                </div>
               </div>
             )}
 
@@ -903,6 +815,34 @@ export default function ProfilePage() {
                               </span>
                             </div>
                             <p className="mt-3 text-gray-700 whitespace-pre-wrap">{comment.comment}</p>
+                            
+                            {/* Attachments */}
+                            {comment.attachments && comment.attachments.length > 0 && (
+                              <div className="mt-3 pt-3 border-t border-gray-200">
+                                <p className="text-xs font-medium text-gray-500 mb-2 flex items-center gap-1">
+                                  <Paperclip className="w-3 h-3" />
+                                  Attachments ({comment.attachments.length})
+                                </p>
+                                <div className="flex flex-wrap gap-2">
+                                  {comment.attachments.map((att) => (
+                                    <a
+                                      key={att.id}
+                                      href={att.fileUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      download={att.fileName}
+                                      className="flex items-center gap-2 px-3 py-2 bg-white border border-gray-200 rounded-lg text-sm hover:bg-blue-50 hover:border-blue-300 transition-colors"
+                                    >
+                                      {getFileIcon(att.fileType)}
+                                      <span className="max-w-[150px] truncate">{att.fileName}</span>
+                                      <span className="text-xs text-gray-400">({formatFileSize(att.fileSize)})</span>
+                                      <Download className="w-3 h-3 text-blue-500" />
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+                            
                             {comment.updatedAt !== comment.createdAt && (
                               <p className="mt-2 text-xs text-gray-400 italic">
                                 (edited)

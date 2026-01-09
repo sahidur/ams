@@ -25,6 +25,9 @@ import {
   BookOpen,
   Wrench,
   MapPin,
+  Briefcase,
+  UserCheck,
+  FileText,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -132,6 +135,24 @@ const adminToolsSection: NavSection = {
       href: "/dashboard/geo-admin",
       icon: MapPin,
       module: "BRANCHES",
+    },
+    {
+      title: "Designations",
+      href: "/dashboard/designations",
+      icon: Briefcase,
+      module: "USERS",
+    },
+    {
+      title: "Employment Status",
+      href: "/dashboard/employment-statuses",
+      icon: UserCheck,
+      module: "USERS",
+    },
+    {
+      title: "Employment Types",
+      href: "/dashboard/employment-types",
+      icon: FileText,
+      module: "USERS",
     },
   ],
 };

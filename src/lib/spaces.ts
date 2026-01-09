@@ -140,9 +140,46 @@ export const ALLOWED_DOCUMENT_TYPES = [
 ];
 
 /**
+ * Get allowed video types
+ */
+export const ALLOWED_VIDEO_TYPES = [
+  "video/mp4",
+  "video/webm",
+  "video/ogg",
+  "video/quicktime",
+  "video/x-msvideo",
+  "video/x-ms-wmv",
+];
+
+/**
+ * Get allowed audio types
+ */
+export const ALLOWED_AUDIO_TYPES = [
+  "audio/mpeg",
+  "audio/mp3",
+  "audio/wav",
+  "audio/ogg",
+  "audio/webm",
+  "audio/aac",
+  "audio/m4a",
+  "audio/x-m4a",
+];
+
+/**
+ * All allowed attachment types for comments
+ */
+export const ALLOWED_ATTACHMENT_TYPES = [
+  ...ALLOWED_IMAGE_TYPES,
+  ...ALLOWED_DOCUMENT_TYPES,
+  ...ALLOWED_VIDEO_TYPES,
+  ...ALLOWED_AUDIO_TYPES,
+];
+
+/**
  * Maximum file sizes in bytes
  */
 export const MAX_FILE_SIZES = {
   image: 5 * 1024 * 1024, // 5MB
   document: 10 * 1024 * 1024, // 10MB
+  attachment: 2 * 1024 * 1024 * 1024, // 2GB
 };

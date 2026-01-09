@@ -83,6 +83,7 @@ model User {
   id             String         @id @default(cuid())
   email          String         @unique
   phone          String?        @unique
+  whatsappNumber String?        // WhatsApp Number
   pin            String         // Hashed PIN
   password       String         // Hashed password
   name           String
@@ -101,10 +102,41 @@ model User {
   profileImage   String?
   
   // Job Information
-  designation    String?
-  department     String?
-  joiningDate    DateTime?
-  employeeId     String?
+  designation           String?         // Legacy field - keeping for backward compatibility
+  designationId         String?
+  designationRef        Designation?    @relation(fields: [designationId], references: [id])
+  department            String?
+  joiningDate           DateTime?
+  employeeId            String?
+  joiningDateBrac       DateTime?       // Joining Date in BRAC
+  joiningDateCurrentBase DateTime?      // Joining Date (Current Base)
+  joiningDateCurrentPosition DateTime?  // Joining Date (Current Position)
+  contractEndDate       DateTime?       // Contract End Date
+  employmentStatusId    String?
+  employmentStatus      EmploymentStatus? @relation(fields: [employmentStatusId], references: [id])
+  employmentTypeId      String?
+  employmentType        EmploymentType?   @relation(fields: [employmentTypeId], references: [id])
+  firstSupervisorId     String?
+  firstSupervisor       User?           @relation("FirstSupervisor", fields: [firstSupervisorId], references: [id])
+  subordinates          User[]          @relation("FirstSupervisor")
+  jobGrade              Int?            // 1-13
+  yearsOfExperience     Float?
+  salary                Float?
+  
+  // Performance Information
+  slab                  Int?
+  lastSlabChange        DateTime?
+  secondLastSlabChange  DateTime?
+  lastGradeChange       DateTime?
+  secondLastGradeChange DateTime?
+  lastOneOffBonus       DateTime?
+  secondLastOneOffBonus DateTime?
+  pmsMarkLastYear       String?
+  pmsMarkSecondLastYear String?
+  pmsMarkThirdLastYear  String?
+  lastWarningDate       DateTime?
+  secondLastWarningDate DateTime?
+  thirdLastWarningDate  DateTime?
   
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
@@ -414,7 +446,69 @@ model AdminComment {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
+  // Relations
+  attachments CommentAttachment[]
+  
   @@map("admin_comments")
+}
+
+model CommentAttachment {
+  id          String   @id @default(cuid())
+  commentId   String
+  comment     AdminComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  fileName    String
+  fileUrl     String
+  fileType    String   // mime type
+  fileSize    Int      // size in bytes
+  
+  createdAt   DateTime @default(now())
+  
+  @@map("comment_attachments")
+}
+
+model Designation {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  users       User[]
+  
+  @@map("designations")
+}
+
+model EmploymentStatus {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  users       User[]
+  
+  @@map("employment_statuses")
+}
+
+model EmploymentType {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  users       User[]
+  
+  @@map("employment_types")
 }
 
 // Bangladesh Geo-Location Models

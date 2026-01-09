@@ -59,6 +59,16 @@ export async function GET(
             },
           },
         },
+        attachments: {
+          select: {
+            id: true,
+            fileName: true,
+            fileUrl: true,
+            fileType: true,
+            fileSize: true,
+            createdAt: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -102,7 +112,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { comment } = body;
+    const { comment, attachments } = body;
 
     if (!comment || comment.trim() === "") {
       return NextResponse.json(
@@ -123,11 +133,22 @@ export async function POST(
       );
     }
 
+    // Create comment with optional attachments
+    const attachmentData = attachments?.map((att: { fileName: string; fileUrl: string; fileType: string; fileSize: number }) => ({
+      fileName: att.fileName,
+      fileUrl: att.fileUrl,
+      fileType: att.fileType,
+      fileSize: att.fileSize,
+    })) || [];
+
     const newComment = await prisma.adminComment.create({
       data: {
         userId,
         authorId: session.user.id,
         comment: comment.trim(),
+        attachments: {
+          create: attachmentData,
+        },
       },
       include: {
         author: {
@@ -140,6 +161,16 @@ export async function POST(
                 displayName: true,
               },
             },
+          },
+        },
+        attachments: {
+          select: {
+            id: true,
+            fileName: true,
+            fileUrl: true,
+            fileType: true,
+            fileSize: true,
+            createdAt: true,
           },
         },
       },
