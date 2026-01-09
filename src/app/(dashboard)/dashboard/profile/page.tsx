@@ -29,13 +29,24 @@ import {
   Music,
   FolderKanban,
   ChevronRight,
+  Shield,
+  Award,
+  AlertTriangle,
+  Star,
+  CheckCircle,
+  XCircle,
+  Clock,
+  Calendar,
+  DollarSign,
+  TrendingUp,
 } from "lucide-react";
-import { Button, Card, CardContent, CardHeader, Input, Badge } from "@/components/ui";
+import { Button, Card, CardContent, CardHeader, Input, Badge, Modal } from "@/components/ui";
 
 interface ProfileData {
   name: string;
   email: string;
   phone: string;
+  whatsappNumber: string;
   dateOfBirth: string;
   gender: string;
   address: string;
@@ -43,6 +54,56 @@ interface ProfileData {
   department: string;
   employeeId: string;
   profileImage?: string;
+}
+
+interface FullUserData {
+  id: string;
+  name: string;
+  email: string;
+  phone: string | null;
+  whatsappNumber: string | null;
+  dateOfBirth: string | null;
+  gender: string | null;
+  address: string | null;
+  profileImage: string | null;
+  employeeId: string | null;
+  designation: string | null;
+  designationId: string | null;
+  designationRef: { id: string; name: string } | null;
+  department: string | null;
+  joiningDate: string | null;
+  joiningDateBrac: string | null;
+  joiningDateCurrentBase: string | null;
+  joiningDateCurrentPosition: string | null;
+  contractEndDate: string | null;
+  employmentStatusId: string | null;
+  employmentStatus: { id: string; name: string } | null;
+  employmentTypeId: string | null;
+  employmentType: { id: string; name: string } | null;
+  firstSupervisorId: string | null;
+  firstSupervisor: { id: string; name: string; email: string } | null;
+  jobGrade: string | null;
+  yearsOfExperience: number | null;
+  salary: number | null;
+  role: string;
+  userRoleId: string | null;
+  userRole: { id: string; name: string; displayName: string; isActive: boolean } | null;
+  approvalStatus: string;
+  isActive: boolean;
+  isVerified: boolean;
+  slab: string | null;
+  lastSlabChange: string | null;
+  secondLastSlabChange: string | null;
+  lastGradeChange: string | null;
+  secondLastGradeChange: string | null;
+  lastOneOffBonus: string | null;
+  secondLastOneOffBonus: string | null;
+  pmsMarkLastYear: number | null;
+  pmsMarkSecondLastYear: number | null;
+  pmsMarkThirdLastYear: number | null;
+  lastWarningDate: string | null;
+  secondLastWarningDate: string | null;
+  thirdLastWarningDate: string | null;
 }
 
 interface Cohort {
@@ -135,6 +196,45 @@ export default function ProfilePage() {
   const [adminComments, setAdminComments] = useState<AdminComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
 
+  // Full user data for display
+  const [userData, setUserData] = useState<FullUserData | null>(null);
+
+  // Reference data for dropdowns
+  const [designations, setDesignations] = useState<{ id: string; name: string }[]>([]);
+  const [employmentStatuses, setEmploymentStatuses] = useState<{ id: string; name: string }[]>([]);
+  const [employmentTypes, setEmploymentTypes] = useState<{ id: string; name: string }[]>([]);
+  const [allUsers, setAllUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+
+  // Edit modal state
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editModalTab, setEditModalTab] = useState<"personal" | "job">("personal");
+  const [isSavingEdit, setIsSavingEdit] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    // Personal
+    name: "",
+    email: "",
+    phone: "",
+    whatsappNumber: "",
+    dateOfBirth: "",
+    gender: "",
+    address: "",
+    // Job
+    employeeId: "",
+    designationId: "",
+    department: "",
+    joiningDate: "",
+    joiningDateBrac: "",
+    joiningDateCurrentBase: "",
+    joiningDateCurrentPosition: "",
+    contractEndDate: "",
+    employmentStatusId: "",
+    employmentTypeId: "",
+    firstSupervisorId: "",
+    jobGrade: "",
+    yearsOfExperience: "",
+    salary: "",
+  });
+
   // Helper functions for attachments
   const getFileIcon = (fileType: string) => {
     if (fileType.startsWith("image/")) return <ImageIcon className="w-4 h-4" />;
@@ -173,10 +273,12 @@ export default function ProfilePage() {
       try {
         const res = await fetch(`/api/users/${session?.user?.id}`);
         const data = await res.json();
+        setUserData(data);
         reset({
           name: data.name || "",
           email: data.email || "",
           phone: data.phone || "",
+          whatsappNumber: data.whatsappNumber || "",
           dateOfBirth: data.dateOfBirth?.split("T")[0] || "",
           gender: data.gender || "",
           address: data.address || "",
@@ -196,6 +298,40 @@ export default function ProfilePage() {
       fetchProfile();
     }
   }, [session, reset]);
+
+  // Fetch reference data for edit modal
+  useEffect(() => {
+    const fetchReferenceData = async () => {
+      try {
+        const [designationsRes, statusesRes, typesRes, usersRes] = await Promise.all([
+          fetch("/api/training-types"),
+          fetch("/api/model-types?category=employment_status"),
+          fetch("/api/model-types?category=employment_type"),
+          fetch("/api/users?limit=1000"),
+        ]);
+        
+        if (designationsRes.ok) {
+          const data = await designationsRes.json();
+          setDesignations(data);
+        }
+        if (statusesRes.ok) {
+          const data = await statusesRes.json();
+          setEmploymentStatuses(data);
+        }
+        if (typesRes.ok) {
+          const data = await typesRes.json();
+          setEmploymentTypes(data);
+        }
+        if (usersRes.ok) {
+          const data = await usersRes.json();
+          setAllUsers(data.users || []);
+        }
+      } catch (error) {
+        console.error("Error fetching reference data:", error);
+      }
+    };
+    fetchReferenceData();
+  }, []);
 
   // Fetch projects for branch assignment
   useEffect(() => {
@@ -372,10 +508,111 @@ export default function ProfilePage() {
 
       if (res.ok) {
         setSuccessMessage("Profile updated successfully!");
+        // Refresh user data
+        const refreshRes = await fetch(`/api/users/${session?.user?.id}`);
+        if (refreshRes.ok) {
+          const refreshedData = await refreshRes.json();
+          setUserData(refreshedData);
+        }
         setTimeout(() => setSuccessMessage(""), 3000);
       }
     } catch (error) {
       console.error("Error updating profile:", error);
+    }
+  };
+
+  // Open edit modal with current data
+  const openEditModal = () => {
+    if (!userData) return;
+    setEditFormData({
+      name: userData.name || "",
+      email: userData.email || "",
+      phone: userData.phone || "",
+      whatsappNumber: userData.whatsappNumber || "",
+      dateOfBirth: userData.dateOfBirth?.split("T")[0] || "",
+      gender: userData.gender || "",
+      address: userData.address || "",
+      employeeId: userData.employeeId || "",
+      designationId: userData.designationId || "",
+      department: userData.department || "",
+      joiningDate: userData.joiningDate?.split("T")[0] || "",
+      joiningDateBrac: userData.joiningDateBrac?.split("T")[0] || "",
+      joiningDateCurrentBase: userData.joiningDateCurrentBase?.split("T")[0] || "",
+      joiningDateCurrentPosition: userData.joiningDateCurrentPosition?.split("T")[0] || "",
+      contractEndDate: userData.contractEndDate?.split("T")[0] || "",
+      employmentStatusId: userData.employmentStatusId || "",
+      employmentTypeId: userData.employmentTypeId || "",
+      firstSupervisorId: userData.firstSupervisorId || "",
+      jobGrade: userData.jobGrade || "",
+      yearsOfExperience: userData.yearsOfExperience?.toString() || "",
+      salary: userData.salary?.toString() || "",
+    });
+    setEditModalTab("personal");
+    setIsEditModalOpen(true);
+  };
+
+  // Save edit modal changes
+  const handleSaveEdit = async () => {
+    setIsSavingEdit(true);
+    try {
+      const res = await fetch(`/api/users/${session?.user?.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: editFormData.name,
+          phone: editFormData.phone || null,
+          whatsappNumber: editFormData.whatsappNumber || null,
+          dateOfBirth: editFormData.dateOfBirth || null,
+          gender: editFormData.gender || null,
+          address: editFormData.address || null,
+          employeeId: editFormData.employeeId || null,
+          designationId: editFormData.designationId || null,
+          department: editFormData.department || null,
+          joiningDate: editFormData.joiningDate || null,
+          joiningDateBrac: editFormData.joiningDateBrac || null,
+          joiningDateCurrentBase: editFormData.joiningDateCurrentBase || null,
+          joiningDateCurrentPosition: editFormData.joiningDateCurrentPosition || null,
+          contractEndDate: editFormData.contractEndDate || null,
+          employmentStatusId: editFormData.employmentStatusId || null,
+          employmentTypeId: editFormData.employmentTypeId || null,
+          firstSupervisorId: editFormData.firstSupervisorId || null,
+          jobGrade: editFormData.jobGrade || null,
+          yearsOfExperience: editFormData.yearsOfExperience ? parseFloat(editFormData.yearsOfExperience) : null,
+          salary: editFormData.salary ? parseFloat(editFormData.salary) : null,
+        }),
+      });
+
+      if (res.ok) {
+        // Refresh user data
+        const refreshRes = await fetch(`/api/users/${session?.user?.id}`);
+        if (refreshRes.ok) {
+          const refreshedData = await refreshRes.json();
+          setUserData(refreshedData);
+          reset({
+            name: refreshedData.name || "",
+            email: refreshedData.email || "",
+            phone: refreshedData.phone || "",
+            whatsappNumber: refreshedData.whatsappNumber || "",
+            dateOfBirth: refreshedData.dateOfBirth?.split("T")[0] || "",
+            gender: refreshedData.gender || "",
+            address: refreshedData.address || "",
+            designation: refreshedData.designation || "",
+            department: refreshedData.department || "",
+            employeeId: refreshedData.employeeId || "",
+          });
+        }
+        setIsEditModalOpen(false);
+        setSuccessMessage("Profile updated successfully!");
+        setTimeout(() => setSuccessMessage(""), 3000);
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to update profile");
+      }
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      alert("Failed to update profile");
+    } finally {
+      setIsSavingEdit(false);
     }
   };
 
@@ -498,10 +735,16 @@ export default function ProfilePage() {
   }
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
-        <p className="text-gray-500 mt-1">Manage your account settings</p>
+    <div className="max-w-6xl mx-auto space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
+          <p className="text-gray-500 mt-1">Manage your account settings</p>
+        </div>
+        <Button onClick={openEditModal} className="flex items-center gap-2">
+          <Pencil className="w-4 h-4" />
+          Edit Profile
+        </Button>
       </div>
 
       {successMessage && (
@@ -516,62 +759,101 @@ export default function ProfilePage() {
 
       <Card>
         <CardHeader className="border-b">
-          <div className="flex items-center gap-6">
-            <div className="relative">
-              {profileImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={profileImage}
-                  alt="Profile"
-                  className="w-20 h-20 rounded-full object-cover"
-                  onError={(e) => {
-                    console.error("Image load error:", profileImage);
-                    e.currentTarget.style.display = "none";
-                  }}
-                />
-              ) : (
-                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold">
-                  {session?.user?.name?.charAt(0) || "U"}
-                </div>
-              )}
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleImageUpload}
-                accept="image/jpeg,image/png,image/gif,image/webp"
-                className="hidden"
-              />
-              <button 
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isUploadingImage}
-                className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50"
-              >
-                {isUploadingImage ? (
-                  <Loader2 className="w-4 h-4 text-gray-600 animate-spin" />
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-6">
+              <div className="relative">
+                {profileImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={profileImage}
+                    alt="Profile"
+                    className="w-20 h-20 rounded-full object-cover"
+                    onError={(e) => {
+                      console.error("Image load error:", profileImage);
+                      e.currentTarget.style.display = "none";
+                    }}
+                  />
                 ) : (
-                  <Camera className="w-4 h-4 text-gray-600" />
+                  <div className="w-20 h-20 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-2xl font-bold">
+                    {session?.user?.name?.charAt(0) || "U"}
+                  </div>
                 )}
-              </button>
-            </div>
-            <div>
-              <h2 className="text-xl font-semibold">{session?.user?.name}</h2>
-              <p className="text-gray-500">{session?.user?.email}</p>
-              <p className="text-sm text-blue-600 mt-1">{session?.user?.role}</p>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleImageUpload}
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="hidden"
+                />
+                <button 
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isUploadingImage}
+                  className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-white border-2 border-gray-200 flex items-center justify-center hover:bg-gray-50 disabled:opacity-50"
+                >
+                  {isUploadingImage ? (
+                    <Loader2 className="w-4 h-4 text-gray-600 animate-spin" />
+                  ) : (
+                    <Camera className="w-4 h-4 text-gray-600" />
+                  )}
+                </button>
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold">{session?.user?.name}</h2>
+                <p className="text-gray-500">{session?.user?.email}</p>
+                <div className="flex items-center gap-2 mt-2">
+                  {/* Role Badge */}
+                  <Badge variant="info" className="flex items-center gap-1">
+                    <Shield className="w-3 h-3" />
+                    {userData?.userRole?.displayName || session?.user?.userRoleName || session?.user?.role || "User"}
+                  </Badge>
+                  
+                  {/* Approval Status Badge */}
+                  {userData?.approvalStatus === "APPROVED" ? (
+                    <Badge variant="success" className="flex items-center gap-1">
+                      <CheckCircle className="w-3 h-3" />
+                      Approved
+                    </Badge>
+                  ) : userData?.approvalStatus === "PENDING" ? (
+                    <Badge variant="warning" className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Pending
+                    </Badge>
+                  ) : userData?.approvalStatus === "REJECTED" ? (
+                    <Badge variant="danger" className="flex items-center gap-1">
+                      <XCircle className="w-3 h-3" />
+                      Rejected
+                    </Badge>
+                  ) : null}
+                  
+                  {/* Active Status Badge */}
+                  {userData?.isActive ? (
+                    <Badge variant="success" className="flex items-center gap-1">
+                      <Check className="w-3 h-3" />
+                      Active
+                    </Badge>
+                  ) : (
+                    <Badge variant="danger" className="flex items-center gap-1">
+                      <X className="w-3 h-3" />
+                      Inactive
+                    </Badge>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </CardHeader>
         <CardContent className="p-0">
           {/* Tabs */}
           <div className="border-b border-gray-200">
-            <nav className="flex gap-4 overflow-x-auto px-4">
+            <nav className="flex flex-wrap gap-2 px-4 py-3">
               {tabs.map((tab) => (
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors whitespace-nowrap ${
+                  className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors whitespace-nowrap ${
                     activeTab === tab.id
-                      ? "border-blue-600 text-blue-600"
-                      : "border-transparent text-gray-500 hover:text-gray-700"
+                      ? "bg-blue-100 text-blue-700 font-medium"
+                      : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
                   }`}
                 >
                   <tab.icon className="w-4 h-4" />
@@ -618,16 +900,101 @@ export default function ProfilePage() {
             )}
 
             {activeTab === "job" && (
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-                <div className="grid md:grid-cols-2 gap-4">
-                  <Input label="Employee ID" {...register("employeeId")} />
-                  <Input label="Designation" {...register("designation")} />
-                  <Input label="Department" {...register("department")} />
+              <div className="space-y-6">
+                {/* Basic Job Info */}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Employee ID</label>
+                    <p className="text-gray-900">{userData?.employeeId || "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Designation</label>
+                    <p className="text-gray-900">{userData?.designationRef?.name || userData?.designation || "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Department</label>
+                    <p className="text-gray-900">{userData?.department || "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Employment Status</label>
+                    <p className="text-gray-900">{userData?.employmentStatus?.name || "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Employment Type</label>
+                    <p className="text-gray-900">{userData?.employmentType?.name || "—"}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-sm font-medium text-gray-500">Job Grade</label>
+                    <p className="text-gray-900">{userData?.jobGrade || "—"}</p>
+                  </div>
                 </div>
-                <Button type="submit" isLoading={isSubmitting}>
-                  Save Changes
-                </Button>
-              </form>
+
+                {/* Supervisor */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Supervisor</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-500">First Supervisor</label>
+                      <p className="text-gray-900">{userData?.firstSupervisor?.name || "—"}</p>
+                      {userData?.firstSupervisor?.email && (
+                        <p className="text-sm text-gray-500">{userData.firstSupervisor.email}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dates */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Important Dates</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-500">Joining Date</label>
+                      <p className="text-gray-900">
+                        {userData?.joiningDate ? new Date(userData.joiningDate).toLocaleDateString() : "—"}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-500">Joining Date (BRAC)</label>
+                      <p className="text-gray-900">
+                        {userData?.joiningDateBrac ? new Date(userData.joiningDateBrac).toLocaleDateString() : "—"}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-500">Joining Date (Current Base)</label>
+                      <p className="text-gray-900">
+                        {userData?.joiningDateCurrentBase ? new Date(userData.joiningDateCurrentBase).toLocaleDateString() : "—"}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-500">Joining Date (Current Position)</label>
+                      <p className="text-gray-900">
+                        {userData?.joiningDateCurrentPosition ? new Date(userData.joiningDateCurrentPosition).toLocaleDateString() : "—"}
+                      </p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-500">Contract End Date</label>
+                      <p className="text-gray-900">
+                        {userData?.contractEndDate ? new Date(userData.contractEndDate).toLocaleDateString() : "—"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Compensation */}
+                <div className="border-t pt-4">
+                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Compensation & Experience</h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-500">Years of Experience</label>
+                      <p className="text-gray-900">{userData?.yearsOfExperience ?? "—"}</p>
+                    </div>
+                    <div className="space-y-1">
+                      <label className="text-sm font-medium text-gray-500">Salary</label>
+                      <p className="text-gray-900">{userData?.salary ? `৳ ${userData.salary.toLocaleString()}` : "—"}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             )}
 
             {activeTab === "projects" && (
@@ -885,6 +1252,223 @@ export default function ProfilePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Edit Profile Modal */}
+      <Modal
+        isOpen={isEditModalOpen}
+        onClose={() => setIsEditModalOpen(false)}
+        title="Edit Profile"
+        size="3xl"
+      >
+        {/* Modal Tabs */}
+        <div className="border-b border-gray-200 mb-4">
+          <nav className="flex gap-2">
+            <button
+              onClick={() => setEditModalTab("personal")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg transition-colors ${
+                editModalTab === "personal"
+                  ? "bg-blue-100 text-blue-700 font-medium"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <User className="w-4 h-4" />
+              Personal Details
+            </button>
+            <button
+              onClick={() => setEditModalTab("job")}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg transition-colors ${
+                editModalTab === "job"
+                  ? "bg-blue-100 text-blue-700 font-medium"
+                  : "text-gray-600 hover:bg-gray-100"
+              }`}
+            >
+              <Briefcase className="w-4 h-4" />
+              Job Information
+            </button>
+          </nav>
+        </div>
+
+        {/* Personal Details Tab */}
+        {editModalTab === "personal" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Input
+              label="Full Name"
+              value={editFormData.name}
+              onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+            />
+            <Input
+              label="Email"
+              type="email"
+              value={editFormData.email}
+              disabled
+            />
+            <Input
+              label="Phone"
+              value={editFormData.phone}
+              onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+            />
+            <Input
+              label="WhatsApp Number"
+              value={editFormData.whatsappNumber}
+              onChange={(e) => setEditFormData({ ...editFormData, whatsappNumber: e.target.value })}
+            />
+            <Input
+              label="Date of Birth"
+              type="date"
+              value={editFormData.dateOfBirth}
+              onChange={(e) => setEditFormData({ ...editFormData, dateOfBirth: e.target.value })}
+            />
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Gender</label>
+              <select
+                value={editFormData.gender}
+                onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
+                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
+              >
+                <option value="">Select gender</option>
+                <option value="male">Male</option>
+                <option value="female">Female</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div className="col-span-full space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Address</label>
+              <textarea
+                value={editFormData.address}
+                onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
+                className="flex w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm min-h-[80px]"
+                placeholder="Enter your address"
+              />
+            </div>
+          </div>
+        )}
+
+        {/* Job Information Tab */}
+        {editModalTab === "job" && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <Input
+              label="Employee ID"
+              value={editFormData.employeeId}
+              onChange={(e) => setEditFormData({ ...editFormData, employeeId: e.target.value })}
+            />
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Designation</label>
+              <select
+                value={editFormData.designationId}
+                onChange={(e) => setEditFormData({ ...editFormData, designationId: e.target.value })}
+                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
+              >
+                <option value="">Select designation</option>
+                {designations.map((d) => (
+                  <option key={d.id} value={d.id}>{d.name}</option>
+                ))}
+              </select>
+            </div>
+            <Input
+              label="Department"
+              value={editFormData.department}
+              onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+            />
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Employment Status</label>
+              <select
+                value={editFormData.employmentStatusId}
+                onChange={(e) => setEditFormData({ ...editFormData, employmentStatusId: e.target.value })}
+                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
+              >
+                <option value="">Select status</option>
+                {employmentStatuses.map((s) => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">Employment Type</label>
+              <select
+                value={editFormData.employmentTypeId}
+                onChange={(e) => setEditFormData({ ...editFormData, employmentTypeId: e.target.value })}
+                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
+              >
+                <option value="">Select type</option>
+                {employmentTypes.map((t) => (
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="block text-sm font-medium text-gray-700">First Supervisor</label>
+              <select
+                value={editFormData.firstSupervisorId}
+                onChange={(e) => setEditFormData({ ...editFormData, firstSupervisorId: e.target.value })}
+                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
+              >
+                <option value="">Select supervisor</option>
+                {allUsers.filter(u => u.id !== session?.user?.id).map((u) => (
+                  <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                ))}
+              </select>
+            </div>
+            <Input
+              label="Job Grade"
+              value={editFormData.jobGrade}
+              onChange={(e) => setEditFormData({ ...editFormData, jobGrade: e.target.value })}
+            />
+            <Input
+              label="Years of Experience"
+              type="number"
+              step="0.1"
+              value={editFormData.yearsOfExperience}
+              onChange={(e) => setEditFormData({ ...editFormData, yearsOfExperience: e.target.value })}
+            />
+            <Input
+              label="Salary"
+              type="number"
+              value={editFormData.salary}
+              onChange={(e) => setEditFormData({ ...editFormData, salary: e.target.value })}
+            />
+            <Input
+              label="Joining Date"
+              type="date"
+              value={editFormData.joiningDate}
+              onChange={(e) => setEditFormData({ ...editFormData, joiningDate: e.target.value })}
+            />
+            <Input
+              label="Joining Date (BRAC)"
+              type="date"
+              value={editFormData.joiningDateBrac}
+              onChange={(e) => setEditFormData({ ...editFormData, joiningDateBrac: e.target.value })}
+            />
+            <Input
+              label="Joining Date (Current Base)"
+              type="date"
+              value={editFormData.joiningDateCurrentBase}
+              onChange={(e) => setEditFormData({ ...editFormData, joiningDateCurrentBase: e.target.value })}
+            />
+            <Input
+              label="Joining Date (Current Position)"
+              type="date"
+              value={editFormData.joiningDateCurrentPosition}
+              onChange={(e) => setEditFormData({ ...editFormData, joiningDateCurrentPosition: e.target.value })}
+            />
+            <Input
+              label="Contract End Date"
+              type="date"
+              value={editFormData.contractEndDate}
+              onChange={(e) => setEditFormData({ ...editFormData, contractEndDate: e.target.value })}
+            />
+          </div>
+        )}
+
+        {/* Modal Actions */}
+        <div className="flex justify-end gap-3 mt-6 pt-4 border-t">
+          <Button variant="outline" onClick={() => setIsEditModalOpen(false)}>
+            Cancel
+          </Button>
+          <Button onClick={handleSaveEdit} isLoading={isSavingEdit}>
+            Save Changes
+          </Button>
+        </div>
+      </Modal>
     </div>
   );
 }

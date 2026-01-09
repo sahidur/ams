@@ -241,7 +241,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
   // Edit user modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editModalTab, setEditModalTab] = useState<"personal" | "job">("personal");
+  const [editModalTab, setEditModalTab] = useState<"personal" | "job" | "performance">("personal");
   const [isEditSubmitting, setIsEditSubmitting] = useState(false);
   const [editFormData, setEditFormData] = useState({
     name: "",
@@ -265,6 +265,20 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     jobGrade: "",
     yearsOfExperience: "",
     salary: "",
+    // Performance fields
+    slab: "",
+    lastSlabChange: "",
+    secondLastSlabChange: "",
+    lastGradeChange: "",
+    secondLastGradeChange: "",
+    lastOneOffBonus: "",
+    secondLastOneOffBonus: "",
+    pmsMarkLastYear: "",
+    pmsMarkSecondLastYear: "",
+    pmsMarkThirdLastYear: "",
+    lastWarningDate: "",
+    secondLastWarningDate: "",
+    thirdLastWarningDate: "",
   });
   const [roles, setRoles] = useState<{ id: string; name: string; displayName: string }[]>([]);
   const [designations, setDesignations] = useState<{ id: string; name: string }[]>([]);
@@ -463,6 +477,20 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       jobGrade: user.jobGrade?.toString() || "",
       yearsOfExperience: user.yearsOfExperience?.toString() || "",
       salary: user.salary?.toString() || "",
+      // Performance fields
+      slab: user.slab?.toString() || "",
+      lastSlabChange: user.lastSlabChange?.split("T")[0] || "",
+      secondLastSlabChange: user.secondLastSlabChange?.split("T")[0] || "",
+      lastGradeChange: user.lastGradeChange?.split("T")[0] || "",
+      secondLastGradeChange: user.secondLastGradeChange?.split("T")[0] || "",
+      lastOneOffBonus: user.lastOneOffBonus?.split("T")[0] || "",
+      secondLastOneOffBonus: user.secondLastOneOffBonus?.split("T")[0] || "",
+      pmsMarkLastYear: user.pmsMarkLastYear || "",
+      pmsMarkSecondLastYear: user.pmsMarkSecondLastYear || "",
+      pmsMarkThirdLastYear: user.pmsMarkThirdLastYear || "",
+      lastWarningDate: user.lastWarningDate?.split("T")[0] || "",
+      secondLastWarningDate: user.secondLastWarningDate?.split("T")[0] || "",
+      thirdLastWarningDate: user.thirdLastWarningDate?.split("T")[0] || "",
     });
     setEditModalTab("personal");
     fetchEditFormData();
@@ -789,7 +817,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   ];
 
   return (
-    <div className="max-w-4xl mx-auto space-y-6">
+    <div className="max-w-6xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -871,16 +899,16 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       </Card>
 
       {/* Tabs */}
-      <div className="border-b border-gray-200">
-        <nav className="flex gap-4">
+      <div className="bg-white rounded-lg border border-gray-200 p-3">
+        <nav className="flex flex-wrap gap-2">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors ${
                 activeTab === tab.id
-                  ? "border-blue-600 text-blue-600"
-                  : "border-transparent text-gray-500 hover:text-gray-700"
+                  ? "bg-blue-100 text-blue-700 font-medium"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
               }`}
             >
               <tab.icon className="w-4 h-4" />
@@ -1883,19 +1911,19 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
-        title="Edit User"
-        size="lg"
+        title="Edit User Information"
+        size="3xl"
       >
-        <div className="space-y-6">
+        <div className="space-y-4">
           {/* Modal Tabs */}
-          <div className="border-b border-gray-200">
-            <nav className="flex gap-4">
+          <div className="border-b border-gray-200 -mx-6 px-6">
+            <nav className="flex flex-wrap gap-1">
               <button
                 onClick={() => setEditModalTab("personal")}
-                className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                   editModalTab === "personal"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
+                    ? "border-blue-600 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
                 }`}
               >
                 <User className="w-4 h-4" />
@@ -1903,37 +1931,48 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               </button>
               <button
                 onClick={() => setEditModalTab("job")}
-                className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
                   editModalTab === "job"
-                    ? "border-blue-600 text-blue-600"
-                    : "border-transparent text-gray-500 hover:text-gray-700"
+                    ? "border-blue-600 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
                 }`}
               >
                 <Briefcase className="w-4 h-4" />
                 Job Information
+              </button>
+              <button
+                onClick={() => setEditModalTab("performance")}
+                className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                  editModalTab === "performance"
+                    ? "border-blue-600 text-blue-600 bg-blue-50"
+                    : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50"
+                }`}
+              >
+                <TrendingUp className="w-4 h-4" />
+                Performance Info
               </button>
             </nav>
           </div>
 
           {/* Personal Details Tab */}
           {editModalTab === "personal" && (
-            <div className="grid md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Full Name</label>
+                <label className="block text-sm font-medium text-gray-700">Full Name *</label>
                 <input
                   type="text"
                   value={editFormData.name}
                   onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Email</label>
+                <label className="block text-sm font-medium text-gray-700">Email *</label>
                 <input
                   type="email"
                   value={editFormData.email}
                   onChange={(e) => setEditFormData({ ...editFormData, email: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
@@ -1942,7 +1981,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   type="text"
                   value={editFormData.phone}
                   onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
@@ -1951,7 +1990,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   type="text"
                   value={editFormData.whatsappNumber}
                   onChange={(e) => setEditFormData({ ...editFormData, whatsappNumber: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
@@ -1960,7 +1999,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   type="date"
                   value={editFormData.dateOfBirth}
                   onChange={(e) => setEditFormData({ ...editFormData, dateOfBirth: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
@@ -1968,7 +2007,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <select
                   value={editFormData.gender}
                   onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select gender</option>
                   <option value="male">Male</option>
@@ -1976,13 +2015,13 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   <option value="other">Other</option>
                 </select>
               </div>
-              <div className="space-y-1 md:col-span-2">
+              <div className="space-y-1 md:col-span-2 lg:col-span-3">
                 <label className="block text-sm font-medium text-gray-700">Address</label>
                 <textarea
                   value={editFormData.address}
                   onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
                   rows={2}
-                  className="flex w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
@@ -1990,14 +2029,14 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
           {/* Job Information Tab */}
           {editModalTab === "job" && (
-            <div className="grid md:grid-cols-2 gap-4 max-h-[60vh] overflow-y-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 max-h-[55vh] overflow-y-auto pr-2">
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Employee ID</label>
                 <input
                   type="text"
                   value={editFormData.employeeId}
                   onChange={(e) => setEditFormData({ ...editFormData, employeeId: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
@@ -2005,7 +2044,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <select
                   value={editFormData.userRoleId}
                   onChange={(e) => setEditFormData({ ...editFormData, userRoleId: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select role</option>
                   {roles.map((role) => (
@@ -2018,7 +2057,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <select
                   value={editFormData.designationId}
                   onChange={(e) => setEditFormData({ ...editFormData, designationId: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select designation</option>
                   {designations.map((d) => (
@@ -2032,7 +2071,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   type="text"
                   value={editFormData.department}
                   onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
@@ -2040,7 +2079,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <select
                   value={editFormData.employmentStatusId}
                   onChange={(e) => setEditFormData({ ...editFormData, employmentStatusId: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select status</option>
                   {employmentStatuses.map((s) => (
@@ -2053,7 +2092,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <select
                   value={editFormData.employmentTypeId}
                   onChange={(e) => setEditFormData({ ...editFormData, employmentTypeId: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select type</option>
                   {employmentTypes.map((t) => (
@@ -2066,11 +2105,11 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 <select
                   value={editFormData.firstSupervisorId}
                   onChange={(e) => setEditFormData({ ...editFormData, firstSupervisorId: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Select supervisor</option>
                   {allUsers.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
+                    <option key={u.id} value={u.id}>{u.name}</option>
                   ))}
                 </select>
               </div>
@@ -2080,7 +2119,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   type="number"
                   value={editFormData.jobGrade}
                   onChange={(e) => setEditFormData({ ...editFormData, jobGrade: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
@@ -2090,16 +2129,16 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   step="0.5"
                   value={editFormData.yearsOfExperience}
                   onChange={(e) => setEditFormData({ ...editFormData, yearsOfExperience: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Salary</label>
+                <label className="block text-sm font-medium text-gray-700">Salary (৳)</label>
                 <input
                   type="number"
                   value={editFormData.salary}
                   onChange={(e) => setEditFormData({ ...editFormData, salary: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
@@ -2108,25 +2147,25 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   type="date"
                   value={editFormData.joiningDateBrac}
                   onChange={(e) => setEditFormData({ ...editFormData, joiningDateBrac: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Joining Date (Current Base)</label>
+                <label className="block text-sm font-medium text-gray-700">Joining (Current Base)</label>
                 <input
                   type="date"
                   value={editFormData.joiningDateCurrentBase}
                   onChange={(e) => setEditFormData({ ...editFormData, joiningDateCurrentBase: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
-                <label className="block text-sm font-medium text-gray-700">Joining Date (Current Position)</label>
+                <label className="block text-sm font-medium text-gray-700">Joining (Current Position)</label>
                 <input
                   type="date"
                   value={editFormData.joiningDateCurrentPosition}
                   onChange={(e) => setEditFormData({ ...editFormData, joiningDateCurrentPosition: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
               <div className="space-y-1">
@@ -2135,14 +2174,176 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   type="date"
                   value={editFormData.contractEndDate}
                   onChange={(e) => setEditFormData({ ...editFormData, contractEndDate: e.target.value })}
-                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
             </div>
           )}
 
+          {/* Performance Info Tab */}
+          {editModalTab === "performance" && (
+            <div className="space-y-6 max-h-[55vh] overflow-y-auto pr-2">
+              {/* Slab & Grade */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <Star className="w-4 h-4 text-amber-500" />
+                  Slab & Grade Changes
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">Current Slab</label>
+                    <input
+                      type="number"
+                      value={editFormData.slab}
+                      onChange={(e) => setEditFormData({ ...editFormData, slab: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">Last Slab Change</label>
+                    <input
+                      type="date"
+                      value={editFormData.lastSlabChange}
+                      onChange={(e) => setEditFormData({ ...editFormData, lastSlabChange: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">2nd Last Slab Change</label>
+                    <input
+                      type="date"
+                      value={editFormData.secondLastSlabChange}
+                      onChange={(e) => setEditFormData({ ...editFormData, secondLastSlabChange: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">Last Grade Change</label>
+                    <input
+                      type="date"
+                      value={editFormData.lastGradeChange}
+                      onChange={(e) => setEditFormData({ ...editFormData, lastGradeChange: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Bonus */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <Award className="w-4 h-4 text-green-500" />
+                  Bonus History
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">2nd Last Grade Change</label>
+                    <input
+                      type="date"
+                      value={editFormData.secondLastGradeChange}
+                      onChange={(e) => setEditFormData({ ...editFormData, secondLastGradeChange: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">Last One-Off Bonus</label>
+                    <input
+                      type="date"
+                      value={editFormData.lastOneOffBonus}
+                      onChange={(e) => setEditFormData({ ...editFormData, lastOneOffBonus: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">2nd Last One-Off Bonus</label>
+                    <input
+                      type="date"
+                      value={editFormData.secondLastOneOffBonus}
+                      onChange={(e) => setEditFormData({ ...editFormData, secondLastOneOffBonus: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* PMS Marks */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-blue-500" />
+                  PMS Marks
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">PMS Mark (Last Year)</label>
+                    <input
+                      type="text"
+                      value={editFormData.pmsMarkLastYear}
+                      onChange={(e) => setEditFormData({ ...editFormData, pmsMarkLastYear: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">PMS Mark (2nd Last Year)</label>
+                    <input
+                      type="text"
+                      value={editFormData.pmsMarkSecondLastYear}
+                      onChange={(e) => setEditFormData({ ...editFormData, pmsMarkSecondLastYear: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">PMS Mark (3rd Last Year)</label>
+                    <input
+                      type="text"
+                      value={editFormData.pmsMarkThirdLastYear}
+                      onChange={(e) => setEditFormData({ ...editFormData, pmsMarkThirdLastYear: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Warnings */}
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-red-500" />
+                  Warning History
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">Last Warning Date</label>
+                    <input
+                      type="date"
+                      value={editFormData.lastWarningDate}
+                      onChange={(e) => setEditFormData({ ...editFormData, lastWarningDate: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">2nd Last Warning Date</label>
+                    <input
+                      type="date"
+                      value={editFormData.secondLastWarningDate}
+                      onChange={(e) => setEditFormData({ ...editFormData, secondLastWarningDate: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="block text-xs font-medium text-gray-600">3rd Last Warning Date</label>
+                    <input
+                      type="date"
+                      value={editFormData.thirdLastWarningDate}
+                      onChange={(e) => setEditFormData({ ...editFormData, thirdLastWarningDate: e.target.value })}
+                      className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Action Buttons */}
-          <div className="flex gap-3 pt-4 border-t">
+          <div className="flex gap-3 pt-4 border-t -mx-6 px-6">
             <Button
               type="button"
               variant="outline"

@@ -461,15 +461,64 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
     }
   };
 
-  const openEditModal = (branch: Branch) => {
+  const openEditModal = async (branch: Branch) => {
     setSelectedBranch(branch);
+    
+    // First reset the form with text values
     reset({
       division: branch.division,
       district: branch.district,
       upazila: branch.upazila,
+      union: branch.union || "",
       branchName: branch.branchName,
       branchCode: branch.branchCode || "",
     });
+    
+    // Look up division ID from name and populate cascading dropdowns
+    const matchingDivision = divisions.find(d => d.name.toLowerCase() === branch.division.toLowerCase());
+    if (matchingDivision) {
+      setSelectedDivision(matchingDivision.id);
+      
+      // Fetch and set districts
+      try {
+        const distRes = await fetch(`/api/geo/districts?divisionId=${matchingDivision.id}&activeOnly=true`);
+        const distData = await distRes.json();
+        setDistricts(distData);
+        
+        // Find matching district
+        const matchingDistrict = distData.find((d: District) => d.name.toLowerCase() === branch.district.toLowerCase());
+        if (matchingDistrict) {
+          setSelectedDistrict(matchingDistrict.id);
+          
+          // Fetch and set upazilas
+          const upzRes = await fetch(`/api/geo/upazilas?districtId=${matchingDistrict.id}&activeOnly=true`);
+          const upzData = await upzRes.json();
+          setUpazilas(upzData);
+          
+          // Find matching upazila
+          const matchingUpazila = upzData.find((u: Upazila) => u.name.toLowerCase() === branch.upazila.toLowerCase());
+          if (matchingUpazila) {
+            setSelectedUpazila(matchingUpazila.id);
+            
+            // Fetch and set unions
+            const uniRes = await fetch(`/api/geo/unions?upazilaId=${matchingUpazila.id}&activeOnly=true`);
+            const uniData = await uniRes.json();
+            setUnions(uniData);
+            
+            // Find matching union if exists
+            if (branch.union) {
+              const matchingUnion = uniData.find((u: Union) => u.name.toLowerCase() === branch.union?.toLowerCase());
+              if (matchingUnion) {
+                setSelectedUnion(matchingUnion.id);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error loading geo data for edit:", error);
+      }
+    }
+    
     setIsModalOpen(true);
     setActionMenuOpen(null);
   };
@@ -537,6 +586,11 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
     {
       accessorKey: "upazila",
       header: "Upazila",
+    },
+    {
+      accessorKey: "union",
+      header: "Union",
+      cell: ({ row }) => row.original.union || "-",
     },
     {
       accessorKey: "isActive",

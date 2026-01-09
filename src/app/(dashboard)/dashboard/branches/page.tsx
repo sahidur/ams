@@ -314,32 +314,13 @@ export default function BranchesPage() {
 
   // Generate sample CSV
   const downloadSampleCSV = () => {
-    // First sheet - Data template
-    const headers = ["Division", "District", "Upazila", "Union (Optional)", "Branch Name", "Branch Code (Optional)", "Project Name", "Cohort Name"];
-    const sampleRows = [
-      ["Dhaka", "Dhaka", "Dhanmondi", "", "Dhanmondi Branch", "DHA-001", "Skills Training", "Cohort 1"],
-      ["Chattagram", "Chattogram", "Kotwali", "", "CTG Main Branch", "CTG-001", "Skills Training", "Cohort 1"],
-    ];
+    // Simple CSV format with clear headers
+    const headers = ["Division", "District", "Upazila", "Union", "Branch Name", "Branch Code", "Project Name", "Cohort Name"];
+    const sampleRow = ["Dhaka", "Dhaka", "Dhanmondi", "Dhanmondi", "Sample Branch", "BR-001", "Project Name Here", "Cohort Name Here"];
     
-    // Build CSV content with project/cohort reference
-    let csvContent = "# BRANCH UPLOAD TEMPLATE\n";
-    csvContent += "# Fill in the data below following the sample format\n";
-    csvContent += "# Division, District, Upazila are REQUIRED. Union is optional.\n\n";
-    csvContent += headers.join(",") + "\n";
-    sampleRows.forEach(row => {
-      csvContent += row.join(",") + "\n";
-    });
-    
-    // Add reference data
-    csvContent += "\n\n# ===== REFERENCE DATA =====\n";
-    csvContent += "# Available Projects and Cohorts:\n";
-    csvContent += "# Project ID, Project Name, Cohort ID, Cohort Name\n";
-    
-    projects.forEach(project => {
-      project.cohorts.forEach(cohort => {
-        csvContent += `# ${project.id}, ${project.name}, ${cohort.id}, ${cohort.name} (${cohort.cohortId})\n`;
-      });
-    });
+    // Build clean CSV content
+    let csvContent = headers.join(",") + "\n";
+    csvContent += sampleRow.join(",") + "\n";
 
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
@@ -494,7 +475,7 @@ export default function BranchesPage() {
     }
   };
 
-  const openEditModal = (branch: Branch) => {
+  const openEditModal = async (branch: Branch) => {
     setSelectedBranch(branch);
     
     // Set project and cohort from branch
@@ -505,7 +486,52 @@ export default function BranchesPage() {
       setSelectedCohortId(branch.cohort.id);
     }
     
-    // Note: For edit, we use text inputs since we have existing data
+    // Look up division ID from name and populate cascading dropdowns
+    const matchingDivision = divisions.find(d => d.name.toLowerCase() === branch.division.toLowerCase());
+    if (matchingDivision) {
+      setSelectedDivisionId(matchingDivision.id);
+      
+      // Fetch districts for this division
+      try {
+        const distRes = await fetch(`/api/geo?type=districts&divisionId=${matchingDivision.id}`);
+        const distData = await distRes.json();
+        setDistricts(distData);
+        
+        // Find matching district
+        const matchingDistrict = distData.find((d: GeoDistrict) => d.name.toLowerCase() === branch.district.toLowerCase());
+        if (matchingDistrict) {
+          setSelectedDistrictId(matchingDistrict.id);
+          
+          // Fetch upazilas for this district
+          const upzRes = await fetch(`/api/geo?type=upazilas&districtId=${matchingDistrict.id}`);
+          const upzData = await upzRes.json();
+          setUpazilas(upzData);
+          
+          // Find matching upazila
+          const matchingUpazila = upzData.find((u: GeoUpazila) => u.name.toLowerCase() === branch.upazila.toLowerCase());
+          if (matchingUpazila) {
+            setSelectedUpazilaId(matchingUpazila.id);
+            
+            // Fetch unions for this upazila
+            const uniRes = await fetch(`/api/geo?type=unions&upazilaId=${matchingUpazila.id}`);
+            const uniData = await uniRes.json();
+            setUnions(uniData);
+            
+            // Find matching union if exists
+            if (branch.union) {
+              const matchingUnion = uniData.find((u: GeoUnion) => u.name.toLowerCase() === branch.union?.toLowerCase());
+              if (matchingUnion) {
+                setSelectedUnionId(matchingUnion.id);
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error loading geo data for edit:", error);
+      }
+    }
+    
+    // Set form values
     reset({
       division: branch.division,
       district: branch.district,

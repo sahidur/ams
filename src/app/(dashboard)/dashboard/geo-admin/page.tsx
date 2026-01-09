@@ -16,6 +16,8 @@ import {
   ToggleLeft,
   ToggleRight,
   AlertTriangle,
+  LayoutDashboard,
+  ChevronRight,
 } from "lucide-react";
 import { 
   Button, 
@@ -71,7 +73,7 @@ interface Union {
   upazila?: { id: string; name: string; district?: { id: string; name: string; division?: { id: string; name: string } } };
 }
 
-type GeoLevel = "division" | "district" | "upazila" | "union";
+type GeoLevel = "dashboard" | "division" | "district" | "upazila" | "union";
 
 interface FormData {
   name: string;
@@ -80,7 +82,7 @@ interface FormData {
 }
 
 export default function GeoAdminPage() {
-  const [activeTab, setActiveTab] = useState<GeoLevel>("division");
+  const [activeTab, setActiveTab] = useState<GeoLevel>("dashboard");
   const [divisions, setDivisions] = useState<Division[]>([]);
   const [districts, setDistricts] = useState<District[]>([]);
   const [upazilas, setUpazilas] = useState<Upazila[]>([]);
@@ -118,6 +120,12 @@ export default function GeoAdminPage() {
 
   // Stats
   const [stats, setStats] = useState({ divisions: 0, districts: 0, upazilas: 0, unions: 0 });
+  
+  // Dashboard expanded states
+  const [expandedDivisions, setExpandedDivisions] = useState<Set<string>>(new Set());
+  const [expandedDistricts, setExpandedDistricts] = useState<Set<string>>(new Set());
+  const [expandedUpazilas, setExpandedUpazilas] = useState<Set<string>>(new Set());
+  const [allUnions, setAllUnions] = useState<Union[]>([]);
 
   const fetchStats = useCallback(async () => {
     try {
@@ -142,6 +150,7 @@ export default function GeoAdminPage() {
       setAllDivisions(divData);
       setAllDistricts(distData);
       setAllUpazilas(upzData);
+      setAllUnions(uniData);
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
@@ -380,6 +389,7 @@ export default function GeoAdminPage() {
   };
 
   const tabs = [
+    { id: "dashboard" as GeoLevel, label: "Dashboard", icon: LayoutDashboard, count: stats.divisions + stats.districts + stats.upazilas + stats.unions },
     { id: "division" as GeoLevel, label: "Divisions", icon: Map, count: stats.divisions },
     { id: "district" as GeoLevel, label: "Districts", icon: Building2, count: stats.districts },
     { id: "upazila" as GeoLevel, label: "Upazilas", icon: Layers, count: stats.upazilas },
@@ -914,39 +924,220 @@ export default function GeoAdminPage() {
       </div>
 
       {/* Tab Content */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            <MapPin className="w-5 h-5" />
-            {tabs.find(t => t.id === activeTab)?.label} List
-          </CardTitle>
-          <Button onClick={openAddModal}>
-            <Plus className="w-4 h-4 mr-2" />
-            {getAddButtonLabel()}
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {isLoading ? (
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
-            </div>
-          ) : (
-            <AnimatePresence mode="wait">
-              <motion.div
-                key={activeTab}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-              >
-                {activeTab === "division" && <DataTable columns={divisionColumns} data={divisions} searchKey="name" />}
-                {activeTab === "district" && <DataTable columns={districtColumns} data={districts} searchKey="name" />}
-                {activeTab === "upazila" && <DataTable columns={upazilaColumns} data={upazilas} searchKey="name" />}
-                {activeTab === "union" && <DataTable columns={unionColumns} data={unions} searchKey="name" />}
-              </motion.div>
-            </AnimatePresence>
-          )}
-        </CardContent>
-      </Card>
+      {activeTab === "dashboard" ? (
+        /* Dashboard View - Cascading colorful cards */
+        <div className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <LayoutDashboard className="w-5 h-5" />
+                Geographic Hierarchy Overview
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                {allDivisions.map((division) => {
+                  const divisionDistricts = allDistricts.filter(d => d.divisionId === division.id);
+                  const isExpanded = expandedDivisions.has(division.id);
+                  
+                  return (
+                    <div key={division.id} className="border border-blue-200 rounded-lg overflow-hidden">
+                      {/* Division Header */}
+                      <button
+                        onClick={() => {
+                          const newExpanded = new Set(expandedDivisions);
+                          if (isExpanded) {
+                            newExpanded.delete(division.id);
+                          } else {
+                            newExpanded.add(division.id);
+                          }
+                          setExpandedDivisions(newExpanded);
+                        }}
+                        className="w-full flex items-center justify-between p-4 bg-blue-50 hover:bg-blue-100 transition-colors"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-blue-500 flex items-center justify-center">
+                            <Map className="w-5 h-5 text-white" />
+                          </div>
+                          <div className="text-left">
+                            <p className="font-semibold text-blue-900">{division.name}</p>
+                            {division.bnName && <p className="text-xs text-blue-600">{division.bnName}</p>}
+                          </div>
+                          <Badge variant={division.isActive ? "success" : "default"} className="ml-2">
+                            {division.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                          <Badge variant="info">{divisionDistricts.length} districts</Badge>
+                        </div>
+                        <ChevronRight className={`w-5 h-5 text-blue-400 transition-transform ${isExpanded ? "rotate-90" : ""}`} />
+                      </button>
+                      
+                      {/* Districts under Division */}
+                      {isExpanded && (
+                        <div className="bg-white p-4 border-t border-blue-200">
+                          {divisionDistricts.length === 0 ? (
+                            <p className="text-gray-500 text-sm italic">No districts</p>
+                          ) : (
+                            <div className="space-y-2 ml-4">
+                              {divisionDistricts.map((district) => {
+                                const districtUpazilas = allUpazilas.filter(u => u.districtId === district.id);
+                                const isDistrictExpanded = expandedDistricts.has(district.id);
+                                
+                                return (
+                                  <div key={district.id} className="border border-green-200 rounded-lg overflow-hidden">
+                                    {/* District Header */}
+                                    <button
+                                      onClick={() => {
+                                        const newExpanded = new Set(expandedDistricts);
+                                        if (isDistrictExpanded) {
+                                          newExpanded.delete(district.id);
+                                        } else {
+                                          newExpanded.add(district.id);
+                                        }
+                                        setExpandedDistricts(newExpanded);
+                                      }}
+                                      className="w-full flex items-center justify-between p-3 bg-green-50 hover:bg-green-100 transition-colors"
+                                    >
+                                      <div className="flex items-center gap-2">
+                                        <div className="w-8 h-8 rounded-lg bg-green-500 flex items-center justify-center">
+                                          <Building2 className="w-4 h-4 text-white" />
+                                        </div>
+                                        <div className="text-left">
+                                          <p className="font-medium text-green-900">{district.name}</p>
+                                          {district.bnName && <p className="text-xs text-green-600">{district.bnName}</p>}
+                                        </div>
+                                        <Badge variant={district.isActive ? "success" : "default"} className="ml-2 text-xs">
+                                          {district.isActive ? "Active" : "Inactive"}
+                                        </Badge>
+                                        <Badge variant="info" className="text-xs">{districtUpazilas.length} upazilas</Badge>
+                                      </div>
+                                      <ChevronRight className={`w-4 h-4 text-green-400 transition-transform ${isDistrictExpanded ? "rotate-90" : ""}`} />
+                                    </button>
+                                    
+                                    {/* Upazilas under District */}
+                                    {isDistrictExpanded && (
+                                      <div className="bg-white p-3 border-t border-green-200">
+                                        {districtUpazilas.length === 0 ? (
+                                          <p className="text-gray-500 text-xs italic">No upazilas</p>
+                                        ) : (
+                                          <div className="space-y-2 ml-4">
+                                            {districtUpazilas.map((upazila) => {
+                                              const upazilaUnions = allUnions.filter(u => u.upazilaId === upazila.id);
+                                              const isUpazilaExpanded = expandedUpazilas.has(upazila.id);
+                                              
+                                              return (
+                                                <div key={upazila.id} className="border border-purple-200 rounded-lg overflow-hidden">
+                                                  {/* Upazila Header */}
+                                                  <button
+                                                    onClick={() => {
+                                                      const newExpanded = new Set(expandedUpazilas);
+                                                      if (isUpazilaExpanded) {
+                                                        newExpanded.delete(upazila.id);
+                                                      } else {
+                                                        newExpanded.add(upazila.id);
+                                                      }
+                                                      setExpandedUpazilas(newExpanded);
+                                                    }}
+                                                    className="w-full flex items-center justify-between p-2 bg-purple-50 hover:bg-purple-100 transition-colors"
+                                                  >
+                                                    <div className="flex items-center gap-2">
+                                                      <div className="w-7 h-7 rounded-lg bg-purple-500 flex items-center justify-center">
+                                                        <Layers className="w-3.5 h-3.5 text-white" />
+                                                      </div>
+                                                      <div className="text-left">
+                                                        <p className="text-sm font-medium text-purple-900">{upazila.name}</p>
+                                                        {upazila.bnName && <p className="text-xs text-purple-600">{upazila.bnName}</p>}
+                                                      </div>
+                                                      <Badge variant={upazila.isActive ? "success" : "default"} className="ml-1 text-xs">
+                                                        {upazila.isActive ? "Active" : "Inactive"}
+                                                      </Badge>
+                                                      <Badge variant="info" className="text-xs">{upazilaUnions.length} unions</Badge>
+                                                    </div>
+                                                    <ChevronRight className={`w-4 h-4 text-purple-400 transition-transform ${isUpazilaExpanded ? "rotate-90" : ""}`} />
+                                                  </button>
+                                                  
+                                                  {/* Unions under Upazila */}
+                                                  {isUpazilaExpanded && (
+                                                    <div className="bg-white p-2 border-t border-purple-200">
+                                                      {upazilaUnions.length === 0 ? (
+                                                        <p className="text-gray-500 text-xs italic ml-4">No unions</p>
+                                                      ) : (
+                                                        <div className="flex flex-wrap gap-2 ml-4">
+                                                          {upazilaUnions.map((union) => (
+                                                            <div
+                                                              key={union.id}
+                                                              className={`flex items-center gap-1.5 px-2 py-1 rounded-lg border ${
+                                                                union.isActive 
+                                                                  ? "bg-orange-50 border-orange-200" 
+                                                                  : "bg-gray-50 border-gray-200"
+                                                              }`}
+                                                            >
+                                                              <Home className={`w-3 h-3 ${union.isActive ? "text-orange-500" : "text-gray-400"}`} />
+                                                              <span className={`text-xs font-medium ${union.isActive ? "text-orange-900" : "text-gray-600"}`}>
+                                                                {union.name}
+                                                              </span>
+                                                            </div>
+                                                          ))}
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      ) : (
+        /* Regular Table View for division/district/upazila/union */
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <MapPin className="w-5 h-5" />
+              {tabs.find(t => t.id === activeTab)?.label} List
+            </CardTitle>
+            <Button onClick={openAddModal}>
+              <Plus className="w-4 h-4 mr-2" />
+              {getAddButtonLabel()}
+            </Button>
+          </CardHeader>
+          <CardContent>
+            {isLoading ? (
+              <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+              </div>
+            ) : (
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={activeTab}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                >
+                  {activeTab === "division" && <DataTable columns={divisionColumns} data={divisions} searchKey="name" />}
+                  {activeTab === "district" && <DataTable columns={districtColumns} data={districts} searchKey="name" />}
+                  {activeTab === "upazila" && <DataTable columns={upazilaColumns} data={upazilas} searchKey="name" />}
+                  {activeTab === "union" && <DataTable columns={unionColumns} data={unions} searchKey="name" />}
+                </motion.div>
+              </AnimatePresence>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Add/Edit Modal */}
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={getModalTitle()} size="md">

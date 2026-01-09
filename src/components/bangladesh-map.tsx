@@ -260,12 +260,83 @@ export default function BangladeshMap({ branchByDistrict, onDistrictClick }: Ban
             transition: isDragging ? "none" : "transform 0.2s ease-out"
           }}
         >
-          {/* Bangladesh outline (simplified) */}
+          {/* Bangladesh Division Boundaries - More detailed SVG paths */}
+          <defs>
+            <filter id="dropShadow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="2" dy="2" stdDeviation="2" floodOpacity="0.3"/>
+            </filter>
+          </defs>
+          
+          {/* Rangpur Division */}
           <path
-            d="M180,150 L220,140 L260,145 L290,160 L340,180 L390,200 L440,250 L470,300 L500,350 L520,420 L500,500 L470,560 L430,580 L380,570 L340,560 L310,580 L260,550 L200,530 L180,500 L160,440 L140,380 L120,320 L140,260 L160,200 Z"
-            fill="#E0F2FE"
-            stroke="#93C5FD"
+            d="M160,130 L200,120 L250,130 L290,140 L290,180 L280,220 L250,250 L200,250 L170,240 L150,200 L150,160 Z"
+            fill={DIVISION_COLORS["Rangpur"] + "40"}
+            stroke={DIVISION_COLORS["Rangpur"]}
             strokeWidth="2"
+            filter="url(#dropShadow)"
+          />
+          
+          {/* Mymensingh Division */}
+          <path
+            d="M290,180 L350,190 L390,220 L400,270 L370,300 L330,310 L290,290 L280,250 L280,220 Z"
+            fill={DIVISION_COLORS["Mymensingh"] + "40"}
+            stroke={DIVISION_COLORS["Mymensingh"]}
+            strokeWidth="2"
+            filter="url(#dropShadow)"
+          />
+          
+          {/* Sylhet Division */}
+          <path
+            d="M390,220 L430,200 L480,210 L500,250 L490,300 L460,340 L420,350 L400,320 L400,270 Z"
+            fill={DIVISION_COLORS["Sylhet"] + "40"}
+            stroke={DIVISION_COLORS["Sylhet"]}
+            strokeWidth="2"
+            filter="url(#dropShadow)"
+          />
+          
+          {/* Rajshahi Division */}
+          <path
+            d="M120,230 L170,220 L200,250 L250,250 L280,270 L280,340 L250,370 L200,380 L160,360 L120,320 L110,280 Z"
+            fill={DIVISION_COLORS["Rajshahi"] + "40"}
+            stroke={DIVISION_COLORS["Rajshahi"]}
+            strokeWidth="2"
+            filter="url(#dropShadow)"
+          />
+          
+          {/* Dhaka Division */}
+          <path
+            d="M280,290 L330,310 L370,320 L390,360 L400,410 L380,450 L340,460 L300,480 L270,460 L250,420 L260,380 L280,340 Z"
+            fill={DIVISION_COLORS["Dhaka"] + "40"}
+            stroke={DIVISION_COLORS["Dhaka"]}
+            strokeWidth="2"
+            filter="url(#dropShadow)"
+          />
+          
+          {/* Khulna Division */}
+          <path
+            d="M160,360 L200,380 L250,380 L270,420 L270,480 L260,520 L220,550 L180,540 L150,500 L140,450 L140,400 Z"
+            fill={DIVISION_COLORS["Khulna"] + "40"}
+            stroke={DIVISION_COLORS["Khulna"]}
+            strokeWidth="2"
+            filter="url(#dropShadow)"
+          />
+          
+          {/* Barishal Division */}
+          <path
+            d="M270,460 L300,480 L340,470 L380,480 L400,510 L380,560 L340,580 L300,570 L270,540 L260,500 Z"
+            fill={DIVISION_COLORS["Barishal"] + "40"}
+            stroke={DIVISION_COLORS["Barishal"]}
+            strokeWidth="2"
+            filter="url(#dropShadow)"
+          />
+          
+          {/* Chattogram Division */}
+          <path
+            d="M380,360 L400,350 L440,340 L480,350 L510,390 L530,450 L520,520 L490,570 L450,590 L410,570 L380,540 L370,490 L380,450 L390,400 Z"
+            fill={DIVISION_COLORS["Chattogram"] + "40"}
+            stroke={DIVISION_COLORS["Chattogram"]}
+            strokeWidth="2"
+            filter="url(#dropShadow)"
           />
           
           {/* District markers */}

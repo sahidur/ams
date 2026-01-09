@@ -10,7 +10,7 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
-  size?: "sm" | "md" | "lg" | "xl" | "full";
+  size?: "sm" | "md" | "lg" | "xl" | "2xl" | "3xl" | "full";
 }
 
 const Modal: React.FC<ModalProps> = ({
@@ -25,7 +25,9 @@ const Modal: React.FC<ModalProps> = ({
     md: "max-w-md",
     lg: "max-w-lg",
     xl: "max-w-xl",
-    full: "max-w-4xl",
+    "2xl": "max-w-2xl",
+    "3xl": "max-w-3xl",
+    full: "max-w-5xl",
   };
 
   React.useEffect(() => {
