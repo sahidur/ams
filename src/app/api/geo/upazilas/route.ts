@@ -6,8 +6,11 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const districtId = searchParams.get("districtId");
+    const activeOnly = searchParams.get("activeOnly") === "true";
 
-    const where = districtId ? { districtId } : {};
+    const where: { districtId?: string; isActive?: boolean } = {};
+    if (districtId) where.districtId = districtId;
+    if (activeOnly) where.isActive = true;
     
     const upazilas = await prisma.upazila.findMany({
       where,

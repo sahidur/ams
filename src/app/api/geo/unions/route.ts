@@ -6,8 +6,11 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
     const upazilaId = searchParams.get("upazilaId");
+    const activeOnly = searchParams.get("activeOnly") === "true";
 
-    const where = upazilaId ? { upazilaId } : {};
+    const where: { upazilaId?: string; isActive?: boolean } = {};
+    if (upazilaId) where.upazilaId = upazilaId;
+    if (activeOnly) where.isActive = true;
     
     const unions = await prisma.union.findMany({
       where,

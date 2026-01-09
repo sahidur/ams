@@ -22,7 +22,11 @@ import {
   Upload,
   FileSpreadsheet,
   ToggleLeft,
-  ToggleRight
+  ToggleRight,
+  ChevronDown,
+  Search,
+  Check,
+  Home
 } from "lucide-react";
 import Link from "next/link";
 import { 
@@ -68,6 +72,7 @@ interface Branch {
   division: string;
   district: string;
   upazila: string;
+  union?: string;
   branchName: string;
   branchCode: string | null;
   isActive: boolean;
@@ -82,6 +87,34 @@ interface ValidationError {
   row: number;
   branchName: string;
   error: string;
+}
+
+// Geo location interfaces
+interface Division {
+  id: string;
+  name: string;
+  isActive: boolean;
+}
+
+interface District {
+  id: string;
+  name: string;
+  divisionId: string;
+  isActive: boolean;
+}
+
+interface Upazila {
+  id: string;
+  name: string;
+  districtId: string;
+  isActive: boolean;
+}
+
+interface Union {
+  id: string;
+  name: string;
+  upazilaId: string;
+  isActive: boolean;
 }
 
 export default function CohortDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -99,14 +132,154 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
   const [uploadError, setUploadError] = useState("");
   const [uploadErrors, setUploadErrors] = useState<ValidationError[]>([]);
 
+  // Geo location state
+  const [divisions, setDivisions] = useState<Division[]>([]);
+  const [districts, setDistricts] = useState<District[]>([]);
+  const [upazilas, setUpazilas] = useState<Upazila[]>([]);
+  const [unions, setUnions] = useState<Union[]>([]);
+  const [selectedDivision, setSelectedDivision] = useState<string>("");
+  const [selectedDistrict, setSelectedDistrict] = useState<string>("");
+  const [selectedUpazila, setSelectedUpazila] = useState<string>("");
+  const [selectedUnion, setSelectedUnion] = useState<string>("");
+  
+  // Dropdown open states
+  const [isDivisionOpen, setIsDivisionOpen] = useState(false);
+  const [isDistrictOpen, setIsDistrictOpen] = useState(false);
+  const [isUpazilaOpen, setIsUpazilaOpen] = useState(false);
+  const [isUnionOpen, setIsUnionOpen] = useState(false);
+  
+  // Search states
+  const [divisionSearch, setDivisionSearch] = useState("");
+  const [districtSearch, setDistrictSearch] = useState("");
+  const [upazilaSearch, setUpazilaSearch] = useState("");
+  const [unionSearch, setUnionSearch] = useState("");
+  
+  // Dropdown refs
+  const divisionRef = useRef<HTMLDivElement>(null);
+  const districtRef = useRef<HTMLDivElement>(null);
+  const upazilaRef = useRef<HTMLDivElement>(null);
+  const unionRef = useRef<HTMLDivElement>(null);
+
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
     formState: { errors, isSubmitting },
   } = useForm<BranchInput>({
     resolver: zodResolver(branchSchema),
   });
+
+  // Fetch divisions on mount
+  useEffect(() => {
+    const fetchDivisions = async () => {
+      try {
+        const res = await fetch("/api/geo/divisions?activeOnly=true");
+        const data = await res.json();
+        setDivisions(data);
+      } catch (error) {
+        console.error("Error fetching divisions:", error);
+      }
+    };
+    fetchDivisions();
+  }, []);
+
+  // Fetch districts when division changes
+  useEffect(() => {
+    if (selectedDivision) {
+      const fetchDistricts = async () => {
+        try {
+          const res = await fetch(`/api/geo/districts?divisionId=${selectedDivision}&activeOnly=true`);
+          const data = await res.json();
+          setDistricts(data);
+        } catch (error) {
+          console.error("Error fetching districts:", error);
+        }
+      };
+      fetchDistricts();
+    } else {
+      setDistricts([]);
+    }
+    setSelectedDistrict("");
+    setSelectedUpazila("");
+    setSelectedUnion("");
+    setUpazilas([]);
+    setUnions([]);
+  }, [selectedDivision]);
+
+  // Fetch upazilas when district changes
+  useEffect(() => {
+    if (selectedDistrict) {
+      const fetchUpazilas = async () => {
+        try {
+          const res = await fetch(`/api/geo/upazilas?districtId=${selectedDistrict}&activeOnly=true`);
+          const data = await res.json();
+          setUpazilas(data);
+        } catch (error) {
+          console.error("Error fetching upazilas:", error);
+        }
+      };
+      fetchUpazilas();
+    } else {
+      setUpazilas([]);
+    }
+    setSelectedUpazila("");
+    setSelectedUnion("");
+    setUnions([]);
+  }, [selectedDistrict]);
+
+  // Fetch unions when upazila changes
+  useEffect(() => {
+    if (selectedUpazila) {
+      const fetchUnions = async () => {
+        try {
+          const res = await fetch(`/api/geo/unions?upazilaId=${selectedUpazila}&activeOnly=true`);
+          const data = await res.json();
+          setUnions(data);
+        } catch (error) {
+          console.error("Error fetching unions:", error);
+        }
+      };
+      fetchUnions();
+    } else {
+      setUnions([]);
+    }
+    setSelectedUnion("");
+  }, [selectedUpazila]);
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (divisionRef.current && !divisionRef.current.contains(event.target as Node)) {
+        setIsDivisionOpen(false);
+      }
+      if (districtRef.current && !districtRef.current.contains(event.target as Node)) {
+        setIsDistrictOpen(false);
+      }
+      if (upazilaRef.current && !upazilaRef.current.contains(event.target as Node)) {
+        setIsUpazilaOpen(false);
+      }
+      if (unionRef.current && !unionRef.current.contains(event.target as Node)) {
+        setIsUnionOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // Filter geo data by search
+  const filteredDivisions = divisions.filter(d => 
+    d.name.toLowerCase().includes(divisionSearch.toLowerCase())
+  );
+  const filteredDistricts = districts.filter(d => 
+    d.name.toLowerCase().includes(districtSearch.toLowerCase())
+  );
+  const filteredUpazilas = upazilas.filter(u => 
+    u.name.toLowerCase().includes(upazilaSearch.toLowerCase())
+  );
+  const filteredUnions = unions.filter(u => 
+    u.name.toLowerCase().includes(unionSearch.toLowerCase())
+  );
 
   const fetchCohort = async () => {
     try {
@@ -317,6 +490,15 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
     setIsModalOpen(false);
     setSelectedBranch(null);
     reset();
+    // Reset geo selections
+    setSelectedDivision("");
+    setSelectedDistrict("");
+    setSelectedUpazila("");
+    setSelectedUnion("");
+    setDivisionSearch("");
+    setDistrictSearch("");
+    setUpazilaSearch("");
+    setUnionSearch("");
   };
 
   const formatDate = (dateString: string | null) => {
@@ -586,26 +768,257 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
               </span>
             </div>
           </div>
+          
+          {/* Division Dropdown */}
+          <div ref={divisionRef} className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Division *</label>
+            <button
+              type="button"
+              onClick={() => setIsDivisionOpen(!isDivisionOpen)}
+              className={`w-full flex items-center justify-between px-4 py-2.5 bg-white border rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                errors.division ? "border-red-500" : "border-gray-300"
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <MapPin className="w-4 h-4 text-gray-400" />
+                <span className={selectedDivision ? "text-gray-900" : "text-gray-400"}>
+                  {selectedDivision ? divisions.find(d => d.id === selectedDivision)?.name : "Select division"}
+                </span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isDivisionOpen ? "rotate-180" : ""}`} />
+            </button>
+            {isDivisionOpen && (
+              <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={divisionSearch}
+                      onChange={(e) => setDivisionSearch(e.target.value)}
+                      placeholder="Search divisions..."
+                      className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {filteredDivisions.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-gray-500">No divisions found</p>
+                  ) : (
+                    filteredDivisions.map(division => (
+                      <button
+                        key={division.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDivision(division.id);
+                          setValue("division", division.name, { shouldValidate: true });
+                          setIsDivisionOpen(false);
+                          setDivisionSearch("");
+                        }}
+                        className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${
+                          selectedDivision === division.id ? "bg-blue-50 text-blue-600" : ""
+                        }`}
+                      >
+                        <span>{division.name}</span>
+                        {selectedDivision === division.id && <Check className="w-4 h-4 text-blue-600" />}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+            {errors.division && <p className="mt-1 text-sm text-red-500">{errors.division.message}</p>}
+            <input type="hidden" {...register("division")} />
+          </div>
+
+          {/* District Dropdown */}
+          <div ref={districtRef} className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-1">District *</label>
+            <button
+              type="button"
+              onClick={() => selectedDivision && setIsDistrictOpen(!isDistrictOpen)}
+              disabled={!selectedDivision}
+              className={`w-full flex items-center justify-between px-4 py-2.5 bg-white border rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                errors.district ? "border-red-500" : "border-gray-300"
+              } ${!selectedDivision ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-gray-400" />
+                <span className={selectedDistrict ? "text-gray-900" : "text-gray-400"}>
+                  {selectedDistrict ? districts.find(d => d.id === selectedDistrict)?.name : (selectedDivision ? "Select district" : "Select division first")}
+                </span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isDistrictOpen ? "rotate-180" : ""}`} />
+            </button>
+            {isDistrictOpen && (
+              <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={districtSearch}
+                      onChange={(e) => setDistrictSearch(e.target.value)}
+                      placeholder="Search districts..."
+                      className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {filteredDistricts.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-gray-500">No districts found</p>
+                  ) : (
+                    filteredDistricts.map(district => (
+                      <button
+                        key={district.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedDistrict(district.id);
+                          setValue("district", district.name, { shouldValidate: true });
+                          setIsDistrictOpen(false);
+                          setDistrictSearch("");
+                        }}
+                        className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${
+                          selectedDistrict === district.id ? "bg-blue-50 text-blue-600" : ""
+                        }`}
+                      >
+                        <span>{district.name}</span>
+                        {selectedDistrict === district.id && <Check className="w-4 h-4 text-blue-600" />}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+            {errors.district && <p className="mt-1 text-sm text-red-500">{errors.district.message}</p>}
+            <input type="hidden" {...register("district")} />
+          </div>
+
+          {/* Upazila Dropdown */}
+          <div ref={upazilaRef} className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Upazila *</label>
+            <button
+              type="button"
+              onClick={() => selectedDistrict && setIsUpazilaOpen(!isUpazilaOpen)}
+              disabled={!selectedDistrict}
+              className={`w-full flex items-center justify-between px-4 py-2.5 bg-white border rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                errors.upazila ? "border-red-500" : "border-gray-300"
+              } ${!selectedDistrict ? "opacity-50 cursor-not-allowed" : ""}`}
+            >
+              <div className="flex items-center gap-2">
+                <Layers className="w-4 h-4 text-gray-400" />
+                <span className={selectedUpazila ? "text-gray-900" : "text-gray-400"}>
+                  {selectedUpazila ? upazilas.find(u => u.id === selectedUpazila)?.name : (selectedDistrict ? "Select upazila" : "Select district first")}
+                </span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isUpazilaOpen ? "rotate-180" : ""}`} />
+            </button>
+            {isUpazilaOpen && (
+              <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={upazilaSearch}
+                      onChange={(e) => setUpazilaSearch(e.target.value)}
+                      placeholder="Search upazilas..."
+                      className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {filteredUpazilas.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-gray-500">No upazilas found</p>
+                  ) : (
+                    filteredUpazilas.map(upazila => (
+                      <button
+                        key={upazila.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedUpazila(upazila.id);
+                          setValue("upazila", upazila.name, { shouldValidate: true });
+                          setIsUpazilaOpen(false);
+                          setUpazilaSearch("");
+                        }}
+                        className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${
+                          selectedUpazila === upazila.id ? "bg-blue-50 text-blue-600" : ""
+                        }`}
+                      >
+                        <span>{upazila.name}</span>
+                        {selectedUpazila === upazila.id && <Check className="w-4 h-4 text-blue-600" />}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+            {errors.upazila && <p className="mt-1 text-sm text-red-500">{errors.upazila.message}</p>}
+            <input type="hidden" {...register("upazila")} />
+          </div>
+
+          {/* Union Dropdown (Optional) */}
+          <div ref={unionRef} className="relative">
+            <label className="block text-sm font-medium text-gray-700 mb-1">Union (Optional)</label>
+            <button
+              type="button"
+              onClick={() => selectedUpazila && setIsUnionOpen(!isUnionOpen)}
+              disabled={!selectedUpazila}
+              className={`w-full flex items-center justify-between px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-left focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                !selectedUpazila ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <Home className="w-4 h-4 text-gray-400" />
+                <span className={selectedUnion ? "text-gray-900" : "text-gray-400"}>
+                  {selectedUnion ? unions.find(u => u.id === selectedUnion)?.name : (selectedUpazila ? "Select union (optional)" : "Select upazila first")}
+                </span>
+              </div>
+              <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform ${isUnionOpen ? "rotate-180" : ""}`} />
+            </button>
+            {isUnionOpen && (
+              <div className="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg">
+                <div className="p-2 border-b">
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                    <input
+                      type="text"
+                      value={unionSearch}
+                      onChange={(e) => setUnionSearch(e.target.value)}
+                      placeholder="Search unions..."
+                      className="w-full pl-9 pr-4 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+                <div className="max-h-48 overflow-y-auto">
+                  {filteredUnions.length === 0 ? (
+                    <p className="px-4 py-3 text-sm text-gray-500">No unions found</p>
+                  ) : (
+                    filteredUnions.map(union => (
+                      <button
+                        key={union.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedUnion(union.id);
+                          setIsUnionOpen(false);
+                          setUnionSearch("");
+                        }}
+                        className={`w-full px-4 py-2.5 text-left text-sm hover:bg-gray-50 flex items-center justify-between ${
+                          selectedUnion === union.id ? "bg-blue-50 text-blue-600" : ""
+                        }`}
+                      >
+                        <span>{union.name}</span>
+                        {selectedUnion === union.id && <Check className="w-4 h-4 text-blue-600" />}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
           <Input
-            label="Division"
-            placeholder="Enter division"
-            error={errors.division?.message}
-            {...register("division")}
-          />
-          <Input
-            label="District"
-            placeholder="Enter district"
-            error={errors.district?.message}
-            {...register("district")}
-          />
-          <Input
-            label="Upazila"
-            placeholder="Enter upazila"
-            error={errors.upazila?.message}
-            {...register("upazila")}
-          />
-          <Input
-            label="Branch Name"
+            label="Branch Name *"
             placeholder="Enter branch name"
             error={errors.branchName?.message}
             {...register("branchName")}

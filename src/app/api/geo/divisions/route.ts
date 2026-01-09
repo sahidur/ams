@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
 // GET all divisions
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const searchParams = request.nextUrl.searchParams;
+    const activeOnly = searchParams.get("activeOnly") === "true";
+
+    const where = activeOnly ? { isActive: true } : {};
+    
     const divisions = await prisma.division.findMany({
+      where,
       orderBy: { name: "asc" },
     });
     return NextResponse.json(divisions);

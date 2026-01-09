@@ -233,220 +233,259 @@ export default function DashboardPage() {
         </motion.p>
       </div>
 
-      {/* Stats Grid */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {isLoading ? (
-          // Loading skeletons
-          Array.from({ length: 6 }).map((_, index) => (
-            <motion.div
-              key={index}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <Card className="animate-pulse">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div className="space-y-3">
-                      <div className="h-4 w-24 bg-gray-200 rounded" />
-                      <div className="h-8 w-16 bg-gray-200 rounded" />
-                    </div>
-                    <div className="w-14 h-14 bg-gray-200 rounded-2xl" />
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))
-        ) : (
-          getRoleStats().map((stat, index) => (
-            <motion.div
-              key={stat.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: index * 0.1 }}
-            >
-              <Card 
-                className="hover:shadow-lg transition-shadow cursor-pointer"
-                onClick={() => router.push(stat.link)}
-              >
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-sm font-medium text-gray-500">{stat.title}</p>
-                      <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
-                      <p className="text-sm text-green-600 flex items-center gap-1 mt-1">
-                        <TrendingUp className="w-3 h-3" />
-                        Live
-                      </p>
-                    </div>
-                    <div className={cn(
-                      "w-14 h-14 rounded-2xl bg-gradient-to-br flex items-center justify-center",
-                      stat.color
-                    )}>
-                      <stat.icon className="w-7 h-7 text-white" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            </motion.div>
-          ))
-        )}
-      </div>
-
-      {/* Bangladesh Map Section */}
-      {(role === "ADMIN" || role === "HO_USER") && (
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.5 }}
-        >
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                <CardTitle className="flex items-center gap-2">
-                  <Map className="w-5 h-5 text-blue-600" />
-                  Branch Locations Map
-                </CardTitle>
-                
-                {/* Filters */}
-                <div className="flex flex-wrap items-center gap-2">
-                  <Filter className="w-4 h-4 text-gray-400" />
-                  
-                  <Select
-                    value={selectedProjectId}
-                    onChange={(e) => {
-                      setSelectedProjectId(e.target.value);
-                      setSelectedCohortId("");
-                    }}
-                    className="min-w-[140px]"
+      {/* Main Dashboard Layout - Cards on Left, Map on Right */}
+      {(role === "ADMIN" || role === "HO_USER") ? (
+        <div className="grid gap-6 lg:grid-cols-2">
+          {/* Left Side - Stats Cards */}
+          <div className="space-y-4">
+            <div className="grid gap-4 grid-cols-2">
+              {isLoading ? (
+                // Loading skeletons
+                Array.from({ length: 6 }).map((_, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
                   >
-                    <option value="">All Projects</option>
-                    {projects.map(p => (
-                      <option key={p.id} value={p.id}>{p.name}</option>
-                    ))}
-                  </Select>
-                  
-                  {selectedProjectId && cohorts.length > 0 && (
-                    <Select
-                      value={selectedCohortId}
-                      onChange={(e) => setSelectedCohortId(e.target.value)}
-                      className="min-w-[140px]"
+                    <Card className="animate-pulse">
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div className="space-y-2">
+                            <div className="h-3 w-20 bg-gray-200 rounded" />
+                            <div className="h-6 w-14 bg-gray-200 rounded" />
+                          </div>
+                          <div className="w-10 h-10 bg-gray-200 rounded-xl" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))
+              ) : (
+                getRoleStats().map((stat, index) => (
+                  <motion.div
+                    key={stat.title}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <Card 
+                      className="hover:shadow-lg transition-shadow cursor-pointer"
+                      onClick={() => router.push(stat.link)}
                     >
-                      <option value="">All Cohorts</option>
-                      {cohorts.map(c => (
-                        <option key={c.id} value={c.id}>{c.name}</option>
+                      <CardContent className="p-4">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-xs font-medium text-gray-500">{stat.title}</p>
+                            <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                          </div>
+                          <div className={cn(
+                            "w-10 h-10 rounded-xl bg-gradient-to-br flex items-center justify-center",
+                            stat.color
+                          )}>
+                            <stat.icon className="w-5 h-5 text-white" />
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))
+              )}
+            </div>
+
+            {/* Recent Activity */}
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <CalendarCheck className="w-4 h-4 text-blue-600" />
+                    Recent Activity
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {isLoading ? (
+                      Array.from({ length: 3 }).map((_, index) => (
+                        <div key={index} className="flex items-center gap-3 p-2 animate-pulse">
+                          <div className="w-8 h-8 rounded-full bg-gray-200" />
+                          <div className="flex-1 space-y-1">
+                            <div className="h-3 w-3/4 bg-gray-200 rounded" />
+                            <div className="h-2 w-1/2 bg-gray-200 rounded" />
+                          </div>
+                        </div>
+                      ))
+                    ) : activities.length === 0 ? (
+                      <p className="text-sm text-gray-500 text-center py-4">No recent activity</p>
+                    ) : (
+                      activities.slice(0, 4).map((activity) => (
+                        <div
+                          key={activity.id}
+                          className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                        >
+                          <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                            <UserCheck className="w-4 h-4 text-blue-600" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-gray-900 truncate">{activity.action}</p>
+                            <p className="text-xs text-gray-500 truncate">{activity.details}</p>
+                          </div>
+                          <span className="text-xs text-gray-400 flex-shrink-0">{activity.time}</span>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+
+          {/* Right Side - Bangladesh Map */}
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.4 }}
+          >
+            <Card className="h-full">
+              <CardHeader className="pb-2">
+                <div className="flex flex-col gap-3">
+                  <CardTitle className="flex items-center gap-2">
+                    <Map className="w-5 h-5 text-blue-600" />
+                    Branch Locations Map
+                  </CardTitle>
+                  
+                  {/* Filters - Compact */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Filter className="w-4 h-4 text-gray-400" />
+                    
+                    <Select
+                      value={selectedProjectId}
+                      onChange={(e) => {
+                        setSelectedProjectId(e.target.value);
+                        setSelectedCohortId("");
+                      }}
+                      className="min-w-[120px] text-sm"
+                    >
+                      <option value="">All Projects</option>
+                      {projects.map(p => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
                     </Select>
-                  )}
-                  
-                  <Select
-                    value={selectedModelTypeId}
-                    onChange={(e) => setSelectedModelTypeId(e.target.value)}
-                    className="min-w-[140px]"
-                  >
-                    <option value="">All Model Types</option>
-                    {modelTypes.map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </Select>
-                  
-                  <Select
-                    value={selectedTrainingTypeId}
-                    onChange={(e) => setSelectedTrainingTypeId(e.target.value)}
-                    className="min-w-[140px]"
-                  >
-                    <option value="">All Training Types</option>
-                    {trainingTypes.map(t => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </Select>
-                  
-                  {(selectedProjectId || selectedCohortId || selectedModelTypeId || selectedTrainingTypeId) && (
-                    <button
-                      onClick={clearFilters}
-                      className="text-sm text-blue-600 hover:text-blue-700"
-                    >
-                      Clear
-                    </button>
-                  )}
-                  
-                  <button
-                    onClick={fetchDashboardData}
-                    className="p-2 hover:bg-gray-100 rounded-lg"
-                    disabled={isLoading}
-                  >
-                    {isLoading ? (
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                    ) : (
-                      <RefreshCw className="w-4 h-4" />
+                    
+                    {selectedProjectId && cohorts.length > 0 && (
+                      <Select
+                        value={selectedCohortId}
+                        onChange={(e) => setSelectedCohortId(e.target.value)}
+                        className="min-w-[120px] text-sm"
+                      >
+                        <option value="">All Cohorts</option>
+                        {cohorts.map(c => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </Select>
                     )}
-                  </button>
+                    
+                    {(selectedProjectId || selectedCohortId || selectedModelTypeId || selectedTrainingTypeId) && (
+                      <button
+                        onClick={clearFilters}
+                        className="text-xs text-blue-600 hover:text-blue-700"
+                      >
+                        Clear
+                      </button>
+                    )}
+                    
+                    <button
+                      onClick={fetchDashboardData}
+                      className="p-1.5 hover:bg-gray-100 rounded-lg ml-auto"
+                      disabled={isLoading}
+                    >
+                      {isLoading ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <RefreshCw className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <BangladeshMap 
-                branchByDistrict={branchByDistrict}
-                onDistrictClick={(district) => {
-                  console.log("District clicked:", district);
-                }}
-              />
-            </CardContent>
-          </Card>
-        </motion.div>
+              </CardHeader>
+              <CardContent className="pt-0">
+                <BangladeshMap 
+                  branchByDistrict={branchByDistrict}
+                  onDistrictClick={(district) => {
+                    console.log("District clicked:", district);
+                  }}
+                />
+              </CardContent>
+            </Card>
+          </motion.div>
+        </div>
+      ) : (
+        /* Non-admin layout - Original stats grid */
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {isLoading ? (
+            // Loading skeletons
+            Array.from({ length: 6 }).map((_, index) => (
+              <motion.div
+                key={index}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Card className="animate-pulse">
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div className="space-y-3">
+                        <div className="h-4 w-24 bg-gray-200 rounded" />
+                        <div className="h-8 w-16 bg-gray-200 rounded" />
+                      </div>
+                      <div className="w-14 h-14 bg-gray-200 rounded-2xl" />
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))
+          ) : (
+            getRoleStats().map((stat, index) => (
+              <motion.div
+                key={stat.title}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: index * 0.1 }}
+              >
+                <Card 
+                  className="hover:shadow-lg transition-shadow cursor-pointer"
+                  onClick={() => router.push(stat.link)}
+                >
+                  <CardContent className="p-6">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-medium text-gray-500">{stat.title}</p>
+                        <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                        <p className="text-sm text-green-600 flex items-center gap-1 mt-1">
+                          <TrendingUp className="w-3 h-3" />
+                          Live
+                        </p>
+                      </div>
+                      <div className={cn(
+                        "w-14 h-14 rounded-2xl bg-gradient-to-br flex items-center justify-center",
+                        stat.color
+                      )}>
+                        <stat.icon className="w-7 h-7 text-white" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))
+          )}
+        </div>
       )}
 
-      {/* Recent Activity & Quick Actions */}
+      {/* Quick Actions - Below the main layout */}
       <div className="grid gap-8 lg:grid-cols-2">
-        {/* Recent Activity */}
-        <motion.div
-          initial={{ opacity: 0, x: -20 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: 0.3 }}
-        >
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <CalendarCheck className="w-5 h-5 text-blue-600" />
-                Recent Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {isLoading ? (
-                  Array.from({ length: 4 }).map((_, index) => (
-                    <div key={index} className="flex items-center gap-4 p-3 animate-pulse">
-                      <div className="w-10 h-10 rounded-full bg-gray-200" />
-                      <div className="flex-1 space-y-2">
-                        <div className="h-4 w-3/4 bg-gray-200 rounded" />
-                        <div className="h-3 w-1/2 bg-gray-200 rounded" />
-                      </div>
-                    </div>
-                  ))
-                ) : activities.length === 0 ? (
-                  <p className="text-sm text-gray-500 text-center py-8">No recent activity</p>
-                ) : (
-                  activities.map((activity) => (
-                    <div
-                      key={activity.id}
-                      className="flex items-center gap-4 p-3 rounded-lg hover:bg-gray-50 transition-colors"
-                    >
-                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
-                        <UserCheck className="w-5 h-5 text-blue-600" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-sm font-medium text-gray-900">{activity.action}</p>
-                        <p className="text-xs text-gray-500">{activity.details}</p>
-                      </div>
-                      <span className="text-xs text-gray-400">{activity.time}</span>
-                    </div>
-                  ))
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-
         {/* Quick Actions */}
         <motion.div
           initial={{ opacity: 0, x: 20 }}
