@@ -36,6 +36,15 @@ server {
     listen 80;
     server_name $DOMAIN;
 
+    # Allow large file uploads (2GB max)
+    client_max_body_size 2G;
+    
+    # Increase timeouts for large uploads
+    proxy_connect_timeout 600;
+    proxy_send_timeout 600;
+    proxy_read_timeout 600;
+    send_timeout 600;
+
     location / {
         proxy_pass http://127.0.0.1:3000;
         proxy_http_version 1.1;

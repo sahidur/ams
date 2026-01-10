@@ -323,6 +323,15 @@ server {
     listen [::]:80;
     server_name ${server_name};
 
+    # Allow large file uploads (2GB max)
+    client_max_body_size 2G;
+    
+    # Increase timeouts for large uploads
+    proxy_connect_timeout 600;
+    proxy_send_timeout 600;
+    proxy_read_timeout 600;
+    send_timeout 600;
+
     # Security headers
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-Content-Type-Options "nosniff" always;

@@ -1054,6 +1054,7 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
                         type="button"
                         onClick={() => {
                           setSelectedUnion(union.id);
+                          setValue("union", union.name, { shouldValidate: true });
                           setIsUnionOpen(false);
                           setUnionSearch("");
                         }}
@@ -1069,6 +1070,7 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
                 </div>
               </div>
             )}
+            <input type="hidden" {...register("union")} />
           </div>
 
           <Input

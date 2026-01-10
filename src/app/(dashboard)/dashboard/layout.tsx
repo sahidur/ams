@@ -29,6 +29,9 @@ import {
   UserCheck,
   FileText,
   Building,
+  FilePlus,
+  FileSearch,
+  FolderCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -48,7 +51,7 @@ interface NavSection {
   module?: string; // Optional module check for entire section
 }
 
-// Main navigation items (not in a section)
+// Main navigation items (standalone, not in a section)
 const mainNavItems: NavItem[] = [
   {
     title: "Dashboard",
@@ -64,49 +67,85 @@ const mainNavItems: NavItem[] = [
     module: "USERS",
   },
   {
-    title: "Projects",
-    href: "/dashboard/projects",
-    icon: FolderKanban,
-    module: "PROJECTS",
-  },
-  {
-    title: "Branches",
-    href: "/dashboard/branches",
-    icon: Building2,
-    module: "BRANCHES",
-  },
-  {
-    title: "Batches",
-    href: "/dashboard/batches",
-    icon: GraduationCap,
-    module: "BATCHES",
-  },
-  {
-    title: "Classes",
-    href: "/dashboard/classes",
-    icon: Calendar,
-    module: "CLASSES",
-  },
-  {
-    title: "Attendance",
-    href: "/dashboard/attendance",
-    icon: CalendarCheck,
-    module: "ATTENDANCE",
-  },
-  {
-    title: "Face Training",
-    href: "/dashboard/face-training",
-    icon: Camera,
-    module: "FACE_TRAINING",
-  },
-  {
-    title: "Profile",
+    title: "My Profile",
     href: "/dashboard/profile",
     icon: User,
     module: "PROFILE",
     alwaysShow: true,
   },
 ];
+
+// Projects section
+const projectsSection: NavSection = {
+  title: "Projects",
+  icon: FolderKanban,
+  items: [
+    {
+      title: "Projects",
+      href: "/dashboard/projects",
+      icon: FolderKanban,
+      module: "PROJECTS",
+    },
+    {
+      title: "Branches",
+      href: "/dashboard/branches",
+      icon: Building2,
+      module: "BRANCHES",
+    },
+  ],
+};
+
+// Class Management section
+const classManagementSection: NavSection = {
+  title: "Class Management",
+  icon: GraduationCap,
+  items: [
+    {
+      title: "Classes",
+      href: "/dashboard/classes",
+      icon: Calendar,
+      module: "CLASSES",
+    },
+    {
+      title: "Attendance",
+      href: "/dashboard/attendance",
+      icon: CalendarCheck,
+      module: "ATTENDANCE",
+    },
+    {
+      title: "Face Training",
+      href: "/dashboard/face-training",
+      icon: Camera,
+      module: "FACE_TRAINING",
+    },
+  ],
+};
+
+// Knowledge Base section (new)
+const knowledgeBaseSection: NavSection = {
+  title: "Knowledge Base",
+  icon: BookOpen,
+  items: [
+    {
+      title: "Create Document",
+      href: "/dashboard/knowledge-base/create",
+      icon: FilePlus,
+      module: "KNOWLEDGE_BASE",
+    },
+    {
+      title: "View Documents",
+      href: "/dashboard/knowledge-base",
+      icon: FileSearch,
+      module: "KNOWLEDGE_BASE",
+    },
+    {
+      title: "Manage Documents",
+      href: "/dashboard/knowledge-base/manage",
+      icon: FolderCog,
+      module: "KNOWLEDGE_BASE",
+    },
+  ],
+};
 
 // Admin Tools section
 const adminToolsSection: NavSection = {
@@ -164,11 +203,20 @@ const adminToolsSection: NavSection = {
   ],
 };
 
+// All sections for rendering
+const navSections: NavSection[] = [
+  projectsSection,
+  classManagementSection,
+  knowledgeBaseSection,
+];
+
 // Keep navItems for backward compatibility (flattened list)
 const navItems: NavItem[] = [
-  ...mainNavItems.slice(0, 2), // Dashboard, Users
-  ...adminToolsSection.items, // Roles, Model Types, Training Types
-  ...mainNavItems.slice(2), // Rest of items
+  ...mainNavItems,
+  ...projectsSection.items,
+  ...classManagementSection.items,
+  ...knowledgeBaseSection.items,
+  ...adminToolsSection.items,
 ];
 
 interface UserPermission {
@@ -187,16 +235,24 @@ export default function DashboardLayout({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [adminToolsOpen, setAdminToolsOpen] = useState(false);
+  const [projectsOpen, setProjectsOpen] = useState(false);
+  const [classManagementOpen, setClassManagementOpen] = useState(false);
+  const [knowledgeBaseOpen, setKnowledgeBaseOpen] = useState(false);
   const [userPermissions, setUserPermissions] = useState<UserPermission[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [permissionsError, setPermissionsError] = useState(false);
 
-  // Auto-expand Admin Tools if current page is within it
+  // Auto-expand sections if current page is within them
   useEffect(() => {
     const isInAdminTools = adminToolsSection.items.some(item => pathname === item.href);
-    if (isInAdminTools) {
-      setAdminToolsOpen(true);
-    }
+    const isInProjects = projectsSection.items.some(item => pathname === item.href || pathname.startsWith(item.href + "/"));
+    const isInClassManagement = classManagementSection.items.some(item => pathname === item.href);
+    const isInKnowledgeBase = knowledgeBaseSection.items.some(item => pathname === item.href || pathname.startsWith("/dashboard/knowledge-base"));
+    
+    if (isInAdminTools) setAdminToolsOpen(true);
+    if (isInProjects) setProjectsOpen(true);
+    if (isInClassManagement) setClassManagementOpen(true);
+    if (isInKnowledgeBase) setKnowledgeBaseOpen(true);
   }, [pathname]);
 
   // Fetch user permissions with retry
@@ -381,6 +437,184 @@ export default function DashboardLayout({
               </Link>
             );
           })}
+
+          {/* Projects Section */}
+          {(isSuperAdmin || projectsSection.items.some(item => hasModuleAccess(item.module))) && (
+            <div className="pt-2 border-t border-gray-200 mt-2">
+              <button
+                onClick={() => setProjectsOpen(!projectsOpen)}
+                className={cn(
+                  "w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                  projectsOpen || projectsSection.items.some(item => pathname === item.href || pathname.startsWith(item.href + "/"))
+                    ? "bg-gray-100 text-gray-900"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <FolderKanban className="w-5 h-5" />
+                  Projects
+                </div>
+                <ChevronDown className={cn(
+                  "w-4 h-4 transition-transform duration-200",
+                  projectsOpen ? "rotate-180" : ""
+                )} />
+              </button>
+              
+              <AnimatePresence>
+                {projectsOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pl-4 pt-1 space-y-1">
+                      {projectsSection.items
+                        .filter(item => isSuperAdmin || hasModuleAccess(item.module))
+                        .map((item) => {
+                          const isActive = pathname === item.href || pathname.startsWith(item.href + "/");
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              onClick={() => setSidebarOpen(false)}
+                              className={cn(
+                                "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                                isActive
+                                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                              )}
+                            >
+                              <item.icon className="w-4 h-4" />
+                              {item.title}
+                            </Link>
+                          );
+                        })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Class Management Section */}
+          {(isSuperAdmin || classManagementSection.items.some(item => hasModuleAccess(item.module))) && (
+            <div className="pt-2 border-t border-gray-200 mt-2">
+              <button
+                onClick={() => setClassManagementOpen(!classManagementOpen)}
+                className={cn(
+                  "w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                  classManagementOpen || classManagementSection.items.some(item => pathname === item.href)
+                    ? "bg-gray-100 text-gray-900"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <GraduationCap className="w-5 h-5" />
+                  Class Management
+                </div>
+                <ChevronDown className={cn(
+                  "w-4 h-4 transition-transform duration-200",
+                  classManagementOpen ? "rotate-180" : ""
+                )} />
+              </button>
+              
+              <AnimatePresence>
+                {classManagementOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pl-4 pt-1 space-y-1">
+                      {classManagementSection.items
+                        .filter(item => isSuperAdmin || hasModuleAccess(item.module))
+                        .map((item) => {
+                          const isActive = pathname === item.href;
+                          return (
+                            <Link
+                              key={item.href}
+                              href={item.href}
+                              onClick={() => setSidebarOpen(false)}
+                              className={cn(
+                                "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                                isActive
+                                  ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                              )}
+                            >
+                              <item.icon className="w-4 h-4" />
+                              {item.title}
+                            </Link>
+                          );
+                        })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
+
+          {/* Knowledge Base Section */}
+          {isSuperAdmin && (
+            <div className="pt-2 border-t border-gray-200 mt-2">
+              <button
+                onClick={() => setKnowledgeBaseOpen(!knowledgeBaseOpen)}
+                className={cn(
+                  "w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                  knowledgeBaseOpen || pathname.startsWith("/dashboard/knowledge-base")
+                    ? "bg-gray-100 text-gray-900"
+                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                )}
+              >
+                <div className="flex items-center gap-3">
+                  <BookOpen className="w-5 h-5" />
+                  Knowledge Base
+                </div>
+                <ChevronDown className={cn(
+                  "w-4 h-4 transition-transform duration-200",
+                  knowledgeBaseOpen ? "rotate-180" : ""
+                )} />
+              </button>
+              
+              <AnimatePresence>
+                {knowledgeBaseOpen && (
+                  <motion.div
+                    initial={{ height: 0, opacity: 0 }}
+                    animate={{ height: "auto", opacity: 1 }}
+                    exit={{ height: 0, opacity: 0 }}
+                    transition={{ duration: 0.2 }}
+                    className="overflow-hidden"
+                  >
+                    <div className="pl-4 pt-1 space-y-1">
+                      {knowledgeBaseSection.items.map((item) => {
+                        const isActive = pathname === item.href;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setSidebarOpen(false)}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                              isActive
+                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                            )}
+                          >
+                            <item.icon className="w-4 h-4" />
+                            {item.title}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          )}
 
           {/* Admin Tools Section - at the end */}
           {showAdminTools && (

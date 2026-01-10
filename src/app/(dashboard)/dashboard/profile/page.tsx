@@ -42,6 +42,7 @@ import {
   TrendingUp,
   IdCard,
   Users,
+  History,
 } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge, Modal } from "@/components/ui";
 import { formatDate, getRoleDisplayName } from "@/lib/utils";
@@ -175,7 +176,7 @@ interface AdminComment {
 export default function ProfilePage() {
   const { data: session, update: updateSession } = useSession();
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"personal" | "job" | "projects" | "branches" | "comments" | "password">("personal");
+  const [activeTab, setActiveTab] = useState<"personal" | "job" | "projects" | "branches" | "timeline" | "comments" | "password">("personal");
   const [successMessage, setSuccessMessage] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -207,6 +208,26 @@ export default function ProfilePage() {
   // Admin comments state
   const [adminComments, setAdminComments] = useState<AdminComment[]>([]);
   const [isLoadingComments, setIsLoadingComments] = useState(false);
+
+  // Activity timeline state
+  const [activityLogs, setActivityLogs] = useState<{
+    id: string;
+    action: string;
+    category: string;
+    field: string | null;
+    oldValue: string | null;
+    newValue: string | null;
+    description: string | null;
+    createdAt: string;
+    editor: {
+      id: string;
+      name: string;
+      profileImage: string | null;
+      userRole: { displayName: string } | null;
+    };
+  }[]>([]);
+  const [isLoadingActivity, setIsLoadingActivity] = useState(false);
+  const [activityFilter, setActivityFilter] = useState<string>("all");
 
   // Full user data for display
   const [userData, setUserData] = useState<FullUserData | null>(null);
@@ -379,6 +400,25 @@ export default function ProfilePage() {
     };
     fetchComments();
   }, [session?.user?.id]);
+
+  // Fetch activity logs when timeline tab is active
+  useEffect(() => {
+    const fetchActivityLogs = async () => {
+      if (!session?.user?.id || activeTab !== "timeline") return;
+      setIsLoadingActivity(true);
+      try {
+        const categoryParam = activityFilter !== "all" ? `&category=${activityFilter}` : "";
+        const res = await fetch(`/api/users/${session.user.id}/activity?limit=100${categoryParam}`);
+        const data = await res.json();
+        setActivityLogs(data.logs || []);
+      } catch (error) {
+        console.error("Error fetching activity logs:", error);
+      } finally {
+        setIsLoadingActivity(false);
+      }
+    };
+    fetchActivityLogs();
+  }, [session?.user?.id, activeTab, activityFilter]);
 
   // Load existing branch selections when project/cohort changes
   useEffect(() => {
@@ -647,6 +687,7 @@ export default function ProfilePage() {
     { id: "job" as const, label: "Job Information", icon: Briefcase },
     { id: "projects" as const, label: "Project Assignments", icon: FolderKanban },
     { id: "branches" as const, label: "My Branches", icon: MapPin },
+    { id: "timeline" as const, label: "Activity Timeline", icon: History },
     { id: "comments" as const, label: "Admin Comments", icon: MessageSquare },
     { id: "password" as const, label: "Change Password", icon: Lock },
   ];
@@ -1190,6 +1231,118 @@ export default function ProfilePage() {
                                 <span className="text-xs text-gray-400">({branch.district})</span>
                               </Badge>
                             ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {activeTab === "timeline" && (
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b pb-4">
+                  <div>
+                    <h3 className="text-lg font-medium text-gray-900">Activity Timeline</h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      Track all changes made to your profile
+                    </p>
+                  </div>
+                  <select
+                    value={activityFilter}
+                    onChange={(e) => setActivityFilter(e.target.value)}
+                    className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="all">All Categories</option>
+                    <option value="PERSONAL">Personal Details</option>
+                    <option value="JOB">Job Information</option>
+                    <option value="PROJECT_ASSIGNMENT">Project Assignments</option>
+                    <option value="BRANCH_ASSIGNMENT">Branch Assignments</option>
+                  </select>
+                </div>
+
+                {isLoadingActivity ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+                  </div>
+                ) : activityLogs.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <History className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>No activity logs found.</p>
+                    <p className="text-sm mt-1">Changes to your profile will appear here.</p>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    {/* Timeline line */}
+                    <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
+                    
+                    <div className="space-y-4">
+                      {activityLogs.map((log) => (
+                        <div key={log.id} className="relative pl-10">
+                          {/* Timeline dot */}
+                          <div className={`absolute left-2.5 w-3 h-3 rounded-full ring-4 ring-white ${
+                            log.action === "CREATE" ? "bg-green-500" :
+                            log.action === "UPDATE" ? "bg-blue-500" :
+                            log.action === "DELETE" ? "bg-red-500" : "bg-gray-400"
+                          }`} />
+                          
+                          <div className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm hover:shadow-md transition-shadow">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge variant={
+                                    log.category === "PERSONAL" ? "info" :
+                                    log.category === "JOB" ? "warning" :
+                                    log.category === "PROJECT_ASSIGNMENT" ? "success" :
+                                    log.category === "BRANCH_ASSIGNMENT" ? "default" : "default"
+                                  }>
+                                    {log.category.replace(/_/g, " ")}
+                                  </Badge>
+                                  <span className="text-xs text-gray-500">
+                                    {new Date(log.createdAt).toLocaleDateString("en-US", {
+                                      year: "numeric",
+                                      month: "short",
+                                      day: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                </div>
+                                
+                                <p className="text-sm text-gray-900 font-medium">
+                                  {log.description || `${log.action} ${log.field || ""}`}
+                                </p>
+                                
+                                {log.oldValue && log.newValue && (
+                                  <div className="mt-2 text-xs text-gray-500">
+                                    <span className="line-through text-red-400">
+                                      {JSON.parse(log.oldValue) ?? "-"}
+                                    </span>
+                                    <span className="mx-2">→</span>
+                                    <span className="text-green-600 font-medium">
+                                      {JSON.parse(log.newValue) ?? "-"}
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                              
+                              <div className="flex items-center gap-2 text-xs text-gray-500">
+                                {log.editor.profileImage ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={log.editor.profileImage}
+                                    alt={log.editor.name}
+                                    className="w-6 h-6 rounded-full"
+                                  />
+                                ) : (
+                                  <div className="w-6 h-6 rounded-full bg-gray-300 flex items-center justify-center text-white text-xs font-medium">
+                                    {log.editor.name.charAt(0)}
+                                  </div>
+                                )}
+                                <span>{log.editor.name}</span>
+                              </div>
+                            </div>
                           </div>
                         </div>
                       ))}

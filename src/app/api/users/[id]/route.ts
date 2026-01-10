@@ -4,6 +4,7 @@ import { hash } from "bcryptjs";
 import prisma from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { checkPermission } from "@/lib/permissions";
+import { logUserChanges } from "@/lib/activity-log";
 
 export async function GET(
   request: Request,
@@ -277,10 +278,66 @@ export async function PUT(
       updateData.password = await hash(generatedPassword, 12);
     }
 
+    // Prepare old data for activity logging (exclude sensitive fields)
+    const oldDataForLogging = {
+      name: targetUser.name,
+      email: targetUser.email,
+      phone: targetUser.phone,
+      whatsappNumber: targetUser.whatsappNumber,
+      dateOfBirth: targetUser.dateOfBirth,
+      gender: targetUser.gender,
+      address: targetUser.address,
+      employeeId: targetUser.employeeId,
+      designationId: targetUser.designationId,
+      departmentId: targetUser.departmentId,
+      joiningDateBrac: targetUser.joiningDateBrac,
+      joiningDateCurrentBase: targetUser.joiningDateCurrentBase,
+      joiningDateCurrentPosition: targetUser.joiningDateCurrentPosition,
+      contractEndDate: targetUser.contractEndDate,
+      employmentStatusId: targetUser.employmentStatusId,
+      employmentTypeId: targetUser.employmentTypeId,
+      firstSupervisorId: targetUser.firstSupervisorId,
+      yearsOfExperience: targetUser.yearsOfExperience,
+      userRoleId: targetUser.userRoleId,
+      isActive: targetUser.isActive,
+    };
+
+    const newDataForLogging = {
+      name: updateData.name,
+      email: updateData.email,
+      phone: updateData.phone,
+      whatsappNumber: updateData.whatsappNumber,
+      dateOfBirth: updateData.dateOfBirth,
+      gender: updateData.gender,
+      address: updateData.address,
+      employeeId: updateData.employeeId,
+      designationId: updateData.designationId,
+      departmentId: updateData.departmentId,
+      joiningDateBrac: updateData.joiningDateBrac,
+      joiningDateCurrentBase: updateData.joiningDateCurrentBase,
+      joiningDateCurrentPosition: updateData.joiningDateCurrentPosition,
+      contractEndDate: updateData.contractEndDate,
+      employmentStatusId: updateData.employmentStatusId,
+      employmentTypeId: updateData.employmentTypeId,
+      firstSupervisorId: updateData.firstSupervisorId,
+      yearsOfExperience: updateData.yearsOfExperience,
+      userRoleId: updateData.userRoleId,
+      isActive: updateData.isActive,
+    };
+
     const user = await prisma.user.update({
       where: { id },
       data: updateData,
     });
+
+    // Log the changes (after successful update)
+    await logUserChanges(
+      id,
+      session.user.id,
+      oldDataForLogging as Record<string, unknown>,
+      newDataForLogging as Record<string, unknown>,
+      "UPDATE"
+    );
 
     return NextResponse.json({
       message: generatedPassword ? "User updated and password reset successfully" : "User updated successfully",

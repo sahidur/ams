@@ -164,6 +164,8 @@ model User {
   branchAssignments  UserBranchAssignment[]
   receivedComments   AdminComment[]  @relation("UserComments")
   writtenComments    AdminComment[]  @relation("CommentAuthor")
+  activityLogs       UserActivityLog[] @relation("UserActivityLogs")
+  editedActivityLogs UserActivityLog[] @relation("UserActivityEditor")
   
   @@map("users")
 }
@@ -474,6 +476,28 @@ model CommentAttachment {
   createdAt   DateTime @default(now())
   
   @@map("comment_attachments")
+}
+
+// User Activity Log - tracks all user data changes
+model UserActivityLog {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation("UserActivityLogs", fields: [userId], references: [id], onDelete: Cascade)
+  editorId    String
+  editor      User     @relation("UserActivityEditor", fields: [editorId], references: [id], onDelete: Cascade)
+  
+  action      String   // CREATE, UPDATE, DELETE
+  category    String   // PERSONAL, JOB, BRANCH_ASSIGNMENT, PROJECT_ASSIGNMENT
+  field       String?  // Field name that was changed
+  oldValue    String?  // Previous value (JSON stringified if complex)
+  newValue    String?  // New value (JSON stringified if complex)
+  description String?  // Human-readable description of the change
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([userId, createdAt])
+  @@index([editorId])
+  @@map("user_activity_logs")
 }
 
 model Designation {
