@@ -167,6 +167,7 @@ model User {
   writtenComments    AdminComment[]  @relation("CommentAuthor")
   activityLogs       UserActivityLog[] @relation("UserActivityLogs")
   editedActivityLogs UserActivityLog[] @relation("UserActivityEditor")
+  passkeys           UserPasskey[]
   
   // Created/Updated by relations
   createdProjects    Project[]      @relation("ProjectCreatedBy")
@@ -473,6 +474,26 @@ model FingerprintCredential {
   updatedAt             DateTime @updatedAt
   
   @@map("fingerprint_credentials")
+}
+
+// User Passkeys for passwordless login
+model UserPasskey {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  credentialId          String   @unique // WebAuthn credential ID (base64)
+  publicKey             String   // Public key (base64)
+  counter               Int      @default(0) // Signature counter
+  
+  // Consent tracking
+  consentGiven          Boolean  @default(false)
+  consentDate           DateTime?
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@map("user_passkeys")
 }
 
 // User Project and Cohort Assignments

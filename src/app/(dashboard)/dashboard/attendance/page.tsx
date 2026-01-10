@@ -186,28 +186,13 @@ export default function AttendancePage() {
       const newSessionId = `${now.toISOString().split('T')[0]}_${now.getTime()}`;
       setCurrentSessionId(newSessionId);
 
-      // Fetch existing attendance for current session (if any)
-      const todaySession = `${now.toISOString().split('T')[0]}`;
-      const attendanceRes = await fetch(`/api/attendance/${classInfo.id}?sessionId=${todaySession}`);
-      let existingAttendance: { studentId: string; isPresent: boolean; confidence?: number; markedAt?: string; markedBy?: string; capturedImageUrl?: string }[] = [];
-      if (attendanceRes.ok) {
-        existingAttendance = await attendanceRes.json();
-      }
-
-      // Initialize attendance for all students
-      const attendanceMap = new Map(existingAttendance.map(a => [a.studentId, a]));
-      const fullAttendance: Attendance[] = studentsData.map((student) => {
-        const existing = attendanceMap.get(student.id);
-        return {
-          studentId: student.id,
-          studentName: student.name,
-          isPresent: existing?.isPresent || false,
-          confidence: existing?.confidence,
-          markedAt: existing?.markedAt,
-          markedBy: existing?.markedBy,
-          capturedImageUrl: existing?.capturedImageUrl,
-        };
-      });
+      // Initialize attendance for all students (start fresh for new session)
+      // Previous session attendance can be viewed through session history
+      const fullAttendance: Attendance[] = studentsData.map((student) => ({
+        studentId: student.id,
+        studentName: student.name,
+        isPresent: false,
+      }));
       setAttendance(fullAttendance);
 
       // Fetch face encodings for students

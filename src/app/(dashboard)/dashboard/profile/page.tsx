@@ -43,7 +43,17 @@ import {
   IdCard,
   Users,
   History,
+  Fingerprint,
+  Smartphone,
+  Key,
 } from "lucide-react";
+import dynamic from "next/dynamic";
+
+// Dynamic import for consent modal
+const BiometricConsentModal = dynamic(
+  () => import("@/components/biometric-consent-modal"),
+  { ssr: false }
+);
 import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge, Modal } from "@/components/ui";
 import { formatDate, getRoleDisplayName } from "@/lib/utils";
 
@@ -176,7 +186,14 @@ interface AdminComment {
 export default function ProfilePage() {
   const { data: session, update: updateSession } = useSession();
   const [isLoading, setIsLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<"personal" | "job" | "projects" | "branches" | "timeline" | "comments" | "password">("personal");
+  const [activeTab, setActiveTab] = useState<"personal" | "job" | "projects" | "branches" | "timeline" | "comments" | "security" | "password">("personal");
+  
+  // Fingerprint/Passkey state
+  const [hasPasskey, setHasPasskey] = useState(false);
+  const [isRegisteringPasskey, setIsRegisteringPasskey] = useState(false);
+  const [isDeletingPasskey, setIsDeletingPasskey] = useState(false);
+  const [passkeyError, setPasskeyError] = useState("");
+  const [showConsentModal, setShowConsentModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isUploadingImage, setIsUploadingImage] = useState(false);
@@ -689,8 +706,122 @@ export default function ProfilePage() {
     { id: "branches" as const, label: "My Branches", icon: MapPin },
     { id: "timeline" as const, label: "Activity Timeline", icon: History },
     { id: "comments" as const, label: "Admin Comments", icon: MessageSquare },
+    { id: "security" as const, label: "Security & Passkeys", icon: Fingerprint },
     { id: "password" as const, label: "Change Password", icon: Lock },
   ];
+  
+  // Fetch passkey status
+  useEffect(() => {
+    const fetchPasskeyStatus = async () => {
+      if (!session?.user?.id) return;
+      try {
+        const res = await fetch(`/api/passkey?userId=${session.user.id}`);
+        if (res.ok) {
+          const data = await res.json();
+          setHasPasskey(data.hasPasskey);
+        }
+      } catch (error) {
+        console.error("Error fetching passkey status:", error);
+      }
+    };
+    fetchPasskeyStatus();
+  }, [session?.user?.id]);
+  
+  // Register passkey handler
+  const handleRegisterPasskey = async () => {
+    if (!session?.user) return;
+    
+    setIsRegisteringPasskey(true);
+    setPasskeyError("");
+    
+    try {
+      // Check WebAuthn support
+      if (!window.PublicKeyCredential) {
+        throw new Error("WebAuthn is not supported in this browser");
+      }
+      
+      const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+      if (!available) {
+        throw new Error("No biometric sensor available on this device");
+      }
+      
+      // Get registration options
+      const optionsRes = await fetch("/api/passkey/register");
+      if (!optionsRes.ok) throw new Error("Failed to get registration options");
+      const { options } = await optionsRes.json();
+      
+      // Convert base64url to ArrayBuffer
+      const challenge = Uint8Array.from(
+        atob(options.challenge.replace(/-/g, "+").replace(/_/g, "/")),
+        c => c.charCodeAt(0)
+      );
+      const userId = Uint8Array.from(
+        atob(options.user.id.replace(/-/g, "+").replace(/_/g, "/")),
+        c => c.charCodeAt(0)
+      );
+      
+      // Create credential
+      const credential = await navigator.credentials.create({
+        publicKey: {
+          ...options,
+          challenge,
+          user: { ...options.user, id: userId },
+        },
+      }) as PublicKeyCredential;
+      
+      if (!credential) throw new Error("Failed to create credential");
+      
+      const response = credential.response as AuthenticatorAttestationResponse;
+      
+      // Register with server
+      const registerRes = await fetch("/api/passkey/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          credentialId: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
+          publicKey: btoa(String.fromCharCode(...new Uint8Array(response.getPublicKey()!))),
+          attestationObject: btoa(String.fromCharCode(...new Uint8Array(response.attestationObject))),
+          clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(response.clientDataJSON))),
+        }),
+      });
+      
+      if (registerRes.ok) {
+        setHasPasskey(true);
+        setSuccessMessage("Passkey registered successfully! You can now use fingerprint to login.");
+        setTimeout(() => setSuccessMessage(""), 5000);
+      } else {
+        const error = await registerRes.json();
+        throw new Error(error.error || "Failed to register passkey");
+      }
+    } catch (error) {
+      console.error("Passkey registration error:", error);
+      setPasskeyError(error instanceof Error ? error.message : "Failed to register passkey");
+    } finally {
+      setIsRegisteringPasskey(false);
+    }
+  };
+  
+  // Delete passkey handler
+  const handleDeletePasskey = async () => {
+    if (!session?.user?.id) return;
+    
+    setIsDeletingPasskey(true);
+    try {
+      const res = await fetch(`/api/passkey?userId=${session.user.id}`, {
+        method: "DELETE",
+      });
+      
+      if (res.ok) {
+        setHasPasskey(false);
+        setSuccessMessage("Passkey removed successfully");
+        setTimeout(() => setSuccessMessage(""), 5000);
+      }
+    } catch (error) {
+      console.error("Error deleting passkey:", error);
+    } finally {
+      setIsDeletingPasskey(false);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -1456,6 +1587,140 @@ export default function ProfilePage() {
               </div>
             )}
 
+            {/* Security & Passkeys Tab */}
+            {activeTab === "security" && (
+              <div className="space-y-6 max-w-2xl">
+                {/* Passkey Section */}
+                <Card className="border-2 border-blue-100">
+                  <CardHeader className="bg-gradient-to-r from-blue-50 to-indigo-50">
+                    <CardTitle className="flex items-center gap-3 text-lg">
+                      <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <Fingerprint className="w-5 h-5 text-blue-600" />
+                      </div>
+                      Passkey / Fingerprint Login
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="p-6 space-y-4">
+                    <p className="text-gray-600">
+                      Passkeys allow you to sign in securely using your device&apos;s biometric sensor 
+                      (fingerprint or face recognition) instead of your password.
+                    </p>
+                    
+                    {passkeyError && (
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-600 text-sm flex items-center gap-2"
+                      >
+                        <AlertTriangle className="w-4 h-4" />
+                        {passkeyError}
+                      </motion.div>
+                    )}
+                    
+                    {hasPasskey ? (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-green-50 rounded-lg border border-green-200 flex items-center gap-3">
+                          <CheckCircle className="w-6 h-6 text-green-600" />
+                          <div>
+                            <p className="font-medium text-green-800">Passkey Registered</p>
+                            <p className="text-sm text-green-600">
+                              You can sign in using your fingerprint or biometric sensor
+                            </p>
+                          </div>
+                        </div>
+                        
+                        <Button
+                          variant="destructive"
+                          onClick={handleDeletePasskey}
+                          isLoading={isDeletingPasskey}
+                          className="w-full"
+                        >
+                          <Trash2 className="w-4 h-4 mr-2" />
+                          Remove Passkey
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+                          <div className="flex items-center gap-3 mb-3">
+                            <Smartphone className="w-6 h-6 text-gray-500" />
+                            <div>
+                              <p className="font-medium text-gray-800">No Passkey Registered</p>
+                              <p className="text-sm text-gray-500">
+                                Register a passkey to enable biometric login
+                              </p>
+                            </div>
+                          </div>
+                          
+                          <ul className="text-sm text-gray-600 space-y-1 mb-4">
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-green-500" />
+                              Sign in faster with fingerprint or Face ID
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-green-500" />
+                              More secure than passwords
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <Check className="w-4 h-4 text-green-500" />
+                              Works on this device only
+                            </li>
+                          </ul>
+                        </div>
+                        
+                        <Button
+                          onClick={() => setShowConsentModal(true)}
+                          isLoading={isRegisteringPasskey}
+                          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+                        >
+                          <Key className="w-4 h-4 mr-2" />
+                          Register Passkey
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+                
+                {/* Security Tips */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      <Shield className="w-5 h-5" />
+                      Security Tips
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-3 text-sm text-gray-600">
+                      <li className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-blue-600 font-medium text-xs">1</span>
+                        </div>
+                        <span>Use a strong, unique password that you don&apos;t use on other sites</span>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-blue-600 font-medium text-xs">2</span>
+                        </div>
+                        <span>Enable passkey login for faster and more secure authentication</span>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-blue-600 font-medium text-xs">3</span>
+                        </div>
+                        <span>Never share your login credentials with anyone</span>
+                      </li>
+                      <li className="flex items-start gap-3">
+                        <div className="w-6 h-6 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0 mt-0.5">
+                          <span className="text-blue-600 font-medium text-xs">4</span>
+                        </div>
+                        <span>Log out from shared or public devices after use</span>
+                      </li>
+                    </ul>
+                  </CardContent>
+                </Card>
+              </div>
+            )}
+
             {activeTab === "password" && (
               <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-4 max-w-md">
                 <Input
@@ -1554,6 +1819,18 @@ export default function ProfilePage() {
           </Button>
         </div>
       </Modal>
+
+      {/* Biometric Consent Modal */}
+      <BiometricConsentModal
+        isOpen={showConsentModal}
+        onClose={() => setShowConsentModal(false)}
+        onConsent={() => {
+          setShowConsentModal(false);
+          handleRegisterPasskey();
+        }}
+        biometricType="fingerprint"
+        studentName={session?.user?.name || "User"}
+      />
     </div>
   );
 }
