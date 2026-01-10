@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { checkPermission } from "@/lib/permissions";
+import { encryptFaceEmbedding, decryptFaceEmbedding } from "@/lib/crypto";
 
 export async function POST(request: NextRequest) {
   try {
@@ -18,7 +19,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { userId, embedding, encoding } = body;
+    const { userId, embedding, encoding, consentGiven } = body;
     
     // Accept both 'embedding' and 'encoding' for backward compatibility
     const faceData = embedding || encoding;
@@ -44,16 +45,30 @@ export async function POST(request: NextRequest) {
       where: { userId },
     });
 
-    // Create new face encoding
+    // Encrypt the face embedding data
+    const { encryptedEmbedding, iv, authTag, salt, hash } = encryptFaceEmbedding(faceData);
+
+    // Create new face encoding with encryption
     const faceEncoding = await prisma.faceEncoding.create({
       data: {
         userId,
-        encoding: faceData,
-        label: user.name, // Use user's name as the label
+        encoding: encryptedEmbedding, // Store encrypted data
+        label: user.name,
+        encryptionIv: iv,
+        encryptionTag: authTag,
+        salt,
+        embeddingHash: hash,
+        consentGiven: consentGiven === true,
+        consentDate: consentGiven === true ? new Date() : null,
       },
     });
 
-    return NextResponse.json(faceEncoding, { status: 201 });
+    return NextResponse.json({ 
+      id: faceEncoding.id,
+      userId: faceEncoding.userId,
+      label: faceEncoding.label,
+      createdAt: faceEncoding.createdAt,
+    }, { status: 201 });
   } catch (error) {
     console.error("Error saving face encoding:", error);
     return NextResponse.json(
@@ -99,7 +114,34 @@ export async function GET(request: NextRequest) {
       },
     });
 
-    return NextResponse.json(faceEncodings);
+    // Decrypt embeddings before returning
+    const decryptedEncodings = faceEncodings.map(fe => {
+      try {
+        // Check if this encoding is encrypted (has encryption fields)
+        if (fe.encryptionIv && fe.encryptionTag && typeof fe.encoding === "string") {
+          const decryptedEmbedding = decryptFaceEmbedding(
+            fe.encoding as string,
+            fe.encryptionIv,
+            fe.encryptionTag
+          );
+          return {
+            ...fe,
+            encoding: decryptedEmbedding,
+          };
+        }
+        // Legacy unencrypted data - return as is
+        return fe;
+      } catch (error) {
+        console.error(`Error decrypting face encoding for user ${fe.userId}:`, error);
+        // Return without embedding if decryption fails
+        return {
+          ...fe,
+          encoding: null,
+        };
+      }
+    });
+
+    return NextResponse.json(decryptedEncodings);
   } catch (error) {
     console.error("Error fetching face encodings:", error);
     return NextResponse.json(

@@ -45,6 +45,12 @@ const HumanFaceRecognition = dynamic(
   }
 );
 
+// Dynamic import for consent modal
+const BiometricConsentModal = dynamic(
+  () => import("@/components/biometric-consent-modal"),
+  { ssr: false }
+);
+
 interface ClassInfo {
   id: string;
   name: string;
@@ -91,6 +97,10 @@ export default function FaceTrainingPage() {
   const [message, setMessage] = useState({ type: "", text: "" });
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [studentToDelete, setStudentToDelete] = useState<Student | null>(null);
+  
+  // Consent modal state
+  const [isConsentModalOpen, setIsConsentModalOpen] = useState(false);
+  const [studentPendingConsent, setStudentPendingConsent] = useState<Student | null>(null);
 
   // Fetch classes
   useEffect(() => {
@@ -498,7 +508,16 @@ export default function FaceTrainingPage() {
                     >
                       <div 
                         className="flex items-center gap-3 flex-1 cursor-pointer"
-                        onClick={() => setSelectedStudent(student)}
+                        onClick={() => {
+                          // If student doesn't have face data yet, show consent modal
+                          if (student.faceEncodingCount === 0) {
+                            setStudentPendingConsent(student);
+                            setIsConsentModalOpen(true);
+                          } else {
+                            // Student already has face data (re-training), proceed directly
+                            setSelectedStudent(student);
+                          }
+                        }}
                       >
                         <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium">
                           {student.name.charAt(0)}
@@ -616,6 +635,24 @@ export default function FaceTrainingPage() {
           </div>
         </div>
       </Modal>
+
+      {/* Biometric Consent Modal */}
+      <BiometricConsentModal
+        isOpen={isConsentModalOpen}
+        onClose={() => {
+          setIsConsentModalOpen(false);
+          setStudentPendingConsent(null);
+        }}
+        onConsent={() => {
+          if (studentPendingConsent) {
+            setSelectedStudent(studentPendingConsent);
+          }
+          setIsConsentModalOpen(false);
+          setStudentPendingConsent(null);
+        }}
+        biometricType="face"
+        studentName={studentPendingConsent?.name || ""}
+      />
     </div>
   );
 }

@@ -55,6 +55,12 @@ const FingerprintTraining = dynamic(
   }
 );
 
+// Dynamic import for consent modal
+const BiometricConsentModal = dynamic(
+  () => import("@/components/biometric-consent-modal"),
+  { ssr: false }
+);
+
 interface ClassInfo {
   id: string;
   name: string;
@@ -132,6 +138,10 @@ export default function ClassesPage() {
   const [isDeletingStudent, setIsDeletingStudent] = useState<string | null>(null);
   const [showFingerprintModal, setShowFingerprintModal] = useState(false);
   const [selectedStudentForFingerprint, setSelectedStudentForFingerprint] = useState<Student | null>(null);
+  
+  // Consent modal state
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [studentPendingConsent, setStudentPendingConsent] = useState<Student | null>(null);
 
   const {
     register,
@@ -224,14 +234,27 @@ export default function ClassesPage() {
       // Fetch face encodings for enrolled students
       if (data.length > 0) {
         const studentIds = data.map((s: Student) => s.id);
+        
+        // Fetch face encodings
         const encodingsRes = await fetch(`/api/face-encodings/students?ids=${studentIds.join(",")}`);
         if (encodingsRes.ok) {
           const encodingsData = await encodingsRes.json();
           const encodingsMap: Record<string, boolean> = {};
-          encodingsData.forEach((e: { studentId: string }) => {
-            encodingsMap[e.studentId] = true;
+          encodingsData.forEach((e: { userId: string }) => {
+            encodingsMap[e.userId] = true;
           });
           setFaceEncodings(encodingsMap);
+        }
+        
+        // Fetch fingerprint credentials
+        const fingerprintRes = await fetch(`/api/fingerprint/students?ids=${studentIds.join(",")}`);
+        if (fingerprintRes.ok) {
+          const fingerprintData = await fingerprintRes.json();
+          const fingerprintMap: Record<string, boolean> = {};
+          fingerprintData.forEach((e: { userId: string }) => {
+            fingerprintMap[e.userId] = true;
+          });
+          setFingerprintEncodings(fingerprintMap);
         }
       }
     } catch (error) {
@@ -818,12 +841,19 @@ export default function ClassesPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         {/* Biometric Status */}
-                        {faceEncodings[student.id] ? (
+                        {faceEncodings[student.id] && (
                           <Badge variant="success" className="text-xs">
                             <Camera className="w-3 h-3 mr-1" />
-                            Face Trained
+                            Face
                           </Badge>
-                        ) : (
+                        )}
+                        {fingerprintEncodings[student.id] && (
+                          <Badge variant="success" className="text-xs">
+                            <Fingerprint className="w-3 h-3 mr-1" />
+                            Fingerprint
+                          </Badge>
+                        )}
+                        {!faceEncodings[student.id] && !fingerprintEncodings[student.id] && (
                           <Badge variant="warning" className="text-xs">
                             <AlertCircle className="w-3 h-3 mr-1" />
                             No Biometric
@@ -840,8 +870,15 @@ export default function ClassesPage() {
                           size="sm" 
                           title="Train Fingerprint"
                           onClick={() => {
-                            setSelectedStudentForFingerprint(student);
-                            setShowFingerprintModal(true);
+                            // If student doesn't have fingerprint yet, show consent modal
+                            if (!fingerprintEncodings[student.id]) {
+                              setStudentPendingConsent(student);
+                              setShowConsentModal(true);
+                            } else {
+                              // Re-training, proceed directly
+                              setSelectedStudentForFingerprint(student);
+                              setShowFingerprintModal(true);
+                            }
                           }}
                         >
                           <Fingerprint className="w-4 h-4" />
@@ -1051,6 +1088,25 @@ export default function ClassesPage() {
           />
         )}
       </Modal>
+
+      {/* Biometric Consent Modal */}
+      <BiometricConsentModal
+        isOpen={showConsentModal}
+        onClose={() => {
+          setShowConsentModal(false);
+          setStudentPendingConsent(null);
+        }}
+        onConsent={() => {
+          if (studentPendingConsent) {
+            setSelectedStudentForFingerprint(studentPendingConsent);
+            setShowFingerprintModal(true);
+          }
+          setShowConsentModal(false);
+          setStudentPendingConsent(null);
+        }}
+        biometricType="fingerprint"
+        studentName={studentPendingConsent?.name || ""}
+      />
     </div>
   );
 }

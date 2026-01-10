@@ -4,6 +4,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import prisma from "@/lib/prisma";
 import { checkPermission } from "@/lib/permissions";
 import crypto from "crypto";
+import { hashCredentialId } from "@/lib/crypto";
 
 // Generate registration options for WebAuthn
 export async function GET(request: NextRequest) {
@@ -121,7 +122,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Store credential
+    // Store credential with consent tracking and credential hash
+    const credentialIdHash = hashCredentialId(credential.id);
+    
     const fingerprintCredential = await prisma.fingerprintCredential.create({
       data: {
         userId: studentId,
@@ -131,6 +134,9 @@ export async function POST(request: NextRequest) {
         transports: credential.transports || [],
         deviceType: credential.authenticatorAttachment || "platform",
         backedUp: credential.clientExtensionResults?.credProps?.rk || false,
+        credentialIdHash,
+        consentGiven: true, // Consent given since they clicked register
+        consentDate: new Date(),
       },
     });
 

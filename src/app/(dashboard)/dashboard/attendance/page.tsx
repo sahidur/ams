@@ -22,7 +22,10 @@ import {
   Plus,
   History,
   Eye,
-  X
+  X,
+  User,
+  MapPin,
+  Fingerprint
 } from "lucide-react";
 import { 
   Button, 
@@ -48,16 +51,47 @@ const HumanFaceRecognition = dynamic(
   }
 );
 
+// Dynamic import for fingerprint attendance
+const FingerprintAttendance = dynamic(
+  () => import("@/components/fingerprint-attendance"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-64 bg-gray-100 rounded-lg">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-600" />
+        <span className="ml-2 text-gray-600">Loading fingerprint scanner...</span>
+      </div>
+    )
+  }
+);
+
 interface ClassInfo {
   id: string;
-  title: string;
+  name: string;
+  title?: string;
+  subject: string;
   description?: string;
-  date: string;
-  startTime?: string;
-  endTime?: string;
+  startDate: string;
+  endDate: string;
+  date?: string;
+  startTime: string;
+  endTime: string;
   batch: {
     id: string;
     name: string;
+    trainer?: {
+      id: string;
+      name: string;
+    };
+    branch?: {
+      branchName: string;
+      upazila: string;
+      district: string;
+    };
+  };
+  _count?: {
+    students: number;
+    attendance: number;
   };
 }
 
@@ -91,7 +125,7 @@ interface KnownFace {
   embedding: number[];
 }
 
-type ModeType = "list" | "live" | "group" | "sessions";
+type ModeType = "list" | "live" | "group" | "fingerprint" | "sessions";
 
 export default function AttendancePage() {
   const [classes, setClasses] = useState<ClassInfo[]>([]);
@@ -351,6 +385,41 @@ export default function AttendancePage() {
     }
   }, [selectedClass]);
 
+  // Handle fingerprint attendance
+  const handleFingerprintAttendance = useCallback((student: { id: string; name: string }) => {
+    if (!selectedClass) return;
+
+    const now = new Date().toISOString();
+    
+    // Update local state
+    setAttendance((prev) => {
+      const existing = prev.find((a) => a.studentId === student.id);
+      if (existing?.isPresent) {
+        return prev; // Already marked
+      }
+      
+      return prev.map((a) =>
+        a.studentId === student.id
+          ? { 
+              ...a, 
+              isPresent: true, 
+              confidence: 1.0, // Fingerprint is 100% match
+              markedAt: now,
+              markedBy: "FINGERPRINT",
+            }
+          : a
+      );
+    });
+
+    setMessage({ 
+      type: "success", 
+      text: `✓ ${student.name} marked present via fingerprint` 
+    });
+    
+    // Clear message after 3 seconds
+    setTimeout(() => setMessage({ type: "", text: "" }), 3000);
+  }, [selectedClass]);
+
   // Toggle manual attendance
   const toggleManualAttendance = async (studentId: string) => {
     if (!selectedClass) return;
@@ -478,20 +547,49 @@ export default function AttendancePage() {
                 <CardContent className="p-6">
                   <div className="flex items-start justify-between mb-4">
                     <div>
-                      <h3 className="font-semibold text-lg">{classInfo.title}</h3>
-                      <p className="text-sm text-gray-500">{classInfo.description}</p>
+                      <h3 className="font-semibold text-lg">{classInfo.name || classInfo.title || "Class"}</h3>
+                      <p className="text-sm text-gray-500">{classInfo.subject || classInfo.description}</p>
                     </div>
                     <Badge variant="info">{classInfo.batch.name}</Badge>
                   </div>
                   <div className="space-y-2 text-sm text-gray-600">
+                    {/* Trainer Info */}
+                    {classInfo.batch.trainer && (
+                      <div className="flex items-center gap-2">
+                        <User className="w-4 h-4" />
+                        <span>Trainer: {classInfo.batch.trainer.name}</span>
+                      </div>
+                    )}
+                    {/* Branch Info */}
+                    {classInfo.batch.branch && (
+                      <div className="flex items-center gap-2">
+                        <MapPin className="w-4 h-4" />
+                        <span>{classInfo.batch.branch.branchName}, {classInfo.batch.branch.upazila}</span>
+                      </div>
+                    )}
+                    {/* Date Info */}
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
-                      <span>{safeFormatDate(classInfo.date)}</span>
+                      <span>
+                        {classInfo.startDate && classInfo.endDate 
+                          ? `${safeFormatDate(classInfo.startDate)} - ${safeFormatDate(classInfo.endDate)}`
+                          : safeFormatDate(classInfo.date || classInfo.startDate)}
+                      </span>
                     </div>
+                    {/* Time Info */}
                     {classInfo.startTime && (
                       <div className="flex items-center gap-2">
                         <Clock className="w-4 h-4" />
                         <span>{classInfo.startTime} - {classInfo.endTime}</span>
+                      </div>
+                    )}
+                    {/* Student Count */}
+                    {classInfo._count && (
+                      <div className="flex items-center gap-2">
+                        <Users className="w-4 h-4" />
+                        <span>
+                          {classInfo._count.students} Students • {classInfo._count.attendance || 0} Attended
+                        </span>
                       </div>
                     )}
                   </div>
@@ -523,9 +621,9 @@ export default function AttendancePage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">{selectedClass?.title}</h1>
+          <h1 className="text-3xl font-bold text-gray-900">{selectedClass?.name || selectedClass?.title}</h1>
           <p className="text-gray-500 mt-1">
-            {selectedClass?.batch.name} • {safeFormatDate(selectedClass?.date)}
+            {selectedClass?.batch.name} • {selectedClass?.batch.trainer?.name && `Trainer: ${selectedClass.batch.trainer.name}`} • {safeFormatDate(selectedClass?.startDate || selectedClass?.date)}
           </p>
         </div>
         <div className="flex gap-2">
@@ -562,6 +660,13 @@ export default function AttendancePage() {
         >
           <ImageIcon className="w-4 h-4 mr-2" />
           Group Photo
+        </Button>
+        <Button
+          variant={mode === "fingerprint" ? "default" : "outline"}
+          onClick={() => setMode("fingerprint")}
+        >
+          <Fingerprint className="w-4 h-4 mr-2" />
+          Fingerprint
         </Button>
       </div>
 
@@ -630,16 +735,31 @@ export default function AttendancePage() {
       )}
 
       <div className="grid lg:grid-cols-2 gap-6">
-        {/* Face Recognition Panel */}
+        {/* Recognition Panel - Face or Fingerprint */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
-              <Camera className="w-5 h-5" />
-              {mode === "live" ? "Live Face Recognition" : "Group Photo Recognition"}
+              {mode === "fingerprint" ? (
+                <>
+                  <Fingerprint className="w-5 h-5" />
+                  Fingerprint Attendance
+                </>
+              ) : (
+                <>
+                  <Camera className="w-5 h-5" />
+                  {mode === "live" ? "Live Face Recognition" : "Group Photo Recognition"}
+                </>
+              )}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {mode === "fingerprint" ? (
+              <FingerprintAttendance 
+                classId={selectedClass?.id || ""}
+                className={selectedClass?.name || selectedClass?.title || ""}
+                onAttendanceRecorded={handleFingerprintAttendance}
+              />
+            ) : isLoading ? (
               <div className="h-64 flex items-center justify-center">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
               </div>

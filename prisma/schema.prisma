@@ -429,9 +429,19 @@ model FaceEncoding {
   userId      String
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   
-  encoding    Json     // face-api.js face descriptor (128-dimensional array)
+  encoding    Json     // Encrypted face embedding data
   label       String   // Label for the face
   imageUrl    String?  // Original training image URL
+  
+  // Encryption fields for secure storage
+  encryptionIv    String?  // Initialization vector for AES-256-GCM
+  encryptionTag   String?  // Authentication tag for AES-256-GCM
+  salt            String?  // Salt used for hashing
+  embeddingHash   String?  // SHA-256 hash for integrity verification
+  
+  // Consent tracking
+  consentGiven    Boolean  @default(false)
+  consentDate     DateTime?
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -451,6 +461,13 @@ model FingerprintCredential {
   transports            String[] // Allowed transports (internal, usb, ble, nfc)
   deviceType            String?  // Device type (platform, cross-platform)
   backedUp              Boolean  @default(false)
+  
+  // Encryption fields
+  credentialIdHash      String?  // SHA-256 hash of credential ID
+  
+  // Consent tracking
+  consentGiven          Boolean  @default(false)
+  consentDate           DateTime?
   
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
