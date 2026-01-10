@@ -295,7 +295,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
   const [employmentStatuses, setEmploymentStatuses] = useState<{ id: string; name: string }[]>([]);
   const [employmentTypes, setEmploymentTypes] = useState<{ id: string; name: string }[]>([]);
-  const [allUsers, setAllUsers] = useState<{ id: string; name: string; email: string; isActive: boolean }[]>([]);
+  const [allUsers, setAllUsers] = useState<{ id: string; name: string; email: string; isActive: boolean; approvalStatus: string }[]>([]);
   
   // Supervisor dropdown state
   const [isSupervisorDropdownOpen, setIsSupervisorDropdownOpen] = useState(false);
@@ -467,8 +467,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       }
       if (usersRes.ok) {
         const data = await usersRes.json();
-        // Filter out current user and keep only active users for supervisor dropdown
-        setAllUsers(data.filter((u: { id: string; isActive: boolean }) => u.id !== id && u.isActive));
+        // Filter out current user and keep only active, approved users for supervisor dropdown
+        setAllUsers(data.filter((u: { id: string; isActive: boolean; approvalStatus: string }) => 
+          u.id !== id && u.isActive && u.approvalStatus === "APPROVED"
+        ));
       }
     } catch (error) {
       console.error("Error fetching edit form data:", error);

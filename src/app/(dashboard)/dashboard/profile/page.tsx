@@ -211,40 +211,17 @@ export default function ProfilePage() {
   // Full user data for display
   const [userData, setUserData] = useState<FullUserData | null>(null);
 
-  // Reference data for dropdowns
-  const [designations, setDesignations] = useState<{ id: string; name: string }[]>([]);
-  const [employmentStatuses, setEmploymentStatuses] = useState<{ id: string; name: string }[]>([]);
-  const [employmentTypes, setEmploymentTypes] = useState<{ id: string; name: string }[]>([]);
-  const [allUsers, setAllUsers] = useState<{ id: string; name: string; email: string }[]>([]);
-
   // Edit modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editModalTab, setEditModalTab] = useState<"personal" | "job">("personal");
   const [isSavingEdit, setIsSavingEdit] = useState(false);
   const [editFormData, setEditFormData] = useState({
-    // Personal
+    // Personal details only - users can only edit these
     name: "",
-    email: "",
     phone: "",
     whatsappNumber: "",
     dateOfBirth: "",
     gender: "",
     address: "",
-    // Job
-    employeeId: "",
-    designationId: "",
-    department: "",
-    joiningDate: "",
-    joiningDateBrac: "",
-    joiningDateCurrentBase: "",
-    joiningDateCurrentPosition: "",
-    contractEndDate: "",
-    employmentStatusId: "",
-    employmentTypeId: "",
-    firstSupervisorId: "",
-    jobGrade: "",
-    yearsOfExperience: "",
-    salary: "",
   });
 
   // Helper functions for attachments
@@ -310,40 +287,6 @@ export default function ProfilePage() {
       fetchProfile();
     }
   }, [session, reset]);
-
-  // Fetch reference data for edit modal
-  useEffect(() => {
-    const fetchReferenceData = async () => {
-      try {
-        const [designationsRes, statusesRes, typesRes, usersRes] = await Promise.all([
-          fetch("/api/training-types"),
-          fetch("/api/model-types?category=employment_status"),
-          fetch("/api/model-types?category=employment_type"),
-          fetch("/api/users?limit=1000"),
-        ]);
-        
-        if (designationsRes.ok) {
-          const data = await designationsRes.json();
-          setDesignations(data);
-        }
-        if (statusesRes.ok) {
-          const data = await statusesRes.json();
-          setEmploymentStatuses(data);
-        }
-        if (typesRes.ok) {
-          const data = await typesRes.json();
-          setEmploymentTypes(data);
-        }
-        if (usersRes.ok) {
-          const data = await usersRes.json();
-          setAllUsers(data.users || []);
-        }
-      } catch (error) {
-        console.error("Error fetching reference data:", error);
-      }
-    };
-    fetchReferenceData();
-  }, []);
 
   // Fetch projects for branch assignment
   useEffect(() => {
@@ -538,36 +481,20 @@ export default function ProfilePage() {
     if (!userData) return;
     setEditFormData({
       name: userData.name || "",
-      email: userData.email || "",
       phone: userData.phone || "",
       whatsappNumber: userData.whatsappNumber || "",
       dateOfBirth: userData.dateOfBirth?.split("T")[0] || "",
       gender: userData.gender || "",
       address: userData.address || "",
-      employeeId: userData.employeeId || "",
-      designationId: userData.designationId || "",
-      department: userData.department || "",
-      joiningDate: userData.joiningDate?.split("T")[0] || "",
-      joiningDateBrac: userData.joiningDateBrac?.split("T")[0] || "",
-      joiningDateCurrentBase: userData.joiningDateCurrentBase?.split("T")[0] || "",
-      joiningDateCurrentPosition: userData.joiningDateCurrentPosition?.split("T")[0] || "",
-      contractEndDate: userData.contractEndDate?.split("T")[0] || "",
-      employmentStatusId: userData.employmentStatusId || "",
-      employmentTypeId: userData.employmentTypeId || "",
-      firstSupervisorId: userData.firstSupervisorId || "",
-      jobGrade: userData.jobGrade || "",
-      yearsOfExperience: userData.yearsOfExperience?.toString() || "",
-      salary: userData.salary?.toString() || "",
     });
-    setEditModalTab("personal");
     setIsEditModalOpen(true);
   };
 
-  // Save edit modal changes
+  // Save edit modal changes - only personal details
   const handleSaveEdit = async () => {
     setIsSavingEdit(true);
     try {
-      const res = await fetch(`/api/users/${session?.user?.id}`, {
+      const res = await fetch("/api/profile", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -577,20 +504,6 @@ export default function ProfilePage() {
           dateOfBirth: editFormData.dateOfBirth || null,
           gender: editFormData.gender || null,
           address: editFormData.address || null,
-          employeeId: editFormData.employeeId || null,
-          designationId: editFormData.designationId || null,
-          department: editFormData.department || null,
-          joiningDate: editFormData.joiningDate || null,
-          joiningDateBrac: editFormData.joiningDateBrac || null,
-          joiningDateCurrentBase: editFormData.joiningDateCurrentBase || null,
-          joiningDateCurrentPosition: editFormData.joiningDateCurrentPosition || null,
-          contractEndDate: editFormData.contractEndDate || null,
-          employmentStatusId: editFormData.employmentStatusId || null,
-          employmentTypeId: editFormData.employmentTypeId || null,
-          firstSupervisorId: editFormData.firstSupervisorId || null,
-          jobGrade: editFormData.jobGrade || null,
-          yearsOfExperience: editFormData.yearsOfExperience ? parseFloat(editFormData.yearsOfExperience) : null,
-          salary: editFormData.salary ? parseFloat(editFormData.salary) : null,
         }),
       });
 
@@ -1420,207 +1333,63 @@ export default function ProfilePage() {
       <Modal
         isOpen={isEditModalOpen}
         onClose={() => setIsEditModalOpen(false)}
-        title="Edit Profile"
-        size="3xl"
+        title="Edit Personal Details"
+        size="2xl"
       >
-        {/* Modal Tabs */}
-        <div className="border-b border-gray-200 mb-4">
-          <nav className="flex gap-2">
-            <button
-              onClick={() => setEditModalTab("personal")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg transition-colors ${
-                editModalTab === "personal"
-                  ? "bg-blue-100 text-blue-700 font-medium"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
+        {/* Personal Details Form */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <Input
+            label="Full Name"
+            value={editFormData.name}
+            onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+          />
+          <Input
+            label="Phone"
+            value={editFormData.phone}
+            onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
+          />
+          <Input
+            label="WhatsApp Number"
+            value={editFormData.whatsappNumber}
+            onChange={(e) => setEditFormData({ ...editFormData, whatsappNumber: e.target.value })}
+          />
+          <Input
+            label="Date of Birth"
+            type="date"
+            value={editFormData.dateOfBirth}
+            onChange={(e) => setEditFormData({ ...editFormData, dateOfBirth: e.target.value })}
+          />
+          <div className="space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Gender</label>
+            <select
+              value={editFormData.gender}
+              onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
+              className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
             >
-              <User className="w-4 h-4" />
-              Personal Details
-            </button>
-            <button
-              onClick={() => setEditModalTab("job")}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-t-lg transition-colors ${
-                editModalTab === "job"
-                  ? "bg-blue-100 text-blue-700 font-medium"
-                  : "text-gray-600 hover:bg-gray-100"
-              }`}
-            >
-              <Briefcase className="w-4 h-4" />
-              Job Information
-            </button>
-          </nav>
+              <option value="">Select gender</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="other">Other</option>
+            </select>
+          </div>
+          <div className="col-span-full space-y-1">
+            <label className="block text-sm font-medium text-gray-700">Address</label>
+            <textarea
+              value={editFormData.address}
+              onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
+              className="flex w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm min-h-[80px]"
+              placeholder="Enter your address"
+            />
+          </div>
         </div>
 
-        {/* Personal Details Tab */}
-        {editModalTab === "personal" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Input
-              label="Full Name"
-              value={editFormData.name}
-              onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
-            />
-            <Input
-              label="Email"
-              type="email"
-              value={editFormData.email}
-              disabled
-            />
-            <Input
-              label="Phone"
-              value={editFormData.phone}
-              onChange={(e) => setEditFormData({ ...editFormData, phone: e.target.value })}
-            />
-            <Input
-              label="WhatsApp Number"
-              value={editFormData.whatsappNumber}
-              onChange={(e) => setEditFormData({ ...editFormData, whatsappNumber: e.target.value })}
-            />
-            <Input
-              label="Date of Birth"
-              type="date"
-              value={editFormData.dateOfBirth}
-              onChange={(e) => setEditFormData({ ...editFormData, dateOfBirth: e.target.value })}
-            />
-            <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">Gender</label>
-              <select
-                value={editFormData.gender}
-                onChange={(e) => setEditFormData({ ...editFormData, gender: e.target.value })}
-                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
-              >
-                <option value="">Select gender</option>
-                <option value="male">Male</option>
-                <option value="female">Female</option>
-                <option value="other">Other</option>
-              </select>
-            </div>
-            <div className="col-span-full space-y-1">
-              <label className="block text-sm font-medium text-gray-700">Address</label>
-              <textarea
-                value={editFormData.address}
-                onChange={(e) => setEditFormData({ ...editFormData, address: e.target.value })}
-                className="flex w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm min-h-[80px]"
-                placeholder="Enter your address"
-              />
-            </div>
-          </div>
-        )}
-
-        {/* Job Information Tab */}
-        {editModalTab === "job" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            <Input
-              label="Employee ID"
-              value={editFormData.employeeId}
-              onChange={(e) => setEditFormData({ ...editFormData, employeeId: e.target.value })}
-            />
-            <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">Designation</label>
-              <select
-                value={editFormData.designationId}
-                onChange={(e) => setEditFormData({ ...editFormData, designationId: e.target.value })}
-                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
-              >
-                <option value="">Select designation</option>
-                {designations.map((d) => (
-                  <option key={d.id} value={d.id}>{d.name}</option>
-                ))}
-              </select>
-            </div>
-            <Input
-              label="Department"
-              value={editFormData.department}
-              onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
-            />
-            <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">Employment Status</label>
-              <select
-                value={editFormData.employmentStatusId}
-                onChange={(e) => setEditFormData({ ...editFormData, employmentStatusId: e.target.value })}
-                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
-              >
-                <option value="">Select status</option>
-                {employmentStatuses.map((s) => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">Employment Type</label>
-              <select
-                value={editFormData.employmentTypeId}
-                onChange={(e) => setEditFormData({ ...editFormData, employmentTypeId: e.target.value })}
-                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
-              >
-                <option value="">Select type</option>
-                {employmentTypes.map((t) => (
-                  <option key={t.id} value={t.id}>{t.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="space-y-1">
-              <label className="block text-sm font-medium text-gray-700">First Supervisor</label>
-              <select
-                value={editFormData.firstSupervisorId}
-                onChange={(e) => setEditFormData({ ...editFormData, firstSupervisorId: e.target.value })}
-                className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
-              >
-                <option value="">Select supervisor</option>
-                {allUsers.filter(u => u.id !== session?.user?.id).map((u) => (
-                  <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                ))}
-              </select>
-            </div>
-            <Input
-              label="Job Grade"
-              value={editFormData.jobGrade}
-              onChange={(e) => setEditFormData({ ...editFormData, jobGrade: e.target.value })}
-            />
-            <Input
-              label="Years of Experience"
-              type="number"
-              step="0.1"
-              value={editFormData.yearsOfExperience}
-              onChange={(e) => setEditFormData({ ...editFormData, yearsOfExperience: e.target.value })}
-            />
-            <Input
-              label="Salary"
-              type="number"
-              value={editFormData.salary}
-              onChange={(e) => setEditFormData({ ...editFormData, salary: e.target.value })}
-            />
-            <Input
-              label="Joining Date"
-              type="date"
-              value={editFormData.joiningDate}
-              onChange={(e) => setEditFormData({ ...editFormData, joiningDate: e.target.value })}
-            />
-            <Input
-              label="Joining Date (BRAC)"
-              type="date"
-              value={editFormData.joiningDateBrac}
-              onChange={(e) => setEditFormData({ ...editFormData, joiningDateBrac: e.target.value })}
-            />
-            <Input
-              label="Joining Date (Current Base)"
-              type="date"
-              value={editFormData.joiningDateCurrentBase}
-              onChange={(e) => setEditFormData({ ...editFormData, joiningDateCurrentBase: e.target.value })}
-            />
-            <Input
-              label="Joining Date (Current Position)"
-              type="date"
-              value={editFormData.joiningDateCurrentPosition}
-              onChange={(e) => setEditFormData({ ...editFormData, joiningDateCurrentPosition: e.target.value })}
-            />
-            <Input
-              label="Contract End Date"
-              type="date"
-              value={editFormData.contractEndDate}
-              onChange={(e) => setEditFormData({ ...editFormData, contractEndDate: e.target.value })}
-            />
-          </div>
-        )}
+        {/* Note about restricted fields */}
+        <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-700">
+            <strong>Note:</strong> To update job-related information (Employee ID, Designation, Department, Employment Status, etc.), 
+            please contact your administrator.
+          </p>
+        </div>
 
         {/* Modal Actions */}
         <div className="flex justify-end gap-3 mt-6 pt-4 border-t">

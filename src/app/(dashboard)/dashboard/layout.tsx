@@ -28,6 +28,7 @@ import {
   Briefcase,
   UserCheck,
   FileText,
+  Building,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -152,6 +153,12 @@ const adminToolsSection: NavSection = {
       title: "Employment Types",
       href: "/dashboard/employment-types",
       icon: FileText,
+      module: "USERS",
+    },
+    {
+      title: "Departments",
+      href: "/dashboard/departments",
+      icon: Building,
       module: "USERS",
     },
   ],
