@@ -70,7 +70,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { division, district, upazila, branchName, branchCode, cohortId, isActive } = body;
+    const { division, district, upazila, union, branchName, branchCode, cohortId, isActive } = body;
 
     // If cohortId is provided, validate it exists and is active
     if (cohortId) {
@@ -102,6 +102,7 @@ export async function PUT(
         division,
         district,
         upazila,
+        union: union !== undefined ? (union || null) : undefined,
         branchName,
         branchCode: branchCode || null,
         cohortId: cohortId || null,

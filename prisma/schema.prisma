@@ -38,11 +38,19 @@ enum SystemModule {
   USERS
   ROLES
   PROJECTS
+  COHORTS
   BRANCHES
   BATCHES
   CLASSES
   ATTENDANCE
   FACE_TRAINING
+  MODEL_TYPES
+  TRAINING_TYPES
+  DESIGNATIONS
+  EMPLOYMENT_STATUSES
+  EMPLOYMENT_TYPES
+  DEPARTMENTS
+  GEO_ADMIN
   PROFILE
 }
 
@@ -105,7 +113,9 @@ model User {
   designation           String?         // Legacy field - keeping for backward compatibility
   designationId         String?
   designationRef        Designation?    @relation(fields: [designationId], references: [id])
-  department            String?
+  department            String?         // Legacy field - keeping for backward compatibility
+  departmentId          String?
+  departmentRef         Department?     @relation(fields: [departmentId], references: [id])
   joiningDate           DateTime?
   employeeId            String?
   joiningDateBrac       DateTime?       // Joining Date in BRAC
@@ -509,6 +519,21 @@ model EmploymentType {
   users       User[]
   
   @@map("employment_types")
+}
+
+model Department {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  users       User[]
+  
+  @@map("departments")
 }
 
 // Bangladesh Geo-Location Models

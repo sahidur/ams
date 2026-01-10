@@ -34,11 +34,19 @@ export async function POST(request: NextRequest) {
       "USERS",
       "ROLES",
       "PROJECTS",
+      "COHORTS",
       "BRANCHES",
       "BATCHES",
       "CLASSES",
       "ATTENDANCE",
       "FACE_TRAINING",
+      "MODEL_TYPES",
+      "TRAINING_TYPES",
+      "DESIGNATIONS",
+      "EMPLOYMENT_STATUSES",
+      "EMPLOYMENT_TYPES",
+      "DEPARTMENTS",
+      "GEO_ADMIN",
       "PROFILE"
     ];
 

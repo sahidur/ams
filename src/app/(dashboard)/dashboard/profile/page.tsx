@@ -12,6 +12,7 @@ import {
   Loader2, 
   MapPin, 
   Building2, 
+  Building,
   Layers, 
   Search, 
   ChevronDown,
@@ -39,8 +40,11 @@ import {
   Calendar,
   DollarSign,
   TrendingUp,
+  IdCard,
+  Users,
 } from "lucide-react";
-import { Button, Card, CardContent, CardHeader, Input, Badge, Modal } from "@/components/ui";
+import { Button, Card, CardContent, CardHeader, CardTitle, Input, Badge, Modal } from "@/components/ui";
+import { formatDate, getRoleDisplayName } from "@/lib/utils";
 
 interface ProfileData {
   name: string;
@@ -71,6 +75,8 @@ interface FullUserData {
   designationId: string | null;
   designationRef: { id: string; name: string } | null;
   department: string | null;
+  departmentId: string | null;
+  departmentRef: { id: string; name: string } | null;
   joiningDate: string | null;
   joiningDateBrac: string | null;
   joiningDateCurrentBase: string | null;
@@ -81,7 +87,13 @@ interface FullUserData {
   employmentTypeId: string | null;
   employmentType: { id: string; name: string } | null;
   firstSupervisorId: string | null;
-  firstSupervisor: { id: string; name: string; email: string } | null;
+  firstSupervisor: { 
+    id: string; 
+    name: string; 
+    email: string;
+    firstSupervisorId: string | null;
+    firstSupervisor: { id: string; name: string; email: string } | null;
+  } | null;
   jobGrade: string | null;
   yearsOfExperience: number | null;
   salary: number | null;
@@ -901,99 +913,250 @@ export default function ProfilePage() {
 
             {activeTab === "job" && (
               <div className="space-y-6">
-                {/* Basic Job Info */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Employee ID</label>
-                    <p className="text-gray-900">{userData?.employeeId || "—"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Designation</label>
-                    <p className="text-gray-900">{userData?.designationRef?.name || userData?.designation || "—"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Department</label>
-                    <p className="text-gray-900">{userData?.department || "—"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Employment Status</label>
-                    <p className="text-gray-900">{userData?.employmentStatus?.name || "—"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Employment Type</label>
-                    <p className="text-gray-900">{userData?.employmentType?.name || "—"}</p>
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-sm font-medium text-gray-500">Job Grade</label>
-                    <p className="text-gray-900">{userData?.jobGrade || "—"}</p>
-                  </div>
-                </div>
+                {/* Job Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Briefcase className="w-5 h-5" />
+                      Job Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid md:grid-cols-3 gap-6">
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Employee ID</p>
+                        <div className="flex items-center gap-2">
+                          <IdCard className="w-4 h-4 text-gray-400" />
+                          <p className="font-medium">{userData?.employeeId || "-"}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Designation</p>
+                        <p className="font-medium">{userData?.designationRef?.name || userData?.designation || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Department</p>
+                        <div className="flex items-center gap-2">
+                          <Building className="w-4 h-4 text-gray-400" />
+                          <p className="font-medium">{userData?.departmentRef?.name || userData?.department || "-"}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Employment Status</p>
+                        <p className="font-medium">{userData?.employmentStatus?.name || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Employment Type</p>
+                        <p className="font-medium">{userData?.employmentType?.name || "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Job Grade</p>
+                        <p className="font-medium">{userData?.jobGrade ? `Grade ${userData.jobGrade}` : "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Years of Experience</p>
+                        <p className="font-medium">{userData?.yearsOfExperience ? `${userData.yearsOfExperience} years` : "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Salary</p>
+                        <div className="flex items-center gap-2">
+                          <DollarSign className="w-4 h-4 text-gray-400" />
+                          <p className="font-medium">{userData?.salary ? `৳${userData.salary.toLocaleString()}` : "-"}</p>
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Role</p>
+                        <div className="flex items-center gap-2">
+                          <Shield className="w-4 h-4 text-gray-400" />
+                          <p className="font-medium">{userData?.userRole?.displayName || getRoleDisplayName(userData?.role || "")}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                {/* Supervisor */}
-                <div className="border-t pt-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Supervisor</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-500">First Supervisor</label>
-                      <p className="text-gray-900">{userData?.firstSupervisor?.name || "—"}</p>
-                      {userData?.firstSupervisor?.email && (
-                        <p className="text-sm text-gray-500">{userData.firstSupervisor.email}</p>
-                      )}
+                {/* Dates Section */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Calendar className="w-5 h-5" />
+                      Important Dates
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid md:grid-cols-3 gap-6">
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Joining Date (BRAC)</p>
+                        <p className="font-medium">{userData?.joiningDateBrac ? formatDate(userData.joiningDateBrac) : "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Joining Date (Current Base)</p>
+                        <p className="font-medium">{userData?.joiningDateCurrentBase ? formatDate(userData.joiningDateCurrentBase) : "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Joining Date (Current Position)</p>
+                        <p className="font-medium">{userData?.joiningDateCurrentPosition ? formatDate(userData.joiningDateCurrentPosition) : "-"}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">Contract End Date</p>
+                        <p className="font-medium">{userData?.contractEndDate ? formatDate(userData.contractEndDate) : "-"}</p>
+                      </div>
                     </div>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
 
-                {/* Dates */}
-                <div className="border-t pt-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Important Dates</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-500">Joining Date</label>
-                      <p className="text-gray-900">
-                        {userData?.joiningDate ? new Date(userData.joiningDate).toLocaleDateString() : "—"}
-                      </p>
+                {/* Supervisors Section */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Users className="w-5 h-5" />
+                      Supervisors
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid md:grid-cols-2 gap-6">
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">1st Supervisor</p>
+                        {userData?.firstSupervisor ? (
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-medium">
+                              {userData.firstSupervisor.name.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="font-medium">{userData.firstSupervisor.name}</p>
+                              <p className="text-xs text-gray-500">{userData.firstSupervisor.email}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="font-medium">-</p>
+                        )}
+                      </div>
+                      <div>
+                        <p className="text-sm text-gray-500 mb-1">2nd Supervisor</p>
+                        {userData?.firstSupervisor?.firstSupervisor ? (
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white text-sm font-medium">
+                              {userData.firstSupervisor.firstSupervisor.name.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="font-medium">{userData.firstSupervisor.firstSupervisor.name}</p>
+                              <p className="text-xs text-gray-500">{userData.firstSupervisor.firstSupervisor.email}</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <p className="font-medium text-gray-400 italic">Auto-populated from 1st supervisor</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-500">Joining Date (BRAC)</label>
-                      <p className="text-gray-900">
-                        {userData?.joiningDateBrac ? new Date(userData.joiningDateBrac).toLocaleDateString() : "—"}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-500">Joining Date (Current Base)</label>
-                      <p className="text-gray-900">
-                        {userData?.joiningDateCurrentBase ? new Date(userData.joiningDateCurrentBase).toLocaleDateString() : "—"}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-500">Joining Date (Current Position)</label>
-                      <p className="text-gray-900">
-                        {userData?.joiningDateCurrentPosition ? new Date(userData.joiningDateCurrentPosition).toLocaleDateString() : "—"}
-                      </p>
-                    </div>
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-500">Contract End Date</label>
-                      <p className="text-gray-900">
-                        {userData?.contractEndDate ? new Date(userData.contractEndDate).toLocaleDateString() : "—"}
-                      </p>
-                    </div>
-                  </div>
-                </div>
+                  </CardContent>
+                </Card>
 
-                {/* Compensation */}
-                <div className="border-t pt-4">
-                  <h4 className="text-sm font-semibold text-gray-700 mb-3">Compensation & Experience</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-500">Years of Experience</label>
-                      <p className="text-gray-900">{userData?.yearsOfExperience ?? "—"}</p>
+                {/* Performance Information */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <TrendingUp className="w-5 h-5" />
+                      Performance Information
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    {/* Slab & Grade */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">Slab & Grade</h4>
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-500 mb-1">Current Slab</p>
+                          <p className="font-semibold text-lg">{userData?.slab || "-"}</p>
+                        </div>
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-500 mb-1">Last Slab Change</p>
+                          <p className="font-medium">{userData?.lastSlabChange ? formatDate(userData.lastSlabChange) : "-"}</p>
+                        </div>
+                        <div className="p-3 bg-gray-50 rounded-lg">
+                          <p className="text-xs text-gray-500 mb-1">Second Last Slab Change</p>
+                          <p className="font-medium">{userData?.secondLastSlabChange ? formatDate(userData.secondLastSlabChange) : "-"}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-1">
-                      <label className="text-sm font-medium text-gray-500">Salary</label>
-                      <p className="text-gray-900">{userData?.salary ? `৳ ${userData.salary.toLocaleString()}` : "—"}</p>
+
+                    {/* Grade Changes */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-3">Grade Changes</h4>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div className="p-3 bg-blue-50 rounded-lg">
+                          <p className="text-xs text-blue-600 mb-1">Last Grade Change</p>
+                          <p className="font-medium">{userData?.lastGradeChange ? formatDate(userData.lastGradeChange) : "-"}</p>
+                        </div>
+                        <div className="p-3 bg-blue-50 rounded-lg">
+                          <p className="text-xs text-blue-600 mb-1">Second Last Grade Change</p>
+                          <p className="font-medium">{userData?.secondLastGradeChange ? formatDate(userData.secondLastGradeChange) : "-"}</p>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                </div>
+
+                    {/* Bonuses */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                        <Award className="w-4 h-4" />
+                        One-off Bonuses
+                      </h4>
+                      <div className="grid md:grid-cols-2 gap-4">
+                        <div className="p-3 bg-green-50 rounded-lg">
+                          <p className="text-xs text-green-600 mb-1">Last One-off Bonus</p>
+                          <p className="font-medium">{userData?.lastOneOffBonus ? formatDate(userData.lastOneOffBonus) : "-"}</p>
+                        </div>
+                        <div className="p-3 bg-green-50 rounded-lg">
+                          <p className="text-xs text-green-600 mb-1">Second Last One-off Bonus</p>
+                          <p className="font-medium">{userData?.secondLastOneOffBonus ? formatDate(userData.secondLastOneOffBonus) : "-"}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* PMS Marks */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                        <Star className="w-4 h-4" />
+                        PMS Marks
+                      </h4>
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div className="p-3 bg-purple-50 rounded-lg">
+                          <p className="text-xs text-purple-600 mb-1">Last Year</p>
+                          <p className="font-semibold text-lg">{userData?.pmsMarkLastYear || "-"}</p>
+                        </div>
+                        <div className="p-3 bg-purple-50 rounded-lg">
+                          <p className="text-xs text-purple-600 mb-1">Second Last Year</p>
+                          <p className="font-semibold text-lg">{userData?.pmsMarkSecondLastYear || "-"}</p>
+                        </div>
+                        <div className="p-3 bg-purple-50 rounded-lg">
+                          <p className="text-xs text-purple-600 mb-1">Third Last Year</p>
+                          <p className="font-semibold text-lg">{userData?.pmsMarkThirdLastYear || "-"}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Warning Dates */}
+                    <div>
+                      <h4 className="text-sm font-medium text-gray-700 mb-3 flex items-center gap-2">
+                        <AlertTriangle className="w-4 h-4" />
+                        Warning Dates
+                      </h4>
+                      <div className="grid md:grid-cols-3 gap-4">
+                        <div className="p-3 bg-red-50 rounded-lg">
+                          <p className="text-xs text-red-600 mb-1">Last Warning</p>
+                          <p className="font-medium">{userData?.lastWarningDate ? formatDate(userData.lastWarningDate) : "-"}</p>
+                        </div>
+                        <div className="p-3 bg-red-50 rounded-lg">
+                          <p className="text-xs text-red-600 mb-1">Second Last Warning</p>
+                          <p className="font-medium">{userData?.secondLastWarningDate ? formatDate(userData.secondLastWarningDate) : "-"}</p>
+                        </div>
+                        <div className="p-3 bg-red-50 rounded-lg">
+                          <p className="text-xs text-red-600 mb-1">Third Last Warning</p>
+                          <p className="font-medium">{userData?.thirdLastWarningDate ? formatDate(userData.thirdLastWarningDate) : "-"}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
             )}
 

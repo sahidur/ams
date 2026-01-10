@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, use } from "react";
+import { useState, useEffect, use, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
@@ -40,6 +40,8 @@ import {
   Video,
   Music,
   X,
+  Search,
+  Check,
 } from "lucide-react";
 import { Button, Card, CardContent, CardHeader, CardTitle, Badge, Modal } from "@/components/ui";
 import { formatDate, getRoleDisplayName } from "@/lib/utils";
@@ -72,6 +74,11 @@ interface UserProfile {
     name: string;
   } | null;
   department: string | null;
+  departmentId: string | null;
+  departmentRef?: {
+    id: string;
+    name: string;
+  } | null;
   joiningDate: string | null;
   employeeId: string | null;
   // New job fields
@@ -238,6 +245,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   // Attachment state
   const [pendingAttachments, setPendingAttachments] = useState<{ fileName: string; fileUrl: string; fileType: string; fileSize: number }[]>([]);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ fileName: string; progress: number; status: "uploading" | "success" | "error"; error?: string }[]>([]);
+  const MAX_FILE_SIZE = 2 * 1024 * 1024 * 1024; // 2GB
 
   // Edit user modal state
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -254,6 +263,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     employeeId: "",
     designationId: "",
     department: "",
+    departmentId: "",
     userRoleId: "",
     employmentStatusId: "",
     employmentTypeId: "",
@@ -282,9 +292,15 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   });
   const [roles, setRoles] = useState<{ id: string; name: string; displayName: string }[]>([]);
   const [designations, setDesignations] = useState<{ id: string; name: string }[]>([]);
+  const [departments, setDepartments] = useState<{ id: string; name: string }[]>([]);
   const [employmentStatuses, setEmploymentStatuses] = useState<{ id: string; name: string }[]>([]);
   const [employmentTypes, setEmploymentTypes] = useState<{ id: string; name: string }[]>([]);
-  const [allUsers, setAllUsers] = useState<{ id: string; name: string; email: string }[]>([]);
+  const [allUsers, setAllUsers] = useState<{ id: string; name: string; email: string; isActive: boolean }[]>([]);
+  
+  // Supervisor dropdown state
+  const [isSupervisorDropdownOpen, setIsSupervisorDropdownOpen] = useState(false);
+  const [supervisorSearch, setSupervisorSearch] = useState("");
+  const supervisorDropdownRef = useRef<HTMLDivElement>(null);
 
   // Check if current user is Super Admin
   const isSuperAdmin = session?.user?.userRoleName === "Super Admin" || 
@@ -420,11 +436,12 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   // Edit modal functions
   const fetchEditFormData = async () => {
     try {
-      const [rolesRes, designationsRes, statusesRes, typesRes, usersRes] = await Promise.all([
+      const [rolesRes, designationsRes, departmentsRes, statusesRes, typesRes, usersRes] = await Promise.all([
         fetch("/api/roles?activeOnly=true"),
-        fetch("/api/designations"),
-        fetch("/api/employment-statuses"),
-        fetch("/api/employment-types"),
+        fetch("/api/designations?activeOnly=true"),
+        fetch("/api/departments?activeOnly=true"),
+        fetch("/api/employment-statuses?activeOnly=true"),
+        fetch("/api/employment-types?activeOnly=true"),
         fetch("/api/users"),
       ]);
 
@@ -436,6 +453,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
         const data = await designationsRes.json();
         setDesignations(data);
       }
+      if (departmentsRes.ok) {
+        const data = await departmentsRes.json();
+        setDepartments(data);
+      }
       if (statusesRes.ok) {
         const data = await statusesRes.json();
         setEmploymentStatuses(data);
@@ -446,7 +467,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       }
       if (usersRes.ok) {
         const data = await usersRes.json();
-        setAllUsers(data.filter((u: { id: string }) => u.id !== id));
+        // Filter out current user and keep only active users for supervisor dropdown
+        setAllUsers(data.filter((u: { id: string; isActive: boolean }) => u.id !== id && u.isActive));
       }
     } catch (error) {
       console.error("Error fetching edit form data:", error);
@@ -466,6 +488,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       employeeId: user.employeeId || "",
       designationId: user.designationId || "",
       department: user.department || "",
+      departmentId: user.departmentId || "",
       userRoleId: user.userRoleId || "",
       employmentStatusId: user.employmentStatusId || "",
       employmentTypeId: user.employmentTypeId || "",
@@ -549,29 +572,88 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     if (!files || files.length === 0) return;
     
     setIsUploadingAttachment(true);
+    
+    // Initialize progress for all files
+    const initialProgress = Array.from(files).map(file => ({
+      fileName: file.name,
+      progress: 0,
+      status: "uploading" as const,
+    }));
+    setUploadProgress(initialProgress);
+    
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
+        
+        // Check file size before upload
+        if (file.size > MAX_FILE_SIZE) {
+          setUploadProgress(prev => prev.map((p, idx) => 
+            idx === i ? { ...p, status: "error" as const, error: `File too large. Maximum size: 2GB` } : p
+          ));
+          continue;
+        }
+        
         const formData = new FormData();
         formData.append("file", file);
         formData.append("type", "comment-attachment");
         
-        const res = await fetch("/api/upload", {
-          method: "POST",
-          body: formData,
+        // Use XMLHttpRequest for progress tracking
+        const result = await new Promise<{ success: boolean; data?: { url: string }; error?: string }>((resolve) => {
+          const xhr = new XMLHttpRequest();
+          
+          xhr.upload.addEventListener("progress", (event) => {
+            if (event.lengthComputable) {
+              const percentComplete = Math.round((event.loaded / event.total) * 100);
+              setUploadProgress(prev => prev.map((p, idx) => 
+                idx === i ? { ...p, progress: percentComplete } : p
+              ));
+            }
+          });
+          
+          xhr.addEventListener("load", () => {
+            if (xhr.status >= 200 && xhr.status < 300) {
+              try {
+                const data = JSON.parse(xhr.responseText);
+                resolve({ success: true, data });
+              } catch {
+                resolve({ success: false, error: "Invalid response from server" });
+              }
+            } else {
+              try {
+                const error = JSON.parse(xhr.responseText);
+                resolve({ success: false, error: error.error || "Upload failed" });
+              } catch {
+                resolve({ success: false, error: "Upload failed" });
+              }
+            }
+          });
+          
+          xhr.addEventListener("error", () => {
+            resolve({ success: false, error: "Network error occurred" });
+          });
+          
+          xhr.addEventListener("abort", () => {
+            resolve({ success: false, error: "Upload cancelled" });
+          });
+          
+          xhr.open("POST", "/api/upload");
+          xhr.send(formData);
         });
         
-        if (res.ok) {
-          const data = await res.json();
+        if (result.success && result.data) {
+          setUploadProgress(prev => prev.map((p, idx) => 
+            idx === i ? { ...p, progress: 100, status: "success" as const } : p
+          ));
           setPendingAttachments(prev => [...prev, {
             fileName: file.name,
-            fileUrl: data.url,
+            fileUrl: result.data!.url,
             fileType: file.type,
             fileSize: file.size,
           }]);
         } else {
-          const error = await res.json();
-          alert(error.error || `Failed to upload ${file.name}`);
+          setUploadProgress(prev => prev.map((p, idx) => 
+            idx === i ? { ...p, status: "error" as const, error: result.error } : p
+          ));
         }
       }
     } catch (error) {
@@ -579,6 +661,10 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     } finally {
       setIsUploadingAttachment(false);
       e.target.value = "";
+      // Clear upload progress after a delay
+      setTimeout(() => {
+        setUploadProgress([]);
+      }, 3000);
     }
   };
 
@@ -716,6 +802,17 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
       fetchCohorts(selectedProjectId);
     }
   }, [selectedProjectId]);
+
+  // Click outside handler for supervisor dropdown
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (supervisorDropdownRef.current && !supervisorDropdownRef.current.contains(event.target as Node)) {
+        setIsSupervisorDropdownOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleAddAssignment = async () => {
     if (!selectedProjectId || !selectedCohortId) return;
@@ -1009,7 +1106,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                       <p className="text-sm text-gray-500 mb-1">Department</p>
                       <div className="flex items-center gap-2">
                         <Building className="w-4 h-4 text-gray-400" />
-                        <p className="font-medium">{user.department || "-"}</p>
+                        <p className="font-medium">{user.departmentRef?.name || user.department || "-"}</p>
                       </div>
                     </div>
                     <div>
@@ -1588,6 +1685,38 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                     <span className="text-xs text-gray-400">PDF, images, video, audio (max 2GB each)</span>
                   </div>
 
+                  {/* Upload Progress */}
+                  {uploadProgress.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {uploadProgress.map((item, index) => (
+                        <div key={index} className="flex items-center gap-3 text-sm">
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="truncate max-w-[200px]">{item.fileName}</span>
+                              <span className={`text-xs font-medium ${
+                                item.status === "success" ? "text-green-600" : 
+                                item.status === "error" ? "text-red-600" : "text-blue-600"
+                              }`}>
+                                {item.status === "success" ? "✓ Uploaded" : 
+                                 item.status === "error" ? `✗ ${item.error}` : 
+                                 `${item.progress}%`}
+                              </span>
+                            </div>
+                            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+                              <div 
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  item.status === "success" ? "bg-green-500" : 
+                                  item.status === "error" ? "bg-red-500" : "bg-blue-500"
+                                }`}
+                                style={{ width: `${item.progress}%` }}
+                              />
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   <Button 
                     onClick={handleAddComment} 
                     isLoading={isAddingComment}
@@ -2067,12 +2196,16 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               </div>
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Department</label>
-                <input
-                  type="text"
-                  value={editFormData.department}
-                  onChange={(e) => setEditFormData({ ...editFormData, department: e.target.value })}
+                <select
+                  value={editFormData.departmentId}
+                  onChange={(e) => setEditFormData({ ...editFormData, departmentId: e.target.value })}
                   className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
+                >
+                  <option value="">Select department</option>
+                  {departments.map((d) => (
+                    <option key={d.id} value={d.id}>{d.name}</option>
+                  ))}
+                </select>
               </div>
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Employment Status</label>
@@ -2102,16 +2235,77 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
               </div>
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">1st Supervisor</label>
-                <select
-                  value={editFormData.firstSupervisorId}
-                  onChange={(e) => setEditFormData({ ...editFormData, firstSupervisorId: e.target.value })}
-                  className="flex h-10 w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
-                  <option value="">Select supervisor</option>
-                  {allUsers.map((u) => (
-                    <option key={u.id} value={u.id}>{u.name}</option>
-                  ))}
-                </select>
+                <div className="relative" ref={supervisorDropdownRef}>
+                  <button
+                    type="button"
+                    onClick={() => setIsSupervisorDropdownOpen(!isSupervisorDropdownOpen)}
+                    className="flex h-10 w-full items-center justify-between rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  >
+                    <span className={editFormData.firstSupervisorId ? "" : "text-gray-400"}>
+                      {editFormData.firstSupervisorId 
+                        ? allUsers.find(u => u.id === editFormData.firstSupervisorId)?.name || "Select supervisor"
+                        : "Select supervisor"}
+                    </span>
+                    <ChevronDown className={`w-4 h-4 transition-transform ${isSupervisorDropdownOpen ? "rotate-180" : ""}`} />
+                  </button>
+                  {isSupervisorDropdownOpen && (
+                    <div className="absolute z-50 mt-1 w-full rounded-lg border border-gray-200 bg-white shadow-lg">
+                      <div className="p-2 border-b">
+                        <div className="relative">
+                          <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                          <input
+                            type="text"
+                            placeholder="Search supervisors..."
+                            value={supervisorSearch}
+                            onChange={(e) => setSupervisorSearch(e.target.value)}
+                            className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            autoFocus
+                          />
+                        </div>
+                      </div>
+                      <div className="max-h-48 overflow-y-auto">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditFormData({ ...editFormData, firstSupervisorId: "" });
+                            setIsSupervisorDropdownOpen(false);
+                            setSupervisorSearch("");
+                          }}
+                          className="w-full px-3 py-2 text-left text-sm text-gray-400 hover:bg-gray-50"
+                        >
+                          No supervisor
+                        </button>
+                        {allUsers
+                          .filter(u => 
+                            u.name.toLowerCase().includes(supervisorSearch.toLowerCase()) ||
+                            u.email.toLowerCase().includes(supervisorSearch.toLowerCase())
+                          )
+                          .map((u) => (
+                            <button
+                              key={u.id}
+                              type="button"
+                              onClick={() => {
+                                setEditFormData({ ...editFormData, firstSupervisorId: u.id });
+                                setIsSupervisorDropdownOpen(false);
+                                setSupervisorSearch("");
+                              }}
+                              className={`w-full px-3 py-2 text-left text-sm hover:bg-blue-50 flex items-center justify-between ${
+                                editFormData.firstSupervisorId === u.id ? "bg-blue-50 text-blue-600" : ""
+                              }`}
+                            >
+                              <div>
+                                <p className="font-medium">{u.name}</p>
+                                <p className="text-xs text-gray-500">{u.email}</p>
+                              </div>
+                              {editFormData.firstSupervisorId === u.id && (
+                                <Check className="w-4 h-4 text-blue-600" />
+                              )}
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="space-y-1">
                 <label className="block text-sm font-medium text-gray-700">Job Grade</label>

@@ -26,6 +26,11 @@ export const SYSTEM_MODULES = [
   { id: "FACE_TRAINING", name: "Face Training", description: "Face recognition training" },
   { id: "MODEL_TYPES", name: "Model Types", description: "Model type management" },
   { id: "TRAINING_TYPES", name: "Training Types", description: "Training type management" },
+  { id: "DESIGNATIONS", name: "Designations", description: "Designation management" },
+  { id: "EMPLOYMENT_STATUSES", name: "Employment Statuses", description: "Employment status management" },
+  { id: "EMPLOYMENT_TYPES", name: "Employment Types", description: "Employment type management" },
+  { id: "DEPARTMENTS", name: "Departments", description: "Department management" },
+  { id: "GEO_ADMIN", name: "Geo Admin", description: "Geographic administration management" },
   { id: "PROFILE", name: "Profile", description: "User profile (default access)" },
 ] as const;
 

@@ -13,6 +13,11 @@ export type ModuleName =
   | "FACE_TRAINING"
   | "MODEL_TYPES"
   | "TRAINING_TYPES"
+  | "DESIGNATIONS"
+  | "EMPLOYMENT_STATUSES"
+  | "EMPLOYMENT_TYPES"
+  | "DEPARTMENTS"
+  | "GEO_ADMIN"
   | "PROFILE";
 
 export type PermissionAction = "READ" | "WRITE" | "DELETE" | "ALL";
@@ -82,7 +87,8 @@ function checkLegacyPermission(role: string, module: ModuleName, action: Permiss
       DASHBOARD: ["ALL"], USERS: ["ALL"], ROLES: ["ALL"], PROJECTS: ["ALL"],
       COHORTS: ["ALL"], BRANCHES: ["ALL"], BATCHES: ["ALL"], CLASSES: ["ALL"], 
       ATTENDANCE: ["ALL"], FACE_TRAINING: ["ALL"], MODEL_TYPES: ["ALL"], 
-      TRAINING_TYPES: ["ALL"], PROFILE: ["ALL"]
+      TRAINING_TYPES: ["ALL"], DESIGNATIONS: ["ALL"], EMPLOYMENT_STATUSES: ["ALL"],
+      EMPLOYMENT_TYPES: ["ALL"], DEPARTMENTS: ["ALL"], GEO_ADMIN: ["ALL"], PROFILE: ["ALL"]
     },
     HO_USER: {
       DASHBOARD: ["READ"], PROJECTS: ["READ"], COHORTS: ["READ"], BRANCHES: ["READ"],
@@ -222,8 +228,10 @@ function getLegacyRolePermissions(role: string): Map<ModuleName, PermissionActio
     case "ADMIN":
       // Admin has all permissions
       const allModules: ModuleName[] = [
-        "DASHBOARD", "USERS", "ROLES", "PROJECTS", "BRANCHES",
-        "BATCHES", "CLASSES", "ATTENDANCE", "FACE_TRAINING", "PROFILE"
+        "DASHBOARD", "USERS", "ROLES", "PROJECTS", "COHORTS", "BRANCHES",
+        "BATCHES", "CLASSES", "ATTENDANCE", "FACE_TRAINING", "MODEL_TYPES",
+        "TRAINING_TYPES", "DESIGNATIONS", "EMPLOYMENT_STATUSES", "EMPLOYMENT_TYPES",
+        "DEPARTMENTS", "GEO_ADMIN", "PROFILE"
       ];
       allModules.forEach((mod) => permissions.set(mod, ["ALL"]));
       break;

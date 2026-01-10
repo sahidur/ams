@@ -51,6 +51,13 @@ export async function GET(
           },
         },
         department: true,
+        departmentId: true,
+        departmentRef: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         joiningDate: true,
         employeeId: true,
         // New job fields
@@ -168,8 +175,8 @@ export async function PUT(
 
     const body = await request.json();
     const { 
-      name, email, phone, role, designation, department, dateOfBirth, gender, address, 
-      userRoleId, resetPassword, isActive, whatsappNumber,
+      name, email, phone, role, designation, department, departmentId, dateOfBirth, gender, address, 
+      userRoleId, resetPassword, isActive, whatsappNumber, employeeId,
       // New job fields
       designationId, joiningDateBrac, joiningDateCurrentBase, joiningDateCurrentPosition,
       contractEndDate, employmentStatusId, employmentTypeId, firstSupervisorId,
@@ -226,6 +233,8 @@ export async function PUT(
       userRoleId: userRoleId || null,
       designation,
       department,
+      departmentId: departmentId || null,
+      employeeId: employeeId || null,
       dateOfBirth: dateOfBirth ? new Date(dateOfBirth) : null,
       gender,
       address,

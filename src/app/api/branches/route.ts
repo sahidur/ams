@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { division, district, upazila, branchName, branchCode, cohortId } = body;
+    const { division, district, upazila, union, branchName, branchCode, cohortId } = body;
 
     // If cohortId is provided, validate it exists and is active
     if (cohortId) {
@@ -99,6 +99,7 @@ export async function POST(request: Request) {
         division,
         district,
         upazila,
+        union: union || null,
         branchName,
         branchCode: branchCode || null,
         cohortId: cohortId || null,
