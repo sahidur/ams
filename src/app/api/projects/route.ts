@@ -29,6 +29,12 @@ export async function GET(request: NextRequest) {
         trainingType: {
           select: { id: true, name: true },
         },
+        createdBy: {
+          select: { id: true, name: true },
+        },
+        updatedBy: {
+          select: { id: true, name: true },
+        },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -64,6 +70,8 @@ export async function POST(request: Request) {
         focalPersonId: focalPersonId || null,
         modelTypeId: modelTypeId || null,
         trainingTypeId: trainingTypeId || null,
+        createdById: session.user.id,
+        updatedById: session.user.id,
       },
     });
 

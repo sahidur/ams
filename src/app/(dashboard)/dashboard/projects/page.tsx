@@ -52,6 +52,10 @@ interface Project {
   modelType: ModelType | null;
   trainingTypeId: string | null;
   trainingType: TrainingType | null;
+  createdAt: string;
+  updatedAt: string;
+  createdBy: { id: string; name: string } | null;
+  updatedBy: { id: string; name: string } | null;
   _count: {
     cohorts: number;
   };
@@ -399,6 +403,30 @@ export default function ProjectsPage() {
         <Badge variant={row.original.isActive ? "success" : "default"}>
           {row.original.isActive ? "Active" : "Inactive"}
         </Badge>
+      ),
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created",
+      cell: ({ row }) => (
+        <div className="text-xs">
+          <p className="text-gray-900">{formatDate(row.original.createdAt)}</p>
+          {row.original.createdBy && (
+            <p className="text-gray-500">by {row.original.createdBy.name}</p>
+          )}
+        </div>
+      ),
+    },
+    {
+      accessorKey: "updatedAt",
+      header: "Last Updated",
+      cell: ({ row }) => (
+        <div className="text-xs">
+          <p className="text-gray-900">{formatDate(row.original.updatedAt)}</p>
+          {row.original.updatedBy && (
+            <p className="text-gray-500">by {row.original.updatedBy.name}</p>
+          )}
+        </div>
       ),
     },
     {

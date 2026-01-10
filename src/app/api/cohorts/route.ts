@@ -54,6 +54,12 @@ export async function GET(request: NextRequest) {
             email: true,
           },
         },
+        createdBy: {
+          select: { id: true, name: true },
+        },
+        updatedBy: {
+          select: { id: true, name: true },
+        },
         _count: {
           select: {
             batches: true,
@@ -116,6 +122,8 @@ export async function POST(request: NextRequest) {
         isActive: validatedData.isActive ?? true,
         description: validatedData.description,
         focalPersonId: validatedData.focalPersonId || null,
+        createdById: session.user.id,
+        updatedById: session.user.id,
       },
       include: {
         project: true,

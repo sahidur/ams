@@ -126,6 +126,7 @@ export async function PUT(
         isActive: validatedData.isActive,
         description: validatedData.description,
         focalPersonId: validatedData.focalPersonId || null,
+        updatedById: session.user.id,
       },
     });
 

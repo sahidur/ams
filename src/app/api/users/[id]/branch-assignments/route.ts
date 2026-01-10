@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import prisma from "@/lib/prisma";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { checkPermission } from "@/lib/permissions";
+import { logBranchAssignment } from "@/lib/activity-log";
 
 // GET: Fetch all branch assignments for a user
 export async function GET(
@@ -98,6 +99,19 @@ export async function POST(
       );
     }
 
+    // Get project and cohort names for logging
+    const [projectData, cohortData] = await Promise.all([
+      prisma.project.findUnique({ where: { id: projectId }, select: { name: true } }),
+      prisma.cohort.findUnique({ where: { id: cohortId }, select: { name: true } }),
+    ]);
+
+    // Get existing assignments for comparison
+    const existingAssignments = await prisma.userBranchAssignment.findMany({
+      where: { userId, projectId, cohortId },
+      include: { branch: { select: { id: true, branchName: true } } },
+    });
+    const existingBranchIds = existingAssignments.map(a => a.branchId);
+
     // Delete existing assignments for this project/cohort combination
     await prisma.userBranchAssignment.deleteMany({
       where: {
@@ -116,6 +130,42 @@ export async function POST(
         branchId,
       })),
     });
+
+    // Get branch names for logging
+    const branches = await prisma.branch.findMany({
+      where: { id: { in: branchIds } },
+      select: { id: true, branchName: true },
+    });
+    const branchMap = new Map(branches.map(b => [b.id, b.branchName]));
+
+    // Log added branches
+    for (const branchId of branchIds) {
+      if (!existingBranchIds.includes(branchId)) {
+        const branchName = branchMap.get(branchId) || "Unknown";
+        await logBranchAssignment(
+          userId,
+          session.user.id,
+          "ADD",
+          branchName,
+          projectData?.name || "Unknown",
+          cohortData?.name || "Unknown"
+        );
+      }
+    }
+
+    // Log removed branches
+    for (const existing of existingAssignments) {
+      if (!branchIds.includes(existing.branchId)) {
+        await logBranchAssignment(
+          userId,
+          session.user.id,
+          "REMOVE",
+          existing.branch.branchName,
+          projectData?.name || "Unknown",
+          cohortData?.name || "Unknown"
+        );
+      }
+    }
 
     return NextResponse.json({ 
       message: "Branch assignments saved successfully",
@@ -168,6 +218,11 @@ export async function DELETE(
         id: assignmentId,
         userId,
       },
+      include: {
+        project: { select: { name: true } },
+        cohort: { select: { name: true } },
+        branch: { select: { branchName: true } },
+      },
     });
 
     if (!assignment) {
@@ -180,6 +235,16 @@ export async function DELETE(
     await prisma.userBranchAssignment.delete({
       where: { id: assignmentId },
     });
+
+    // Log the branch assignment removal
+    await logBranchAssignment(
+      userId,
+      session.user.id,
+      "REMOVE",
+      assignment.branch.branchName,
+      assignment.project.name,
+      assignment.cohort.name
+    );
 
     return NextResponse.json({ message: "Assignment removed successfully" });
   } catch (error) {

@@ -231,6 +231,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const [selectedBranchIds, setSelectedBranchIds] = useState<string[]>([]);
   const [branchCohorts, setBranchCohorts] = useState<Cohort[]>([]);
   const [isSavingBranches, setIsSavingBranches] = useState(false);
+  // Assigned projects for branch selection (only projects assigned to this user)
+  const [assignedProjectsForBranch, setAssignedProjectsForBranch] = useState<ProjectAssignment[]>([]);
 
   // Admin comments state
   const [adminComments, setAdminComments] = useState<AdminComment[]>([]);
@@ -428,13 +430,30 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
 
   const fetchBranchCohorts = async (projectId: string) => {
     try {
-      const res = await fetch(`/api/cohorts?projectId=${projectId}&activeOnly=true`);
-      if (res.ok) {
-        const data = await res.json();
-        setBranchCohorts(data);
+      // Only fetch cohorts that are assigned to this user for this project
+      const assignedProject = assignedProjectsForBranch.find(a => a.project.id === projectId);
+      if (assignedProject) {
+        // Set cohorts from the user's assignments
+        const assignedCohorts = assignedProject.cohorts.map(c => c.cohort);
+        setBranchCohorts(assignedCohorts);
+      } else {
+        setBranchCohorts([]);
       }
     } catch (error) {
       console.error("Error fetching cohorts:", error);
+    }
+  };
+
+  // Fetch only projects assigned to this user for branch assignment
+  const fetchAssignedProjectsForBranch = async () => {
+    try {
+      const res = await fetch(`/api/users/${id}/assignments`);
+      if (res.ok) {
+        const data = await res.json();
+        setAssignedProjectsForBranch(data.grouped || []);
+      }
+    } catch (error) {
+      console.error("Error fetching assigned projects:", error);
     }
   };
 
@@ -811,7 +830,8 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   useEffect(() => {
     if (activeTab === "branches" && id) {
       fetchBranchAssignments();
-      fetchProjects();
+      // Fetch only projects that are assigned to this user (not all projects)
+      fetchAssignedProjectsForBranch();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, id]);
@@ -1570,61 +1590,74 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                     {canEdit && (
                       <div className="border-t pt-6">
                         <h4 className="text-sm font-medium text-gray-700 mb-4">Add Branch Assignment</h4>
-                        <div className="grid md:grid-cols-2 gap-4">
-                          {/* Project Selection */}
-                          <div className="space-y-1">
-                            <label className="block text-sm font-medium text-gray-700">Project</label>
-                            <select
-                              value={branchProjectId}
-                              onChange={(e) => setBranchProjectId(e.target.value)}
-                              className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
-                            >
-                              <option value="">Select project</option>
-                              {projects.map(project => (
-                                <option key={project.id} value={project.id}>{project.name}</option>
-                              ))}
-                            </select>
+                        
+                        {/* Show message if no project assignments */}
+                        {assignedProjectsForBranch.length === 0 ? (
+                          <div className="text-center py-6 bg-yellow-50 border border-yellow-200 rounded-lg">
+                            <AlertTriangle className="w-8 h-8 mx-auto text-yellow-500 mb-2" />
+                            <p className="text-sm text-yellow-700">
+                              This user has no project assignments. Please assign a project first in the &quot;Project Assignments&quot; tab before adding branch assignments.
+                            </p>
                           </div>
+                        ) : (
+                          <>
+                            <div className="grid md:grid-cols-2 gap-4">
+                              {/* Project Selection */}
+                              <div className="space-y-1">
+                                <label className="block text-sm font-medium text-gray-700">Project</label>
+                                <select
+                                  value={branchProjectId}
+                                  onChange={(e) => setBranchProjectId(e.target.value)}
+                                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm"
+                                >
+                                  <option value="">Select project</option>
+                                  {assignedProjectsForBranch.map(assignment => (
+                                    <option key={assignment.project.id} value={assignment.project.id}>
+                                      {assignment.project.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
 
-                          {/* Cohort Selection */}
-                          <div className="space-y-1">
-                            <label className="block text-sm font-medium text-gray-700">Cohort</label>
-                            <select
-                              value={branchCohortId}
-                              onChange={(e) => setBranchCohortId(e.target.value)}
-                              disabled={!branchProjectId}
-                              className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm disabled:bg-gray-100"
-                            >
-                              <option value="">Select cohort</option>
-                              {branchCohorts.map(cohort => (
-                                <option key={cohort.id} value={cohort.id}>{cohort.name} ({cohort.cohortId})</option>
-                              ))}
-                            </select>
-                          </div>
-                        </div>
+                              {/* Cohort Selection */}
+                              <div className="space-y-1">
+                                <label className="block text-sm font-medium text-gray-700">Cohort</label>
+                                <select
+                                  value={branchCohortId}
+                                  onChange={(e) => setBranchCohortId(e.target.value)}
+                                  disabled={!branchProjectId}
+                                  className="flex h-11 w-full rounded-lg border border-gray-300 bg-white px-4 py-2 text-sm disabled:bg-gray-100"
+                                >
+                                  <option value="">Select cohort</option>
+                                  {branchCohorts.map(cohort => (
+                                    <option key={cohort.id} value={cohort.id}>{cohort.name} ({cohort.cohortId})</option>
+                                  ))}
+                                </select>
+                              </div>
+                            </div>
 
-                        {/* Branch Selection */}
-                        {branchCohortId && (
-                          <div className="mt-4 space-y-2">
-                            <label className="block text-sm font-medium text-gray-700">Select Branches</label>
-                            <div className="border border-gray-300 rounded-lg max-h-48 overflow-y-auto">
-                              {allBranches.length === 0 ? (
-                                <p className="p-4 text-gray-500 text-sm">No branches available for this cohort</p>
-                              ) : (
-                                allBranches.map(branch => (
-                                  <label 
-                                    key={branch.id}
-                                    className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
-                                  >
-                                    <input
-                                      type="checkbox"
-                                      checked={selectedBranchIds.includes(branch.id)}
-                                      onChange={(e) => {
-                                        if (e.target.checked) {
-                                          setSelectedBranchIds([...selectedBranchIds, branch.id]);
-                                        } else {
-                                          setSelectedBranchIds(selectedBranchIds.filter(id => id !== branch.id));
-                                        }
+                            {/* Branch Selection */}
+                            {branchCohortId && (
+                              <div className="mt-4 space-y-2">
+                                <label className="block text-sm font-medium text-gray-700">Select Branches</label>
+                                <div className="border border-gray-300 rounded-lg max-h-48 overflow-y-auto">
+                                  {allBranches.length === 0 ? (
+                                    <p className="p-4 text-gray-500 text-sm">No branches available for this cohort</p>
+                                  ) : (
+                                    allBranches.map(branch => (
+                                      <label 
+                                        key={branch.id}
+                                        className="flex items-center gap-3 p-3 hover:bg-gray-50 cursor-pointer border-b last:border-b-0"
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          checked={selectedBranchIds.includes(branch.id)}
+                                          onChange={(e) => {
+                                            if (e.target.checked) {
+                                              setSelectedBranchIds([...selectedBranchIds, branch.id]);
+                                            } else {
+                                              setSelectedBranchIds(selectedBranchIds.filter(id => id !== branch.id));
+                                            }
                                       }}
                                       className="w-4 h-4 rounded border-gray-300"
                                     />
@@ -1641,15 +1674,17 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                           </div>
                         )}
 
-                        {branchProjectId && branchCohortId && (
-                          <Button 
-                            onClick={handleSaveBranchAssignments} 
-                            isLoading={isSavingBranches}
-                            disabled={selectedBranchIds.length === 0}
-                            className="mt-4"
-                          >
-                            Save Branch Assignments
-                          </Button>
+                            {branchProjectId && branchCohortId && (
+                              <Button 
+                                onClick={handleSaveBranchAssignments} 
+                                isLoading={isSavingBranches}
+                                disabled={selectedBranchIds.length === 0}
+                                className="mt-4"
+                              >
+                                Save Branch Assignments
+                              </Button>
+                            )}
+                          </>
                         )}
                       </div>
                     )}

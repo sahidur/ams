@@ -187,7 +187,20 @@ export async function logUserChanges(
 ) {
   const changes = detectUserChanges(oldData, newData);
   
-  for (const change of changes) {
+  // Resolve IDs to human-readable names
+  const resolvedChanges = await Promise.all(
+    changes.map(async (change) => {
+      const resolvedOldValue = await resolveIdToName(change.field, change.oldValue);
+      const resolvedNewValue = await resolveIdToName(change.field, change.newValue);
+      return {
+        ...change,
+        oldValue: resolvedOldValue,
+        newValue: resolvedNewValue,
+      };
+    })
+  );
+  
+  for (const change of resolvedChanges) {
     const description = generateChangeDescription(change, action);
     
     await logUserActivity({
@@ -202,7 +215,71 @@ export async function logUserChanges(
     });
   }
   
-  return changes;
+  return resolvedChanges;
+}
+
+// Resolve IDs to human-readable names for logging
+async function resolveIdToName(field: string, value: unknown): Promise<unknown> {
+  if (value === null || value === undefined) return value;
+  
+  const valueStr = String(value);
+  
+  // Check if it looks like a CUID (starts with 'c' followed by alphanumeric)
+  if (!valueStr.match(/^c[a-z0-9]{20,}/i)) {
+    return value;
+  }
+  
+  try {
+    switch (field) {
+      case "departmentId": {
+        const dept = await prisma.department.findUnique({
+          where: { id: valueStr },
+          select: { name: true },
+        });
+        return dept?.name || value;
+      }
+      case "designationId": {
+        const desig = await prisma.designation.findUnique({
+          where: { id: valueStr },
+          select: { name: true },
+        });
+        return desig?.name || value;
+      }
+      case "employmentStatusId": {
+        const status = await prisma.employmentStatus.findUnique({
+          where: { id: valueStr },
+          select: { name: true },
+        });
+        return status?.name || value;
+      }
+      case "employmentTypeId": {
+        const type = await prisma.employmentType.findUnique({
+          where: { id: valueStr },
+          select: { name: true },
+        });
+        return type?.name || value;
+      }
+      case "userRoleId": {
+        const role = await prisma.userRole.findUnique({
+          where: { id: valueStr },
+          select: { displayName: true },
+        });
+        return role?.displayName || value;
+      }
+      case "firstSupervisorId": {
+        const user = await prisma.user.findUnique({
+          where: { id: valueStr },
+          select: { name: true },
+        });
+        return user?.name || value;
+      }
+      default:
+        return value;
+    }
+  } catch (error) {
+    console.error(`Error resolving ${field} to name:`, error);
+    return value;
+  }
 }
 
 function generateChangeDescription(change: ChangeEntry, action: string): string {

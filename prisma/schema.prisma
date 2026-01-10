@@ -167,6 +167,14 @@ model User {
   activityLogs       UserActivityLog[] @relation("UserActivityLogs")
   editedActivityLogs UserActivityLog[] @relation("UserActivityEditor")
   
+  // Created/Updated by relations
+  createdProjects    Project[]      @relation("ProjectCreatedBy")
+  updatedProjects    Project[]      @relation("ProjectUpdatedBy")
+  createdCohorts     Cohort[]       @relation("CohortCreatedBy")
+  updatedCohorts     Cohort[]       @relation("CohortUpdatedBy")
+  createdBranches    Branch[]       @relation("BranchCreatedBy")
+  updatedBranches    Branch[]       @relation("BranchUpdatedBy")
+  
   @@map("users")
 }
 
@@ -217,6 +225,10 @@ model Project {
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
+  createdById     String?
+  createdBy       User?    @relation("ProjectCreatedBy", fields: [createdById], references: [id])
+  updatedById     String?
+  updatedBy       User?    @relation("ProjectUpdatedBy", fields: [updatedById], references: [id])
   
   // Relations
   cohorts         Cohort[]
@@ -246,6 +258,10 @@ model Cohort {
   
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
+  createdById           String?
+  createdBy             User?    @relation("CohortCreatedBy", fields: [createdById], references: [id])
+  updatedById           String?
+  updatedBy             User?    @relation("CohortUpdatedBy", fields: [updatedById], references: [id])
   
   // Relations
   cohortBranches        CohortBranch[]  // Legacy many-to-many
@@ -274,6 +290,10 @@ model Branch {
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  createdById String?
+  createdBy   User?    @relation("BranchCreatedBy", fields: [createdById], references: [id])
+  updatedById String?
+  updatedBy   User?    @relation("BranchUpdatedBy", fields: [updatedById], references: [id])
   
   // Relations
   cohorts     CohortBranch[]  // Legacy many-to-many relationship

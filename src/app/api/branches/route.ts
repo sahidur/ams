@@ -41,6 +41,12 @@ export async function GET(request: NextRequest) {
             },
           },
         },
+        createdBy: {
+          select: { id: true, name: true },
+        },
+        updatedBy: {
+          select: { id: true, name: true },
+        },
       },
       orderBy: [
         { division: "asc" },
@@ -103,6 +109,8 @@ export async function POST(request: Request) {
         branchName,
         branchCode: branchCode || null,
         cohortId: cohortId || null,
+        createdById: session.user.id,
+        updatedById: session.user.id,
       },
       include: {
         cohort: {

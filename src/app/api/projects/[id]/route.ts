@@ -99,6 +99,7 @@ export async function PUT(
         focalPersonId: focalPersonId || null,
         modelTypeId: modelTypeId || null,
         trainingTypeId: trainingTypeId || null,
+        updatedById: session.user.id,
       },
     });
 

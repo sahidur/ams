@@ -76,6 +76,10 @@ interface Branch {
   branchName: string;
   branchCode: string | null;
   isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  createdBy?: { id: string; name: string } | null;
+  updatedBy?: { id: string; name: string } | null;
 }
 
 interface BulkBranchInput extends BranchInput {
@@ -600,6 +604,42 @@ export default function CohortDetailPage({ params }: { params: Promise<{ id: str
           {row.original.isActive ? "Active" : "Inactive"}
         </Badge>
       ),
+    },
+    {
+      accessorKey: "createdAt",
+      header: "Created",
+      cell: ({ row }) => {
+        const createdAt = row.original.createdAt;
+        const createdBy = row.original.createdBy;
+        return (
+          <div className="text-sm">
+            <p className="text-gray-900">
+              {createdAt ? new Date(createdAt).toLocaleDateString() : "-"}
+            </p>
+            {createdBy && (
+              <p className="text-xs text-gray-500">by {createdBy.name}</p>
+            )}
+          </div>
+        );
+      },
+    },
+    {
+      accessorKey: "updatedAt",
+      header: "Last Updated",
+      cell: ({ row }) => {
+        const updatedAt = row.original.updatedAt;
+        const updatedBy = row.original.updatedBy;
+        return (
+          <div className="text-sm">
+            <p className="text-gray-900">
+              {updatedAt ? new Date(updatedAt).toLocaleDateString() : "-"}
+            </p>
+            {updatedBy && (
+              <p className="text-xs text-gray-500">by {updatedBy.name}</p>
+            )}
+          </div>
+        );
+      },
     },
     {
       id: "actions",

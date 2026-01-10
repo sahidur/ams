@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import prisma from "@/lib/prisma";
 import { checkPermission } from "@/lib/permissions";
+import { logProjectAssignment } from "@/lib/activity-log";
 
 // GET user project assignments
 export async function GET(
@@ -163,6 +164,15 @@ export async function POST(
       },
     });
 
+    // Log the project assignment
+    await logProjectAssignment(
+      id,
+      session.user.id,
+      "ADD",
+      assignment.project.name,
+      assignment.cohort.name
+    );
+
     return NextResponse.json(assignment);
   } catch (error) {
     console.error("Error creating assignment:", error);
@@ -199,9 +209,36 @@ export async function DELETE(
       );
     }
 
+    const { id } = await params;
+
+    // Get assignment details before deleting for logging
+    const assignment = await prisma.userProjectAssignment.findUnique({
+      where: { id: assignmentId },
+      include: {
+        project: { select: { name: true } },
+        cohort: { select: { name: true } },
+      },
+    });
+
+    if (!assignment) {
+      return NextResponse.json(
+        { error: "Assignment not found" },
+        { status: 404 }
+      );
+    }
+
     await prisma.userProjectAssignment.delete({
       where: { id: assignmentId },
     });
+
+    // Log the project assignment removal
+    await logProjectAssignment(
+      id,
+      session.user.id,
+      "REMOVE",
+      assignment.project.name,
+      assignment.cohort.name
+    );
 
     return NextResponse.json({ success: true });
   } catch (error) {

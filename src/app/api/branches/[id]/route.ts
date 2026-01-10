@@ -107,6 +107,7 @@ export async function PUT(
         branchCode: branchCode || null,
         cohortId: cohortId || null,
         isActive: isActive !== undefined ? isActive : undefined,
+        updatedById: session.user.id,
       },
       include: {
         cohort: {

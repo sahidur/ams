@@ -146,6 +146,8 @@ export async function POST(request: Request) {
             branchName: branch.branchName,
             branchCode: branch.branchCode || null,
             cohortId: cohortIdToUse || null,
+            createdById: session.user.id,
+            updatedById: session.user.id,
           },
         });
         created++;
