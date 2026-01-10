@@ -18,7 +18,11 @@ import {
   UserCheck,
   Upload,
   Scan,
-  Loader2
+  Loader2,
+  Plus,
+  History,
+  Eye,
+  X
 } from "lucide-react";
 import { 
   Button, 
@@ -26,9 +30,9 @@ import {
   CardContent, 
   CardHeader, 
   CardTitle, 
-  Badge 
+  Badge,
+  Modal
 } from "@/components/ui";
-import { formatDate, formatDateTime } from "@/lib/utils";
 
 // Dynamic import to avoid SSR issues with Human.js
 const HumanFaceRecognition = dynamic(
@@ -70,6 +74,15 @@ interface Attendance {
   confidence?: number;
   markedAt?: string;
   markedBy?: string;
+  capturedImageUrl?: string;
+}
+
+interface AttendanceSession {
+  sessionId: string;
+  sessionDate: string;
+  presentCount: number;
+  totalCount: number;
+  attendancePercentage: number;
 }
 
 interface KnownFace {
@@ -78,7 +91,7 @@ interface KnownFace {
   embedding: number[];
 }
 
-type ModeType = "list" | "live" | "group";
+type ModeType = "list" | "live" | "group" | "sessions";
 
 export default function AttendancePage() {
   const [classes, setClasses] = useState<ClassInfo[]>([]);
@@ -89,6 +102,10 @@ export default function AttendancePage() {
   const [isLoading, setIsLoading] = useState(true);
   const [mode, setMode] = useState<ModeType>("list");
   const [message, setMessage] = useState({ type: "", text: "" });
+  const [sessions, setSessions] = useState<AttendanceSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [selectedSession, setSelectedSession] = useState<AttendanceSession | null>(null);
+  const [showSessionModal, setShowSessionModal] = useState(false);
 
   // Fetch classes
   useEffect(() => {
@@ -123,9 +140,22 @@ export default function AttendancePage() {
         setStudents(studentsData);
       }
 
-      // Fetch existing attendance
-      const attendanceRes = await fetch(`/api/attendance/${classInfo.id}`);
-      let existingAttendance: { studentId: string; isPresent: boolean; confidence?: number; markedAt?: string; markedBy?: string }[] = [];
+      // Fetch attendance sessions
+      const sessionsRes = await fetch(`/api/attendance/${classInfo.id}/sessions`);
+      if (sessionsRes.ok) {
+        const sessionsData = await sessionsRes.json();
+        setSessions(sessionsData);
+      }
+
+      // Create a new session for today if taking attendance
+      const now = new Date();
+      const newSessionId = `${now.toISOString().split('T')[0]}_${now.getTime()}`;
+      setCurrentSessionId(newSessionId);
+
+      // Fetch existing attendance for current session (if any)
+      const todaySession = `${now.toISOString().split('T')[0]}`;
+      const attendanceRes = await fetch(`/api/attendance/${classInfo.id}?sessionId=${todaySession}`);
+      let existingAttendance: { studentId: string; isPresent: boolean; confidence?: number; markedAt?: string; markedBy?: string; capturedImageUrl?: string }[] = [];
       if (attendanceRes.ok) {
         existingAttendance = await attendanceRes.json();
       }
@@ -141,6 +171,7 @@ export default function AttendancePage() {
           confidence: existing?.confidence,
           markedAt: existing?.markedAt,
           markedBy: existing?.markedBy,
+          capturedImageUrl: existing?.capturedImageUrl,
         };
       });
       setAttendance(fullAttendance);
@@ -159,8 +190,63 @@ export default function AttendancePage() {
     }
   };
 
+  // Start new attendance session
+  const startNewSession = async () => {
+    if (!selectedClass) return;
+
+    const now = new Date();
+    const newSessionId = `${now.toISOString().split('T')[0]}_${now.getTime()}`;
+    setCurrentSessionId(newSessionId);
+
+    // Reset attendance for new session
+    const fullAttendance: Attendance[] = students.map((student) => ({
+      studentId: student.id,
+      studentName: student.name,
+      isPresent: false,
+    }));
+    setAttendance(fullAttendance);
+
+    setMessage({ type: "success", text: "New attendance session started" });
+    setTimeout(() => setMessage({ type: "", text: "" }), 3000);
+  };
+
+  // View a specific session's attendance
+  const viewSession = async (session: AttendanceSession) => {
+    if (!selectedClass) return;
+
+    setSelectedSession(session);
+    setIsLoading(true);
+
+    try {
+      const attendanceRes = await fetch(`/api/attendance/${selectedClass.id}?sessionId=${session.sessionId}`);
+      if (attendanceRes.ok) {
+        const existingAttendance = await attendanceRes.json();
+        
+        const attendanceMap = new Map(existingAttendance.map((a: Attendance & { student?: { id: string; name: string } }) => [a.studentId, a]));
+        const fullAttendance: Attendance[] = students.map((student) => {
+          const existing = attendanceMap.get(student.id) as Attendance | undefined;
+          return {
+            studentId: student.id,
+            studentName: student.name,
+            isPresent: existing?.isPresent || false,
+            confidence: existing?.confidence,
+            markedAt: existing?.markedAt,
+            markedBy: existing?.markedBy,
+            capturedImageUrl: existing?.capturedImageUrl,
+          };
+        });
+        setAttendance(fullAttendance);
+      }
+    } catch (error) {
+      console.error("Error loading session attendance:", error);
+    } finally {
+      setIsLoading(false);
+      setShowSessionModal(true);
+    }
+  };
+
   // Handle face detection (single)
-  const handleFaceDetected = useCallback(async (studentId: string, studentName: string, confidence: number) => {
+  const handleFaceDetected = useCallback(async (studentId: string, studentName: string, confidence: number, capturedImage?: string) => {
     if (!selectedClass) return;
 
     const now = new Date().toISOString();
@@ -179,7 +265,8 @@ export default function AttendancePage() {
               isPresent: true, 
               confidence, 
               markedAt: now,
-              markedBy: "FACE_RECOGNITION"
+              markedBy: "FACE_RECOGNITION",
+              capturedImageUrl: capturedImage,
             }
           : a
       );
@@ -195,6 +282,8 @@ export default function AttendancePage() {
           isPresent: true,
           confidence,
           markedBy: "FACE_RECOGNITION",
+          capturedImageUrl: capturedImage,
+          sessionId: currentSessionId,
         }),
       });
       
@@ -319,6 +408,43 @@ export default function AttendancePage() {
     setAttendance([]);
     setKnownFaces([]);
     setMessage({ type: "", text: "" });
+    setSessions([]);
+    setCurrentSessionId(null);
+    setSelectedSession(null);
+    setShowSessionModal(false);
+  };
+
+  // Format date safely
+  const safeFormatDate = (dateStr: string | undefined | null) => {
+    if (!dateStr) return "N/A";
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return "N/A";
+      return date.toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return "N/A";
+    }
+  };
+
+  // Format datetime safely
+  const safeFormatDateTime = (dateStr: string | undefined | null) => {
+    if (!dateStr) return "N/A";
+    try {
+      const date = new Date(dateStr);
+      if (isNaN(date.getTime())) return "N/A";
+      return date.toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+    } catch {
+      return "N/A";
+    }
   };
 
   if (isLoading && mode === "list") {
@@ -360,7 +486,7 @@ export default function AttendancePage() {
                   <div className="space-y-2 text-sm text-gray-600">
                     <div className="flex items-center gap-2">
                       <Calendar className="w-4 h-4" />
-                      <span>{formatDate(classInfo.date)}</span>
+                      <span>{safeFormatDate(classInfo.date)}</span>
                     </div>
                     {classInfo.startTime && (
                       <div className="flex items-center gap-2">
@@ -399,13 +525,26 @@ export default function AttendancePage() {
         <div>
           <h1 className="text-3xl font-bold text-gray-900">{selectedClass?.title}</h1>
           <p className="text-gray-500 mt-1">
-            {selectedClass?.batch.name} • {selectedClass && formatDate(selectedClass.date)}
+            {selectedClass?.batch.name} • {safeFormatDate(selectedClass?.date)}
           </p>
         </div>
-        <Button variant="outline" onClick={goBack}>
-          <ArrowLeft className="w-4 h-4 mr-2" />
-          Back to Classes
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={startNewSession}>
+            <Plus className="w-4 h-4 mr-2" />
+            New Session
+          </Button>
+          <Button 
+            variant={mode === "sessions" ? "default" : "outline"} 
+            onClick={() => setMode("sessions")}
+          >
+            <History className="w-4 h-4 mr-2" />
+            View History
+          </Button>
+          <Button variant="outline" onClick={goBack}>
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back
+          </Button>
+        </div>
       </div>
 
       {/* Mode Selector */}
@@ -546,18 +685,27 @@ export default function AttendancePage() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${
-                      record.isPresent 
-                        ? "bg-gradient-to-br from-green-500 to-emerald-600" 
-                        : "bg-gradient-to-br from-gray-400 to-gray-500"
-                    }`}>
-                      {record.studentName.charAt(0)}
-                    </div>
+                    {/* Show captured image if available, otherwise show initial */}
+                    {record.capturedImageUrl ? (
+                      <img 
+                        src={record.capturedImageUrl} 
+                        alt={record.studentName}
+                        className="w-10 h-10 rounded-full object-cover border-2 border-green-500"
+                      />
+                    ) : (
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${
+                        record.isPresent 
+                          ? "bg-gradient-to-br from-green-500 to-emerald-600" 
+                          : "bg-gradient-to-br from-gray-400 to-gray-500"
+                      }`}>
+                        {record.studentName.charAt(0)}
+                      </div>
+                    )}
                     <div>
                       <p className="font-medium">{record.studentName}</p>
                       {record.isPresent && record.markedAt && (
                         <p className="text-xs text-gray-500">
-                          {formatDateTime(record.markedAt)}
+                          {safeFormatDateTime(record.markedAt)}
                           {record.confidence && (
                             <span className="ml-2 text-blue-600">
                               ({Math.round(record.confidence * 100)}% match)
@@ -634,6 +782,165 @@ export default function AttendancePage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Session History Modal */}
+      <Modal
+        isOpen={showSessionModal}
+        onClose={() => setShowSessionModal(false)}
+        title={`Attendance Session - ${selectedSession ? safeFormatDate(selectedSession.sessionDate) : ""}`}
+        size="full"
+      >
+        <div className="space-y-4">
+          {/* Session Stats */}
+          {selectedSession && (
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="bg-green-50 p-4 rounded-lg text-center">
+                <p className="text-2xl font-bold text-green-600">{selectedSession.presentCount}</p>
+                <p className="text-sm text-green-700">Present</p>
+              </div>
+              <div className="bg-red-50 p-4 rounded-lg text-center">
+                <p className="text-2xl font-bold text-red-600">{selectedSession.totalCount - selectedSession.presentCount}</p>
+                <p className="text-sm text-red-700">Absent</p>
+              </div>
+              <div className="bg-blue-50 p-4 rounded-lg text-center">
+                <p className="text-2xl font-bold text-blue-600">{selectedSession.attendancePercentage}%</p>
+                <p className="text-sm text-blue-700">Attendance</p>
+              </div>
+            </div>
+          )}
+
+          {/* Students Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {attendance.map((record) => (
+              <div
+                key={record.studentId}
+                className={`p-4 rounded-lg border-2 ${
+                  record.isPresent 
+                    ? "bg-green-50 border-green-300" 
+                    : "bg-red-50 border-red-200"
+                }`}
+              >
+                <div className="flex items-center gap-3">
+                  {record.capturedImageUrl ? (
+                    <img 
+                      src={record.capturedImageUrl} 
+                      alt={record.studentName}
+                      className="w-14 h-14 rounded-full object-cover border-2 border-green-500"
+                    />
+                  ) : (
+                    <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-medium ${
+                      record.isPresent 
+                        ? "bg-gradient-to-br from-green-500 to-emerald-600" 
+                        : "bg-gradient-to-br from-red-400 to-red-500"
+                    }`}>
+                      {record.studentName.charAt(0)}
+                    </div>
+                  )}
+                  <div className="flex-1">
+                    <p className="font-medium">{record.studentName}</p>
+                    <Badge variant={record.isPresent ? "success" : "danger"} className="mt-1">
+                      {record.isPresent ? "Present" : "Absent"}
+                    </Badge>
+                    {record.markedAt && (
+                      <p className="text-xs text-gray-500 mt-1">{safeFormatDateTime(record.markedAt)}</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </Modal>
+
+      {/* Sessions History View */}
+      {mode === "sessions" && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <History className="w-5 h-5" />
+              Attendance History
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {sessions.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <Calendar className="w-12 h-12 mx-auto mb-4 opacity-50" />
+                <p>No attendance sessions recorded yet</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                {sessions.map((session, index) => {
+                  // Color schemes for different sessions
+                  const colors = [
+                    { bg: "bg-gradient-to-r from-blue-500 to-blue-600", light: "bg-blue-50" },
+                    { bg: "bg-gradient-to-r from-purple-500 to-purple-600", light: "bg-purple-50" },
+                    { bg: "bg-gradient-to-r from-indigo-500 to-indigo-600", light: "bg-indigo-50" },
+                    { bg: "bg-gradient-to-r from-cyan-500 to-cyan-600", light: "bg-cyan-50" },
+                    { bg: "bg-gradient-to-r from-teal-500 to-teal-600", light: "bg-teal-50" },
+                    { bg: "bg-gradient-to-r from-emerald-500 to-emerald-600", light: "bg-emerald-50" },
+                  ];
+                  const color = colors[index % colors.length];
+
+                  return (
+                    <motion.div
+                      key={session.sessionId}
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className={`${color.light} rounded-xl overflow-hidden border shadow-sm hover:shadow-md transition-shadow`}
+                    >
+                      <div className={`${color.bg} text-white p-4`}>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="font-semibold text-lg">{safeFormatDate(session.sessionDate)}</p>
+                            <p className="text-sm text-white/80">
+                              {new Date(session.sessionDate).toLocaleTimeString("en-US", { 
+                                hour: "2-digit", 
+                                minute: "2-digit" 
+                              })}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-3xl font-bold">{session.attendancePercentage}%</p>
+                            <p className="text-sm text-white/80">Attendance</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-4">
+                        <div className="flex justify-between items-center mb-3">
+                          <div className="flex gap-4 text-sm">
+                            <span className="flex items-center gap-1">
+                              <CheckCircle2 className="w-4 h-4 text-green-500" />
+                              {session.presentCount} Present
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <XCircle className="w-4 h-4 text-red-500" />
+                              {session.totalCount - session.presentCount} Absent
+                            </span>
+                          </div>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2 mb-4">
+                          <div 
+                            className={`${color.bg} h-2 rounded-full`}
+                            style={{ width: `${session.attendancePercentage}%` }}
+                          />
+                        </div>
+                        <Button 
+                          variant="outline" 
+                          className="w-full"
+                          onClick={() => viewSession(session)}
+                        >
+                          <Eye className="w-4 h-4 mr-2" />
+                          View Details
+                        </Button>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

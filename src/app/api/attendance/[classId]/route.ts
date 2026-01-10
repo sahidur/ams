@@ -14,9 +14,34 @@ export async function GET(
     }
 
     const { classId } = await params;
+    const { searchParams } = new URL(request.url);
+    const sessionId = searchParams.get("sessionId");
+    const date = searchParams.get("date");
+
+    // Build where clause
+    const whereClause: {
+      classId: string;
+      sessionId?: string;
+      sessionDate?: { gte: Date; lt: Date };
+    } = { classId };
+    
+    if (sessionId) {
+      whereClause.sessionId = sessionId;
+    }
+
+    if (date) {
+      const startDate = new Date(date);
+      startDate.setHours(0, 0, 0, 0);
+      const endDate = new Date(startDate);
+      endDate.setDate(endDate.getDate() + 1);
+      whereClause.sessionDate = {
+        gte: startDate,
+        lt: endDate,
+      };
+    }
 
     const attendance = await prisma.attendance.findMany({
-      where: { classId },
+      where: whereClause,
       include: {
         student: {
           select: {
@@ -51,13 +76,19 @@ export async function POST(
 
     const { classId } = await params;
     const body = await request.json();
-    const { studentId, isPresent, confidence, markedBy } = body;
+    const { studentId, isPresent, confidence, markedBy, capturedImageUrl, sessionId } = body;
 
-    // Check if attendance already exists
+    // Use provided sessionId or create one for today
+    const effectiveSessionId = sessionId || new Date().toISOString().split('T')[0];
+    const sessionDate = new Date();
+    sessionDate.setHours(0, 0, 0, 0);
+
+    // Check if attendance already exists for this session
     const existing = await prisma.attendance.findFirst({
       where: {
         classId,
         studentId,
+        sessionId: effectiveSessionId,
       },
     });
 
@@ -70,6 +101,8 @@ export async function POST(
           isPresent,
           confidence: confidence || null,
           markedBy: markedBy || "MANUAL",
+          capturedImageUrl: capturedImageUrl || existing.capturedImageUrl,
+          verificationMethod: markedBy?.includes("FACE") ? "FACE" : markedBy?.includes("FINGERPRINT") ? "FINGERPRINT" : "MANUAL",
         },
       });
     } else {
@@ -80,6 +113,10 @@ export async function POST(
           isPresent,
           confidence: confidence || null,
           markedBy: markedBy || "MANUAL",
+          capturedImageUrl: capturedImageUrl || null,
+          sessionId: effectiveSessionId,
+          sessionDate,
+          verificationMethod: markedBy?.includes("FACE") ? "FACE" : markedBy?.includes("FINGERPRINT") ? "FINGERPRINT" : "MANUAL",
         },
       });
     }

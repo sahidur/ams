@@ -51,6 +51,7 @@ interface DetectedStudent {
   studentName: string;
   confidence: number;
   timestamp: Date;
+  capturedImage?: string;
 }
 
 interface HumanFaceRecognitionProps {
@@ -58,7 +59,7 @@ interface HumanFaceRecognitionProps {
   studentId?: string;
   studentName?: string;
   knownFaces?: KnownFace[];
-  onFaceDetected?: (studentId: string, studentName: string, confidence: number) => void;
+  onFaceDetected?: (studentId: string, studentName: string, confidence: number, capturedImage?: string) => void;
   onFaceTrained?: (embeddings: number[][]) => void;
   onMultipleFacesDetected?: (students: DetectedStudent[]) => void;
   minConfidence?: number;
@@ -174,6 +175,36 @@ export function HumanFaceRecognition({
     }
     setIsCameraReady(false);
     setDetectionActive(false);
+  }, []);
+
+  // Capture face image from video
+  const captureFaceImage = useCallback((faceBox?: { x: number; y: number; width: number; height: number }): string | undefined => {
+    const video = videoRef.current;
+    if (!video) return undefined;
+
+    const captureCanvas = document.createElement('canvas');
+    const captureCtx = captureCanvas.getContext('2d');
+    if (!captureCtx) return undefined;
+
+    if (faceBox) {
+      // Capture just the face region with some padding
+      const padding = 50;
+      const x = Math.max(0, faceBox.x - padding);
+      const y = Math.max(0, faceBox.y - padding);
+      const width = Math.min(video.videoWidth - x, faceBox.width + padding * 2);
+      const height = Math.min(video.videoHeight - y, faceBox.height + padding * 2);
+
+      captureCanvas.width = width;
+      captureCanvas.height = height;
+      captureCtx.drawImage(video, x, y, width, height, 0, 0, width, height);
+    } else {
+      // Capture full frame
+      captureCanvas.width = video.videoWidth;
+      captureCanvas.height = video.videoHeight;
+      captureCtx.drawImage(video, 0, 0);
+    }
+
+    return captureCanvas.toDataURL('image/jpeg', 0.8);
   }, []);
 
   // Find best match for a face embedding
@@ -314,16 +345,26 @@ export function HumanFaceRecognition({
               );
               
               if (!existingRecent) {
+                // Capture face image for the detected student
+                const faceBox = face.box ? {
+                  x: face.box[0],
+                  y: face.box[1],
+                  width: face.box[2],
+                  height: face.box[3],
+                } : undefined;
+                const capturedImage = captureFaceImage(faceBox);
+
                 const detected: DetectedStudent = {
                   studentId: match.id,
                   studentName: match.name,
                   confidence: match.confidence,
                   timestamp: new Date(),
+                  capturedImage,
                 };
                 newRecognitions.push(detected);
                 
                 if (onFaceDetected) {
-                  onFaceDetected(match.id, match.name, match.confidence);
+                  onFaceDetected(match.id, match.name, match.confidence, capturedImage);
                 }
               }
             }
@@ -344,7 +385,7 @@ export function HumanFaceRecognition({
     if (detectionActive) {
       animationRef.current = requestAnimationFrame(recognitionLoop);
     }
-  }, [detectionActive, drawResults, findMatch, onFaceDetected, onMultipleFacesDetected, recognizedStudents]);
+  }, [detectionActive, drawResults, findMatch, onFaceDetected, onMultipleFacesDetected, recognizedStudents, captureFaceImage]);
 
   // Start/stop recognition
   useEffect(() => {

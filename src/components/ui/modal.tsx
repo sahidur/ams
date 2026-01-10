@@ -27,7 +27,7 @@ const Modal: React.FC<ModalProps> = ({
     xl: "max-w-xl",
     "2xl": "max-w-2xl",
     "3xl": "max-w-3xl",
-    full: "max-w-5xl",
+    full: "max-w-6xl w-[95vw]",
   };
 
   React.useEffect(() => {

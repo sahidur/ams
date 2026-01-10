@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { 
   Plus, 
   Edit2, 
@@ -20,7 +21,8 @@ import {
   Scan,
   Fingerprint,
   Camera,
-  AlertCircle
+  AlertCircle,
+  Loader2
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -39,6 +41,19 @@ import {
 import { classSchema, type ClassFormData } from "@/lib/validations";
 import { formatDate } from "@/lib/utils";
 import { ColumnDef } from "@tanstack/react-table";
+
+// Dynamic import for fingerprint training component
+const FingerprintTraining = dynamic(
+  () => import("@/components/fingerprint-training"),
+  { 
+    ssr: false,
+    loading: () => (
+      <div className="flex items-center justify-center h-32">
+        <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
+      </div>
+    )
+  }
+);
 
 interface ClassInfo {
   id: string;
@@ -113,6 +128,10 @@ export default function ClassesPage() {
   const [bulkUploadText, setBulkUploadText] = useState("");
   const [isUploadingBulk, setIsUploadingBulk] = useState(false);
   const [faceEncodings, setFaceEncodings] = useState<Record<string, boolean>>({});
+  const [fingerprintEncodings, setFingerprintEncodings] = useState<Record<string, boolean>>({});
+  const [isDeletingStudent, setIsDeletingStudent] = useState<string | null>(null);
+  const [showFingerprintModal, setShowFingerprintModal] = useState(false);
+  const [selectedStudentForFingerprint, setSelectedStudentForFingerprint] = useState<Student | null>(null);
 
   const {
     register,
@@ -315,6 +334,37 @@ export default function ClassesPage() {
       alert("Failed to upload students");
     } finally {
       setIsUploadingBulk(false);
+    }
+  };
+
+  // Delete student completely from database
+  const handleDeleteStudent = async (studentId: string, studentName: string) => {
+    if (!confirm(`Are you sure you want to permanently delete "${studentName}" from the database? This will remove all their attendance records and cannot be undone.`)) {
+      return;
+    }
+
+    setIsDeletingStudent(studentId);
+    try {
+      const res = await fetch(`/api/users/${studentId}`, {
+        method: "DELETE",
+      });
+
+      if (res.ok) {
+        // Remove from local state
+        setClassStudents(prev => prev.filter(s => s.id !== studentId));
+        setSelectedStudents(prev => prev.filter(id => id !== studentId));
+        setAllStudents(prev => prev.filter(s => s.id !== studentId));
+        fetchClasses();
+        alert(`Student "${studentName}" has been permanently deleted.`);
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to delete student");
+      }
+    } catch (error) {
+      console.error("Error deleting student:", error);
+      alert("Failed to delete student");
+    } finally {
+      setIsDeletingStudent(null);
     }
   };
 
@@ -678,7 +728,7 @@ export default function ClassesPage() {
         isOpen={isStudentModalOpen}
         onClose={() => setIsStudentModalOpen(false)}
         title={`Manage Students - ${selectedClass?.name || ""}`}
-        size="lg"
+        size="full"
       >
         <div className="space-y-4">
           {/* Tabs */}
@@ -789,7 +839,10 @@ export default function ClassesPage() {
                           variant="outline" 
                           size="sm" 
                           title="Train Fingerprint"
-                          onClick={() => alert("Fingerprint training will use your device fingerprint sensor. This feature requires biometric API support.")}
+                          onClick={() => {
+                            setSelectedStudentForFingerprint(student);
+                            setShowFingerprintModal(true);
+                          }}
                         >
                           <Fingerprint className="w-4 h-4" />
                         </Button>
@@ -797,7 +850,7 @@ export default function ClassesPage() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          className="text-orange-500 hover:text-orange-700 hover:bg-orange-50"
                           onClick={() => {
                             setSelectedStudents(prev => prev.filter(id => id !== student.id));
                             setClassStudents(prev => prev.filter(s => s.id !== student.id));
@@ -805,6 +858,21 @@ export default function ClassesPage() {
                           title="Remove from class"
                         >
                           <X className="w-4 h-4" />
+                        </Button>
+                        {/* Delete student permanently */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => handleDeleteStudent(student.id, student.name)}
+                          disabled={isDeletingStudent === student.id}
+                          title="Delete student permanently"
+                        >
+                          {isDeletingStudent === student.id ? (
+                            <div className="w-4 h-4 border-2 border-red-500 border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <Trash2 className="w-4 h-4" />
+                          )}
                         </Button>
                       </div>
                     </motion.div>
@@ -954,6 +1022,34 @@ export default function ClassesPage() {
             </div>
           )}
         </div>
+      </Modal>
+
+      {/* Fingerprint Training Modal */}
+      <Modal
+        isOpen={showFingerprintModal}
+        onClose={() => {
+          setShowFingerprintModal(false);
+          setSelectedStudentForFingerprint(null);
+        }}
+        title="Fingerprint Registration"
+        size="md"
+      >
+        {selectedStudentForFingerprint && (
+          <FingerprintTraining
+            studentId={selectedStudentForFingerprint.id}
+            studentName={selectedStudentForFingerprint.name}
+            onSuccess={() => {
+              setFingerprintEncodings(prev => ({
+                ...prev,
+                [selectedStudentForFingerprint.id]: true,
+              }));
+              setTimeout(() => {
+                setShowFingerprintModal(false);
+                setSelectedStudentForFingerprint(null);
+              }, 2000);
+            }}
+          />
+        )}
       </Modal>
     </div>
   );

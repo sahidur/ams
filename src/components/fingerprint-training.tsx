@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Fingerprint, Check, X, Loader2, AlertCircle, Scan } from "lucide-react";
+import { Fingerprint, Check, X, Loader2, AlertCircle, Scan, ShieldAlert, Smartphone } from "lucide-react";
 import { Button, Badge } from "@/components/ui";
 
 interface FingerprintTrainingProps {
@@ -18,23 +18,61 @@ export default function FingerprintTraining({
   onSuccess,
   onError,
 }: FingerprintTrainingProps) {
-  const [status, setStatus] = useState<"idle" | "loading" | "scanning" | "success" | "error">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "scanning" | "success" | "error" | "unsupported">("idle");
   const [errorMessage, setErrorMessage] = useState("");
+  const [isSecure, setIsSecure] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
+  const [hasBiometric, setHasBiometric] = useState<boolean | null>(null);
+
+  // Check environment on mount
+  useEffect(() => {
+    const checkEnvironment = async () => {
+      // Check if secure context (HTTPS or localhost)
+      const secure = window.isSecureContext;
+      setIsSecure(secure);
+
+      // Check if mobile device
+      const mobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      setIsMobile(mobile);
+
+      // Check if WebAuthn is supported
+      if (window.PublicKeyCredential) {
+        try {
+          const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+          setHasBiometric(available);
+          if (!available && !secure) {
+            setStatus("unsupported");
+          }
+        } catch {
+          setHasBiometric(false);
+        }
+      } else {
+        setHasBiometric(false);
+      }
+    };
+
+    checkEnvironment();
+  }, []);
 
   const startRegistration = useCallback(async () => {
     try {
       setStatus("loading");
       setErrorMessage("");
 
+      // Check if secure context
+      if (!window.isSecureContext) {
+        throw new Error("Fingerprint registration requires HTTPS. Please access this site via HTTPS.");
+      }
+
       // Check if WebAuthn is supported
       if (!window.PublicKeyCredential) {
-        throw new Error("WebAuthn is not supported on this browser");
+        throw new Error("WebAuthn is not supported on this browser. Please use Chrome, Safari, or Edge.");
       }
 
       // Check if platform authenticator is available
       const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
       if (!available) {
-        throw new Error("No fingerprint or biometric sensor available on this device");
+        throw new Error("No fingerprint or biometric sensor detected. Make sure your device has a fingerprint sensor and it is enabled.");
       }
 
       // Get registration options from server
@@ -52,7 +90,7 @@ export default function FingerprintTraining({
       const challenge = base64urlToBuffer(options.challenge);
       const userId = base64urlToBuffer(options.user.id);
 
-      // Create credential
+      // Create credential with Android-compatible options
       const credential = await navigator.credentials.create({
         publicKey: {
           ...options,
@@ -61,11 +99,17 @@ export default function FingerprintTraining({
             ...options.user,
             id: userId,
           },
+          // Ensure we request platform authenticator (fingerprint)
+          authenticatorSelection: {
+            authenticatorAttachment: "platform",
+            userVerification: "required",
+            residentKey: "preferred",
+          },
         },
       }) as PublicKeyCredential;
 
       if (!credential) {
-        throw new Error("Failed to create credential");
+        throw new Error("Failed to create credential. The operation was cancelled.");
       }
 
       const response = credential.response as AuthenticatorAttestationResponse;
@@ -74,8 +118,8 @@ export default function FingerprintTraining({
       const credentialData = {
         id: bufferToBase64url(credential.rawId),
         publicKey: bufferToBase64url(response.getPublicKey()!),
-        transports: response.getTransports?.() || [],
-        authenticatorAttachment: (credential as { authenticatorAttachment?: string }).authenticatorAttachment,
+        transports: response.getTransports?.() || ["internal"],
+        authenticatorAttachment: (credential as { authenticatorAttachment?: string }).authenticatorAttachment || "platform",
         clientExtensionResults: credential.getClientExtensionResults(),
       };
 
@@ -98,12 +142,61 @@ export default function FingerprintTraining({
       onSuccess?.();
     } catch (error) {
       console.error("Fingerprint registration error:", error);
-      const message = error instanceof Error ? error.message : "Registration failed";
+      let message = error instanceof Error ? error.message : "Registration failed";
+      
+      // Provide more helpful error messages
+      if (message.includes("NotAllowedError")) {
+        message = "Fingerprint scan was cancelled or not allowed. Please try again and complete the fingerprint scan.";
+      } else if (message.includes("SecurityError")) {
+        message = "Security error. Make sure you are accessing this site via HTTPS.";
+      } else if (message.includes("NotSupportedError")) {
+        message = "Your device does not support the required biometric features.";
+      }
+      
       setErrorMessage(message);
       setStatus("error");
       onError?.(message);
     }
   }, [studentId, onSuccess, onError]);
+
+  // Show unsupported message if not secure or no biometric
+  if (status === "unsupported" || !isSecure || hasBiometric === false) {
+    return (
+      <div className="p-6 bg-white rounded-lg border border-gray-200">
+        <div className="text-center mb-6">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-yellow-100 flex items-center justify-center">
+            <ShieldAlert className="w-8 h-8 text-yellow-600" />
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900">Fingerprint Not Available</h3>
+        </div>
+        <div className="space-y-3 text-sm text-gray-600">
+          {!isSecure && (
+            <div className="flex items-start gap-2 p-3 bg-red-50 rounded-lg">
+              <AlertCircle className="w-5 h-5 text-red-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-red-700">HTTPS Required</p>
+                <p className="text-red-600">Fingerprint registration requires a secure (HTTPS) connection. Please access this site via HTTPS.</p>
+              </div>
+            </div>
+          )}
+          {hasBiometric === false && (
+            <div className="flex items-start gap-2 p-3 bg-yellow-50 rounded-lg">
+              <Smartphone className="w-5 h-5 text-yellow-500 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="font-medium text-yellow-700">No Biometric Sensor</p>
+                <p className="text-yellow-600">
+                  {isMobile 
+                    ? "Make sure fingerprint is enabled in your device settings and you have enrolled at least one fingerprint."
+                    : "Your device does not have a fingerprint sensor, or it is not enabled."
+                  }
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 bg-white rounded-lg border border-gray-200">

@@ -407,6 +407,11 @@ model Attendance {
   markedBy        String   // "FACE_RECOGNITION", "FINGERPRINT" or trainer ID
   confidence      Float?   // Face recognition confidence score
   verificationMethod String? // "FACE", "FINGERPRINT", "MANUAL"
+  capturedImageUrl String?  // URL of the captured face image during attendance
+  
+  // Session ID for multiple attendance per day
+  sessionId       String?  // To group attendance by session
+  sessionDate     DateTime @default(now()) // Date for the session
   
   // Multiple check-ins during class
   checkIns        DateTime[]
@@ -414,7 +419,8 @@ model Attendance {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
-  @@unique([classId, studentId])
+  // Allow multiple attendance per class per student (for different sessions)
+  @@index([classId, studentId, sessionId])
   @@map("attendances")
 }
 
