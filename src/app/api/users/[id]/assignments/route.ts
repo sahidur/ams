@@ -215,8 +215,8 @@ export async function DELETE(
     const assignment = await prisma.userProjectAssignment.findUnique({
       where: { id: assignmentId },
       include: {
-        project: { select: { name: true } },
-        cohort: { select: { name: true } },
+        project: { select: { id: true, name: true } },
+        cohort: { select: { id: true, name: true } },
       },
     });
 
@@ -224,6 +224,22 @@ export async function DELETE(
       return NextResponse.json(
         { error: "Assignment not found" },
         { status: 404 }
+      );
+    }
+
+    // Check if there are branch assignments for this project/cohort
+    const branchAssignments = await prisma.userBranchAssignment.count({
+      where: {
+        userId: id,
+        projectId: assignment.project.id,
+        cohortId: assignment.cohort.id,
+      },
+    });
+
+    if (branchAssignments > 0) {
+      return NextResponse.json(
+        { error: `Cannot remove this project assignment. There are ${branchAssignments} branch assignment(s) linked to this project/cohort. Please remove all branch assignments first.` },
+        { status: 400 }
       );
     }
 

@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import Link from "next/link";
 import { 
   Plus, 
   Edit2, 
@@ -12,7 +13,14 @@ import {
   UserPlus,
   X,
   Check,
-  Search
+  Search,
+  GraduationCap,
+  ArrowRight,
+  Upload,
+  Scan,
+  Fingerprint,
+  Camera,
+  AlertCircle
 } from "lucide-react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -74,6 +82,12 @@ interface Student {
   name: string;
   email: string;
   phone?: string;
+  hasFaceEncoding?: boolean;
+}
+
+interface FaceEncoding {
+  id: string;
+  studentId: string;
 }
 
 export default function ClassesPage() {
@@ -89,6 +103,16 @@ export default function ClassesPage() {
   const [selectedStudents, setSelectedStudents] = useState<string[]>([]);
   const [studentSearch, setStudentSearch] = useState("");
   const [isSavingStudents, setIsSavingStudents] = useState(false);
+  
+  // New student form state
+  const [studentModalTab, setStudentModalTab] = useState<"existing" | "add" | "bulk">("existing");
+  const [newStudentName, setNewStudentName] = useState("");
+  const [newStudentEmail, setNewStudentEmail] = useState("");
+  const [newStudentPhone, setNewStudentPhone] = useState("");
+  const [isAddingStudent, setIsAddingStudent] = useState(false);
+  const [bulkUploadText, setBulkUploadText] = useState("");
+  const [isUploadingBulk, setIsUploadingBulk] = useState(false);
+  const [faceEncodings, setFaceEncodings] = useState<Record<string, boolean>>({});
 
   const {
     register,
@@ -167,17 +191,131 @@ export default function ClassesPage() {
   const openStudentModal = async (classInfo: ClassInfo) => {
     setSelectedClass(classInfo);
     setStudentSearch("");
+    setStudentModalTab("existing");
+    setNewStudentName("");
+    setNewStudentEmail("");
+    setNewStudentPhone("");
+    setBulkUploadText("");
     try {
       const res = await fetch(`/api/classes/${classInfo.id}/students`);
       const data = await res.json();
       setClassStudents(data);
       setSelectedStudents(data.map((s: Student) => s.id));
+      
+      // Fetch face encodings for enrolled students
+      if (data.length > 0) {
+        const studentIds = data.map((s: Student) => s.id);
+        const encodingsRes = await fetch(`/api/face-encodings/students?ids=${studentIds.join(",")}`);
+        if (encodingsRes.ok) {
+          const encodingsData = await encodingsRes.json();
+          const encodingsMap: Record<string, boolean> = {};
+          encodingsData.forEach((e: { studentId: string }) => {
+            encodingsMap[e.studentId] = true;
+          });
+          setFaceEncodings(encodingsMap);
+        }
+      }
     } catch (error) {
       console.error("Error fetching class students:", error);
       setClassStudents([]);
       setSelectedStudents([]);
     }
     setIsStudentModalOpen(true);
+  };
+
+  // Add new student to class
+  const handleAddStudent = async () => {
+    if (!selectedClass || !newStudentName.trim() || !newStudentEmail.trim()) return;
+    
+    setIsAddingStudent(true);
+    try {
+      const res = await fetch(`/api/classes/${selectedClass.id}/students/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newStudentName,
+          email: newStudentEmail,
+          phone: newStudentPhone || null,
+        }),
+      });
+
+      if (res.ok) {
+        const student = await res.json();
+        setClassStudents(prev => [...prev, student]);
+        setSelectedStudents(prev => [...prev, student.id]);
+        setAllStudents(prev => {
+          if (prev.find(s => s.id === student.id)) return prev;
+          return [...prev, student];
+        });
+        setNewStudentName("");
+        setNewStudentEmail("");
+        setNewStudentPhone("");
+        setStudentModalTab("existing");
+        fetchClasses();
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to add student");
+      }
+    } catch (error) {
+      console.error("Error adding student:", error);
+      alert("Failed to add student");
+    } finally {
+      setIsAddingStudent(false);
+    }
+  };
+
+  // Bulk upload students
+  const handleBulkUpload = async () => {
+    if (!selectedClass || !bulkUploadText.trim()) return;
+    
+    // Parse CSV format: name,email,phone (phone optional)
+    const lines = bulkUploadText.trim().split("\n");
+    const students = lines.map(line => {
+      const parts = line.split(",").map(p => p.trim());
+      return {
+        name: parts[0] || "",
+        email: parts[1] || "",
+        phone: parts[2] || "",
+      };
+    }).filter(s => s.name && s.email);
+
+    if (students.length === 0) {
+      alert("No valid student data found. Format: name,email,phone (one per line)");
+      return;
+    }
+
+    setIsUploadingBulk(true);
+    try {
+      const res = await fetch(`/api/classes/${selectedClass.id}/students/bulk`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ students }),
+      });
+
+      if (res.ok) {
+        const result = await res.json();
+        alert(result.message);
+        setBulkUploadText("");
+        setStudentModalTab("existing");
+        // Refresh student lists
+        const studentsRes = await fetch(`/api/classes/${selectedClass.id}/students`);
+        if (studentsRes.ok) {
+          const data = await studentsRes.json();
+          setClassStudents(data);
+          setSelectedStudents(data.map((s: Student) => s.id));
+        }
+        fetchAllStudents();
+        fetchClasses();
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to upload students");
+      }
+    } catch (error) {
+      console.error("Error uploading students:", error);
+      alert("Failed to upload students");
+    } finally {
+      setIsUploadingBulk(false);
+    }
   };
 
   const onSubmit = async (data: ClassFormData) => {
@@ -352,10 +490,19 @@ export default function ClassesPage() {
           <h1 className="text-3xl font-bold text-gray-900">Classes</h1>
           <p className="text-gray-500 mt-1">Manage classes and assign students</p>
         </div>
-        <Button onClick={() => openModal()}>
-          <Plus className="w-4 h-4 mr-2" />
-          Add Class
-        </Button>
+        <div className="flex gap-3">
+          <Link href="/dashboard/batches">
+            <Button variant="outline">
+              <GraduationCap className="w-4 h-4 mr-2" />
+              Manage Batches
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
+          </Link>
+          <Button onClick={() => openModal()}>
+            <Plus className="w-4 h-4 mr-2" />
+            Add Class
+          </Button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -531,99 +678,281 @@ export default function ClassesPage() {
         isOpen={isStudentModalOpen}
         onClose={() => setIsStudentModalOpen(false)}
         title={`Manage Students - ${selectedClass?.name || ""}`}
+        size="lg"
       >
         <div className="space-y-4">
-          {/* Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search students..."
-              value={studentSearch}
-              onChange={(e) => setStudentSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            />
-          </div>
-
-          {/* Selected count */}
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-600">
-              {selectedStudents.length} students selected
-            </span>
-            <div className="flex gap-2">
-              <button
-                type="button"
-                className="text-blue-600 hover:text-blue-700"
-                onClick={() => setSelectedStudents(allStudents.map((s) => s.id))}
-              >
-                Select All
-              </button>
-              <span className="text-gray-300">|</span>
-              <button
-                type="button"
-                className="text-gray-600 hover:text-gray-700"
-                onClick={() => setSelectedStudents([])}
-              >
-                Clear All
-              </button>
-            </div>
-          </div>
-
-          {/* Student List */}
-          <div className="max-h-[400px] overflow-y-auto space-y-2 border rounded-lg p-2">
-            {filteredStudents.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                No students found. Create students in the Users page first.
-              </div>
-            ) : (
-              filteredStudents.map((student) => (
-                <motion.div
-                  key={student.id}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer transition-colors ${
-                    selectedStudents.includes(student.id)
-                      ? "bg-blue-50 border border-blue-300"
-                      : "bg-gray-50 border border-transparent hover:border-gray-200"
-                  }`}
-                  onClick={() => toggleStudent(student.id)}
-                >
-                  <div
-                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${
-                      selectedStudents.includes(student.id)
-                        ? "bg-blue-600 border-blue-600"
-                        : "border-gray-300"
-                    }`}
-                  >
-                    {selectedStudents.includes(student.id) && (
-                      <Check className="w-3 h-3 text-white" />
-                    )}
-                  </div>
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white text-sm font-medium">
-                    {student.name.charAt(0)}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium text-sm">{student.name}</p>
-                    <p className="text-xs text-gray-500">{student.email}</p>
-                  </div>
-                </motion.div>
-              ))
-            )}
-          </div>
-
-          {/* Actions */}
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button
-              variant="outline"
-              onClick={() => setIsStudentModalOpen(false)}
+          {/* Tabs */}
+          <div className="flex border-b">
+            <button
+              onClick={() => setStudentModalTab("existing")}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                studentModalTab === "existing"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
             >
-              Cancel
-            </Button>
-            <Button onClick={saveClassStudents} isLoading={isSavingStudents}>
-              <Check className="w-4 h-4 mr-2" />
-              Save ({selectedStudents.length} students)
-            </Button>
+              <Users className="w-4 h-4 inline mr-2" />
+              Enrolled Students
+            </button>
+            <button
+              onClick={() => setStudentModalTab("add")}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                studentModalTab === "add"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <UserPlus className="w-4 h-4 inline mr-2" />
+              Add Student
+            </button>
+            <button
+              onClick={() => setStudentModalTab("bulk")}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                studentModalTab === "bulk"
+                  ? "border-blue-600 text-blue-600"
+                  : "border-transparent text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              <Upload className="w-4 h-4 inline mr-2" />
+              Bulk Upload
+            </button>
           </div>
+
+          {/* Existing Students Tab */}
+          {studentModalTab === "existing" && (
+            <div className="space-y-4">
+              {/* Search */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Search students..."
+                  value={studentSearch}
+                  onChange={(e) => setStudentSearch(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+              </div>
+
+              {/* Selected count */}
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-gray-600">
+                  {classStudents.length} students enrolled
+                </span>
+              </div>
+
+              {/* Enrolled Student List with Biometric Options */}
+              <div className="max-h-[400px] overflow-y-auto space-y-2 border rounded-lg p-2">
+                {classStudents.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">
+                    <Users className="w-12 h-12 mx-auto mb-2 text-gray-300" />
+                    <p>No students enrolled yet.</p>
+                    <p className="text-sm mt-1">Use the &quot;Add Student&quot; or &quot;Bulk Upload&quot; tab to add students.</p>
+                  </div>
+                ) : (
+                  classStudents.filter(s => 
+                    s.name.toLowerCase().includes(studentSearch.toLowerCase()) ||
+                    s.email.toLowerCase().includes(studentSearch.toLowerCase())
+                  ).map((student) => (
+                    <motion.div
+                      key={student.id}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 border border-gray-200"
+                    >
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium">
+                        {student.name.charAt(0)}
+                      </div>
+                      <div className="flex-1">
+                        <p className="font-medium text-sm">{student.name}</p>
+                        <p className="text-xs text-gray-500">{student.email}</p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {/* Biometric Status */}
+                        {faceEncodings[student.id] ? (
+                          <Badge variant="success" className="text-xs">
+                            <Camera className="w-3 h-3 mr-1" />
+                            Face Trained
+                          </Badge>
+                        ) : (
+                          <Badge variant="warning" className="text-xs">
+                            <AlertCircle className="w-3 h-3 mr-1" />
+                            No Biometric
+                          </Badge>
+                        )}
+                        {/* Biometric Training Buttons */}
+                        <Link href={`/dashboard/face-training?studentId=${student.id}&classId=${selectedClass?.id}`}>
+                          <Button variant="outline" size="sm" title="Train Face">
+                            <Camera className="w-4 h-4" />
+                          </Button>
+                        </Link>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          title="Train Fingerprint"
+                          onClick={() => alert("Fingerprint training will use your device fingerprint sensor. This feature requires biometric API support.")}
+                        >
+                          <Fingerprint className="w-4 h-4" />
+                        </Button>
+                        {/* Remove from class */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          onClick={() => {
+                            setSelectedStudents(prev => prev.filter(id => id !== student.id));
+                            setClassStudents(prev => prev.filter(s => s.id !== student.id));
+                          }}
+                          title="Remove from class"
+                        >
+                          <X className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </motion.div>
+                  ))
+                )}
+              </div>
+
+              {/* Add from Existing Students */}
+              <div className="border-t pt-4">
+                <p className="text-sm font-medium text-gray-700 mb-2">Add existing students:</p>
+                <div className="max-h-[150px] overflow-y-auto space-y-1 border rounded-lg p-2">
+                  {allStudents.filter(s => !classStudents.find(cs => cs.id === s.id)).map(student => (
+                    <label
+                      key={student.id}
+                      className="flex items-center gap-3 p-2 rounded hover:bg-gray-50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedStudents.includes(student.id)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedStudents(prev => [...prev, student.id]);
+                          } else {
+                            setSelectedStudents(prev => prev.filter(id => id !== student.id));
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-300"
+                      />
+                      <span className="text-sm">{student.name}</span>
+                      <span className="text-xs text-gray-500">{student.email}</span>
+                    </label>
+                  ))}
+                  {allStudents.filter(s => !classStudents.find(cs => cs.id === s.id)).length === 0 && (
+                    <p className="text-sm text-gray-500 text-center py-2">No other students available</p>
+                  )}
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setIsStudentModalOpen(false)}
+                >
+                  Close
+                </Button>
+                <Button onClick={saveClassStudents} isLoading={isSavingStudents}>
+                  <Check className="w-4 h-4 mr-2" />
+                  Save Changes
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Add Student Tab */}
+          {studentModalTab === "add" && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800">
+                  <AlertCircle className="w-4 h-4 inline mr-2" />
+                  Create a new student and automatically add them to this class.
+                </p>
+              </div>
+
+              <Input
+                label="Student Name *"
+                placeholder="Enter full name"
+                value={newStudentName}
+                onChange={(e) => setNewStudentName(e.target.value)}
+              />
+              
+              <Input
+                label="Email Address *"
+                type="email"
+                placeholder="student@example.com"
+                value={newStudentEmail}
+                onChange={(e) => setNewStudentEmail(e.target.value)}
+              />
+              
+              <Input
+                label="Phone Number"
+                placeholder="Optional"
+                value={newStudentPhone}
+                onChange={(e) => setNewStudentPhone(e.target.value)}
+              />
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setStudentModalTab("existing")}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleAddStudent} 
+                  isLoading={isAddingStudent}
+                  disabled={!newStudentName.trim() || !newStudentEmail.trim()}
+                >
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Add Student
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Bulk Upload Tab */}
+          {studentModalTab === "bulk" && (
+            <div className="space-y-4">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <p className="text-sm text-blue-800 font-medium mb-2">
+                  <Upload className="w-4 h-4 inline mr-2" />
+                  Bulk Upload Students
+                </p>
+                <p className="text-sm text-blue-700">
+                  Enter student data in CSV format: <code className="bg-blue-100 px-1 rounded">name,email,phone</code> (one per line)
+                </p>
+                <p className="text-xs text-blue-600 mt-1">Phone is optional</p>
+              </div>
+
+              <textarea
+                value={bulkUploadText}
+                onChange={(e) => setBulkUploadText(e.target.value)}
+                placeholder="John Doe,john@example.com,01712345678&#10;Jane Smith,jane@example.com&#10;..."
+                className="w-full h-48 border border-gray-300 rounded-lg p-3 text-sm font-mono resize-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+
+              <div className="text-sm text-gray-500">
+                {bulkUploadText.trim().split("\n").filter(l => l.trim()).length} lines entered
+              </div>
+
+              <div className="flex justify-end gap-2 pt-4 border-t">
+                <Button
+                  variant="outline"
+                  onClick={() => setStudentModalTab("existing")}
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={handleBulkUpload} 
+                  isLoading={isUploadingBulk}
+                  disabled={!bulkUploadText.trim()}
+                >
+                  <Upload className="w-4 h-4 mr-2" />
+                  Upload Students
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
     </div>

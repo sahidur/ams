@@ -157,6 +157,7 @@ model User {
   studentClasses    ClassStudent[]
   attendances       Attendance[]
   faceEncodings     FaceEncoding[]
+  fingerprintCredentials FingerprintCredential[]
   classes           Class[]        @relation("ClassCreator")
   focalProjects     Project[]      @relation("ProjectFocalPerson")
   focalCohorts      Cohort[]       @relation("CohortFocalPerson")
@@ -403,8 +404,9 @@ model Attendance {
   
   isPresent       Boolean  @default(false)
   markedAt        DateTime @default(now())
-  markedBy        String   // "FACE_RECOGNITION" or trainer ID
+  markedBy        String   // "FACE_RECOGNITION", "FINGERPRINT" or trainer ID
   confidence      Float?   // Face recognition confidence score
+  verificationMethod String? // "FACE", "FINGERPRINT", "MANUAL"
   
   // Multiple check-ins during class
   checkIns        DateTime[]
@@ -429,6 +431,25 @@ model FaceEncoding {
   updatedAt   DateTime @updatedAt
   
   @@map("face_encodings")
+}
+
+// WebAuthn/Fingerprint credentials for biometric authentication
+model FingerprintCredential {
+  id                    String   @id @default(cuid())
+  userId                String
+  user                  User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  credentialId          String   @unique // WebAuthn credential ID (base64)
+  publicKey             String   // Public key (base64)
+  counter               Int      @default(0) // Signature counter
+  transports            String[] // Allowed transports (internal, usb, ble, nfc)
+  deviceType            String?  // Device type (platform, cross-platform)
+  backedUp              Boolean  @default(false)
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@map("fingerprint_credentials")
 }
 
 // User Project and Cohort Assignments

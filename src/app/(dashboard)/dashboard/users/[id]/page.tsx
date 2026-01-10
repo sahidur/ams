@@ -813,6 +813,26 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     }
   };
 
+  // Delete a single branch assignment
+  const handleDeleteBranchAssignment = async (assignmentId: string) => {
+    if (!confirm("Are you sure you want to remove this branch assignment?")) return;
+    try {
+      const res = await fetch(`/api/users/${id}/branch-assignments?assignmentId=${assignmentId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        fetchBranchAssignments();
+        // Also refresh assigned projects in case all branches were removed
+        fetchAssignedProjectsForBranch();
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to remove assignment");
+      }
+    } catch (error) {
+      console.error("Error deleting branch assignment:", error);
+    }
+  };
+
   useEffect(() => {
     if (id) {
       fetchUser();
@@ -1549,9 +1569,9 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                                 branches: []
                               };
                             }
-                            acc[key].branches.push(assignment.branch);
+                            acc[key].branches.push({ ...assignment.branch, assignmentId: assignment.id });
                             return acc;
-                          }, {} as Record<string, { project: { id: string; name: string }; cohort: { id: string; cohortId: string; name: string }; branches: Branch[] }>)
+                          }, {} as Record<string, { project: { id: string; name: string }; cohort: { id: string; cohortId: string; name: string }; branches: (Branch & { assignmentId: string })[] }>)
                         ).map((group) => (
                           <div 
                             key={`${group.project.id}-${group.cohort.id}`}
@@ -1567,10 +1587,19 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                             </div>
                             <div className="flex flex-wrap gap-2">
                               {group.branches.map(branch => (
-                                <Badge key={branch.id} variant="default" className="flex items-center gap-1">
+                                <Badge key={branch.id} variant="default" className="flex items-center gap-1 pr-1">
                                   <MapPin className="w-3 h-3" />
                                   {branch.branchName}
                                   <span className="text-xs text-gray-400">({branch.district})</span>
+                                  {canEdit && (
+                                    <button
+                                      onClick={() => handleDeleteBranchAssignment(branch.assignmentId)}
+                                      className="ml-1 p-0.5 hover:bg-red-100 rounded text-red-500 hover:text-red-700"
+                                      title="Remove this branch"
+                                    >
+                                      <X className="w-3 h-3" />
+                                    </button>
+                                  )}
                                 </Badge>
                               ))}
                             </div>

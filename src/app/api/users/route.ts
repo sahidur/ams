@@ -80,7 +80,16 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Check if includeStudents param is set (for class management)
+    const includeStudents = searchParams.get("includeStudents") === "true";
+
     const users = await prisma.user.findMany({
+      where: {
+        // Exclude students from the regular user list unless specifically requested
+        ...(!includeStudents && {
+          role: { not: "STUDENT" },
+        }),
+      },
       select: {
         id: true,
         name: true,
