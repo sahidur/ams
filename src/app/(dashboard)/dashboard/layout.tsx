@@ -32,6 +32,11 @@ import {
   FilePlus,
   FileSearch,
   FolderCog,
+  ClipboardCheck,
+  ClipboardList,
+  ClipboardPlus,
+  Clock,
+  FileStack,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -147,6 +152,41 @@ const knowledgeBaseSection: NavSection = {
   ],
 };
 
+// Approvals section
+const approvalsSection: NavSection = {
+  title: "Approvals",
+  icon: ClipboardCheck,
+  items: [
+    {
+      title: "My Requests",
+      href: "/dashboard/approvals",
+      icon: ClipboardList,
+      module: "APPROVALS",
+      alwaysShow: true,
+    },
+    {
+      title: "New Request",
+      href: "/dashboard/approvals/new",
+      icon: ClipboardPlus,
+      module: "APPROVALS",
+      alwaysShow: true,
+    },
+    {
+      title: "Pending Approvals",
+      href: "/dashboard/approvals/pending",
+      icon: Clock,
+      module: "APPROVALS",
+      alwaysShow: true,
+    },
+    {
+      title: "Application Types",
+      href: "/dashboard/approval-templates",
+      icon: FileStack,
+      module: "APPROVAL_TEMPLATES",
+    },
+  ],
+};
+
 // Admin Tools section
 const adminToolsSection: NavSection = {
   title: "Admin Tools",
@@ -207,6 +247,7 @@ const adminToolsSection: NavSection = {
 const navSections: NavSection[] = [
   projectsSection,
   classManagementSection,
+  approvalsSection,
   knowledgeBaseSection,
 ];
 
@@ -215,6 +256,7 @@ const navItems: NavItem[] = [
   ...mainNavItems,
   ...projectsSection.items,
   ...classManagementSection.items,
+  ...approvalsSection.items,
   ...knowledgeBaseSection.items,
   ...adminToolsSection.items,
 ];
@@ -238,6 +280,7 @@ export default function DashboardLayout({
   const [projectsOpen, setProjectsOpen] = useState(false);
   const [classManagementOpen, setClassManagementOpen] = useState(false);
   const [knowledgeBaseOpen, setKnowledgeBaseOpen] = useState(false);
+  const [approvalsOpen, setApprovalsOpen] = useState(false);
   const [userPermissions, setUserPermissions] = useState<UserPermission[]>([]);
   const [permissionsLoaded, setPermissionsLoaded] = useState(false);
   const [permissionsError, setPermissionsError] = useState(false);
@@ -248,11 +291,13 @@ export default function DashboardLayout({
     const isInProjects = projectsSection.items.some(item => pathname === item.href || pathname.startsWith(item.href + "/"));
     const isInClassManagement = classManagementSection.items.some(item => pathname === item.href);
     const isInKnowledgeBase = knowledgeBaseSection.items.some(item => pathname === item.href || pathname.startsWith("/dashboard/knowledge-base"));
+    const isInApprovals = approvalsSection.items.some(item => pathname === item.href || pathname.startsWith("/dashboard/approvals") || pathname.startsWith("/dashboard/approval-templates"));
     
     if (isInAdminTools) setAdminToolsOpen(true);
     if (isInProjects) setProjectsOpen(true);
     if (isInClassManagement) setClassManagementOpen(true);
     if (isInKnowledgeBase) setKnowledgeBaseOpen(true);
+    if (isInApprovals) setApprovalsOpen(true);
   }, [pathname]);
 
   // Fetch user permissions with retry
@@ -615,6 +660,64 @@ export default function DashboardLayout({
               </AnimatePresence>
             </div>
           )}
+
+          {/* Approvals Section */}
+          <div className="pt-2 border-t border-gray-200 mt-2">
+            <button
+              onClick={() => setApprovalsOpen(!approvalsOpen)}
+              className={cn(
+                "w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200",
+                approvalsOpen || pathname.startsWith("/dashboard/approvals") || pathname.startsWith("/dashboard/approval-templates")
+                  ? "bg-gray-100 text-gray-900"
+                  : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+              )}
+            >
+              <div className="flex items-center gap-3">
+                <ClipboardCheck className="w-5 h-5" />
+                Approvals
+              </div>
+              <ChevronDown className={cn(
+                "w-4 h-4 transition-transform duration-200",
+                approvalsOpen ? "rotate-180" : ""
+              )} />
+            </button>
+            
+            <AnimatePresence>
+              {approvalsOpen && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="pl-4 pt-1 space-y-1">
+                    {approvalsSection.items
+                      .filter(item => item.alwaysShow || isSuperAdmin || hasModuleAccess(item.module))
+                      .map((item) => {
+                        const isActive = pathname === item.href;
+                        return (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setSidebarOpen(false)}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-200",
+                              isActive
+                                ? "bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-lg"
+                                : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                            )}
+                          >
+                            <item.icon className="w-4 h-4" />
+                            {item.title}
+                          </Link>
+                        );
+                      })}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
 
           {/* Admin Tools Section - at the end */}
           {showAdminTools && (

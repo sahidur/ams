@@ -52,6 +52,8 @@ enum SystemModule {
   DEPARTMENTS
   GEO_ADMIN
   PROFILE
+  APPROVALS
+  APPROVAL_TEMPLATES
 }
 
 // New Role Management System
@@ -69,6 +71,7 @@ model UserRole {
   // Relations
   permissions RolePermission[]
   users       User[]
+  approverLevels ApprovalLevelApprover[]
   
   @@map("user_roles")
 }
@@ -177,6 +180,15 @@ model User {
   createdBranches    Branch[]       @relation("BranchCreatedBy")
   updatedBranches    Branch[]       @relation("BranchUpdatedBy")
   
+  // Approval System Relations
+  createdTemplates     ApprovalTemplate[]  @relation("TemplateCreator")
+  escalationLevels     ApprovalLevel[]     @relation("EscalationUser")
+  approverLevels       ApprovalLevelApprover[] @relation("LevelApprover")
+  submittedRequests    ApprovalRequest[]   @relation("RequestSubmitter")
+  pendingApprovals     ApprovalRequest[]   @relation("CurrentApprover")
+  approvalActions      ApprovalAction[]    @relation("ActionActor")
+  notifications        Notification[]
+  
   @@map("users")
 }
 
@@ -236,6 +248,8 @@ model Project {
   cohorts         Cohort[]
   userAssignments UserProjectAssignment[]
   branchAssignments UserBranchAssignment[] @relation("ProjectBranchAssignments")
+  approvalLevels  ApprovalLevel[]
+  approvalRequests ApprovalRequest[]
   
   @@map("projects")
 }
@@ -272,6 +286,8 @@ model Cohort {
   classes               Class[]
   userAssignments       UserProjectAssignment[]
   branchAssignments     UserBranchAssignment[] @relation("CohortBranchAssignments")
+  approvalLevels        ApprovalLevel[]
+  approvalRequests      ApprovalRequest[]
   
   @@map("cohorts")
 }
@@ -301,6 +317,7 @@ model Branch {
   cohorts     CohortBranch[]  // Legacy many-to-many relationship
   batches     Batch[]
   userBranchAssignments UserBranchAssignment[]
+  approvalRequests      ApprovalRequest[]
   
   @@unique([division, district, upazila, branchName])
   @@map("branches")
@@ -720,4 +737,265 @@ model Union {
   
   @@unique([upazilaId, name])
   @@map("unions")
+}
+
+// ==========================================
+// APPROVAL MANAGEMENT SYSTEM
+// ==========================================
+
+// Approval Request Status
+enum ApprovalRequestStatus {
+  DRAFT
+  PENDING
+  APPROVED
+  DECLINED
+  SENT_BACK
+  CANCELLED
+}
+
+// Approval Action Type
+enum ApprovalActionType {
+  SUBMIT
+  APPROVE
+  DECLINE
+  SEND_BACK
+  CANCEL
+  RESUBMIT
+}
+
+// Notification Type
+enum NotificationType {
+  APPROVAL_ASSIGNED
+  APPROVAL_APPROVED
+  APPROVAL_DECLINED
+  APPROVAL_SENT_BACK
+  APPROVAL_FINAL
+  APPROVAL_RESUBMITTED
+  SYSTEM
+}
+
+// Application Type / Approval Template
+model ApprovalTemplate {
+  id             String   @id @default(cuid())
+  name           String   @unique
+  displayName    String
+  description    String?
+  icon           String?  // Icon name for UI
+  color          String?  // Color code for UI
+  isActive       Boolean  @default(true)
+  
+  // SLA Configuration
+  defaultSlaHours Int?    // Default SLA hours per level
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  createdById    String?
+  createdBy      User?    @relation("TemplateCreator", fields: [createdById], references: [id])
+  
+  // Relations
+  formFields     ApprovalFormField[]
+  levels         ApprovalLevel[]
+  requests       ApprovalRequest[]
+  
+  @@map("approval_templates")
+}
+
+// Dynamic Form Fields for each Application Type
+model ApprovalFormField {
+  id             String   @id @default(cuid())
+  templateId     String
+  template       ApprovalTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  fieldName      String   // Internal name
+  fieldLabel     String   // Display label
+  fieldType      String   // text, textarea, number, date, select, file, checkbox, radio
+  placeholder    String?
+  helpText       String?
+  isRequired     Boolean  @default(false)
+  options        String[] // For select/radio/checkbox - JSON array of options
+  validation     String?  // JSON validation rules
+  defaultValue   String?
+  sortOrder      Int      @default(0)
+  isActive       Boolean  @default(true)
+  
+  // Conditional display
+  dependsOnField String?  // Field name this depends on
+  dependsOnValue String?  // Value that triggers display
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@unique([templateId, fieldName])
+  @@map("approval_form_fields")
+}
+
+// Approval Levels per Template (can be project/cohort specific)
+model ApprovalLevel {
+  id             String   @id @default(cuid())
+  templateId     String
+  template       ApprovalTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  
+  levelNumber    Int      // 1, 2, 3... (sequential)
+  levelName      String   // e.g., "Immediate Supervisor", "Branch Manager"
+  
+  // Scope - if null, applies globally; otherwise project/cohort specific
+  projectId      String?
+  project        Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  cohortId       String?
+  cohort         Cohort?  @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  
+  // SLA for this level (overrides template default)
+  slaHours       Int?
+  
+  // Escalation settings
+  escalateAfterHours Int?
+  escalateToUserId   String?
+  escalateTo         User?    @relation("EscalationUser", fields: [escalateToUserId], references: [id])
+  
+  isActive       Boolean  @default(true)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  approvers      ApprovalLevelApprover[]
+  
+  @@unique([templateId, levelNumber, projectId, cohortId])
+  @@map("approval_levels")
+}
+
+// Approvers assigned to each level
+model ApprovalLevelApprover {
+  id             String   @id @default(cuid())
+  levelId        String
+  level          ApprovalLevel @relation(fields: [levelId], references: [id], onDelete: Cascade)
+  
+  // Can be a specific user or a role
+  userId         String?
+  user           User?    @relation("LevelApprover", fields: [userId], references: [id])
+  userRoleId     String?
+  userRole       UserRole? @relation(fields: [userRoleId], references: [id])
+  
+  // If role-based, can be relative to requester
+  isRequesterSupervisor Boolean @default(false) // Use requester's firstSupervisor
+  
+  sortOrder      Int      @default(0) // For multiple approvers at same level
+  isActive       Boolean  @default(true)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@map("approval_level_approvers")
+}
+
+// Approval Request (submitted by user)
+model ApprovalRequest {
+  id             String   @id @default(cuid())
+  requestNumber  String   @unique // Auto-generated reference number
+  
+  templateId     String
+  template       ApprovalTemplate @relation(fields: [templateId], references: [id])
+  
+  // Requester
+  requesterId    String
+  requester      User     @relation("RequestSubmitter", fields: [requesterId], references: [id])
+  
+  // Context
+  projectId      String?
+  project        Project? @relation(fields: [projectId], references: [id])
+  cohortId       String?
+  cohort         Cohort?  @relation(fields: [cohortId], references: [id])
+  branchId       String?
+  branch         Branch?  @relation(fields: [branchId], references: [id])
+  
+  // Form data stored as JSON
+  formData       Json
+  
+  // Attachments
+  attachments    String[] // URLs of uploaded files
+  
+  // Status tracking
+  status         ApprovalRequestStatus @default(DRAFT)
+  currentLevel   Int      @default(0) // 0 = not started, 1 = first level, etc.
+  totalLevels    Int      @default(0)
+  
+  // Current approver(s)
+  currentApproverId String?
+  currentApprover   User?    @relation("CurrentApprover", fields: [currentApproverId], references: [id])
+  
+  // Timestamps
+  submittedAt    DateTime?
+  completedAt    DateTime?
+  
+  // SLA tracking
+  slaDeadline    DateTime?
+  isOverdue      Boolean  @default(false)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  actions        ApprovalAction[]
+  
+  @@index([requesterId, status])
+  @@index([currentApproverId, status])
+  @@index([status, createdAt])
+  @@map("approval_requests")
+}
+
+// Approval Action History (immutable audit log)
+model ApprovalAction {
+  id             String   @id @default(cuid())
+  requestId      String
+  request        ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  
+  actionType     ApprovalActionType
+  level          Int      // Level at which action was taken
+  
+  // Actor
+  actorId        String
+  actor          User     @relation("ActionActor", fields: [actorId], references: [id])
+  
+  // Comments/Notes
+  comment        String?
+  
+  // Previous/Next approver info for tracking
+  previousApproverId String?
+  nextApproverId     String?
+  
+  // Snapshot of form data at this point (for audit)
+  formDataSnapshot   Json?
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  
+  // SLA info
+  wasOverdue     Boolean  @default(false)
+  responseTimeHours Float? // How long it took to respond
+  
+  @@index([requestId, createdAt])
+  @@map("approval_actions")
+}
+
+// In-App Notifications
+model Notification {
+  id             String   @id @default(cuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  type           NotificationType
+  title          String
+  message        String
+  
+  // Link to related entity
+  entityType     String?  // "approval_request", "user", etc.
+  entityId       String?
+  
+  isRead         Boolean  @default(false)
+  readAt         DateTime?
+  
+  createdAt      DateTime @default(now())
+  
+  @@index([userId, isRead, createdAt])
+  @@map("notifications")
 }
