@@ -15,6 +15,11 @@ export async function GET(
 
     const { classId } = await params;
 
+    // Get the total number of students in the class
+    const totalStudentsInClass = await prisma.classStudent.count({
+      where: { classId },
+    });
+
     // Get distinct sessions for this class
     const attendanceRecords = await prisma.attendance.findMany({
       where: { classId },
@@ -54,12 +59,8 @@ export async function GET(
         },
       });
 
-      const totalCount = await prisma.attendance.count({
-        where: {
-          classId,
-          sessionId,
-        },
-      });
+      // Use total students in class as the denominator, not just attendance records
+      const totalCount = totalStudentsInClass;
 
       sessions.push({
         sessionId,

@@ -140,6 +140,7 @@ export default function AttendancePage() {
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [selectedSession, setSelectedSession] = useState<AttendanceSession | null>(null);
   const [showSessionModal, setShowSessionModal] = useState(false);
+  const [viewingPhoto, setViewingPhoto] = useState<{ url: string; name: string } | null>(null);
 
   // Fetch classes
   useEffect(() => {
@@ -268,15 +269,17 @@ export default function AttendancePage() {
   const handleFaceDetected = useCallback(async (studentId: string, studentName: string, confidence: number, capturedImage?: string) => {
     if (!selectedClass) return;
 
+    // Check if already marked present - skip if so
+    const existing = attendance.find((a) => a.studentId === studentId);
+    if (existing?.isPresent) {
+      // Already marked, just show a brief notification (don't duplicate)
+      return;
+    }
+
     const now = new Date().toISOString();
     
     // Update local state
     setAttendance((prev) => {
-      const existing = prev.find((a) => a.studentId === studentId);
-      if (existing?.isPresent) {
-        return prev; // Already marked
-      }
-      
       return prev.map((a) =>
         a.studentId === studentId
           ? { 
@@ -316,7 +319,7 @@ export default function AttendancePage() {
     } catch (error) {
       console.error("Error saving attendance:", error);
     }
-  }, [selectedClass]);
+  }, [selectedClass, attendance, currentSessionId]);
 
   // Handle multiple faces detected (group photo)
   const handleMultipleFacesDetected = useCallback(async (detectedStudents: { studentId: string; studentName: string; confidence: number }[]) => {
@@ -754,7 +757,7 @@ export default function AttendancePage() {
                 knownFaces={knownFaces}
                 onFaceDetected={handleFaceDetected}
                 onMultipleFacesDetected={handleMultipleFacesDetected}
-                minConfidence={0.5}
+                minConfidence={0.8}
               />
             )}
           </CardContent>
@@ -789,57 +792,63 @@ export default function AttendancePage() {
                       : "bg-gray-50 border border-gray-200"
                   }`}
                 >
-                  <div className="flex items-center gap-3">
-                    {/* Show captured image if available, otherwise show initial */}
-                    {record.capturedImageUrl ? (
-                      <img 
-                        src={record.capturedImageUrl} 
-                        alt={record.studentName}
-                        className="w-10 h-10 rounded-full object-cover border-2 border-green-500"
-                      />
-                    ) : (
-                      <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium ${
-                        record.isPresent 
-                          ? "bg-gradient-to-br from-green-500 to-emerald-600" 
-                          : "bg-gradient-to-br from-gray-400 to-gray-500"
-                      }`}>
-                        {record.studentName.charAt(0)}
-                      </div>
-                    )}
-                    <div>
-                      <p className="font-medium">{record.studentName}</p>
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {/* Avatar/Initial */}
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center text-white font-medium flex-shrink-0 ${
+                      record.isPresent 
+                        ? "bg-gradient-to-br from-green-500 to-emerald-600" 
+                        : "bg-gradient-to-br from-gray-400 to-gray-500"
+                    }`}>
+                      {record.studentName.charAt(0)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{record.studentName}</p>
                       {record.isPresent && record.markedAt && (
-                        <p className="text-xs text-gray-500">
-                          {safeFormatDateTime(record.markedAt)}
+                        <div className="flex items-center gap-2 flex-wrap text-xs text-gray-500">
+                          <span>{safeFormatDateTime(record.markedAt)}</span>
                           {record.confidence && (
-                            <span className="ml-2 text-blue-600">
-                              ({Math.round(record.confidence * 100)}% match)
+                            <span className="text-blue-600 font-medium">
+                              {Math.round(record.confidence * 100)}% match
                             </span>
                           )}
                           {record.markedBy && (
-                            <Badge variant="info" className="ml-2 text-xs">
+                            <Badge variant="info" className="text-xs">
                               {record.markedBy === "MANUAL" ? "Manual" : "AI"}
                             </Badge>
                           )}
-                        </p>
+                        </div>
                       )}
                     </div>
                   </div>
-                  <button
-                    onClick={() => toggleManualAttendance(record.studentId)}
-                    className={`p-2 rounded-full transition-colors ${
-                      record.isPresent
-                        ? "bg-green-500 text-white hover:bg-green-600"
-                        : "bg-gray-200 text-gray-500 hover:bg-gray-300"
-                    }`}
-                    title={record.isPresent ? "Mark Absent" : "Mark Present"}
-                  >
-                    {record.isPresent ? (
-                      <CheckCircle2 className="w-5 h-5" />
-                    ) : (
-                      <XCircle className="w-5 h-5" />
+                  <div className="flex items-center gap-2">
+                    {/* View Photo Button - Only show if captured image exists */}
+                    {record.capturedImageUrl && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => setViewingPhoto({ url: record.capturedImageUrl!, name: record.studentName })}
+                        className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                        title="View Captured Photo"
+                      >
+                        <Camera className="w-4 h-4" />
+                      </Button>
                     )}
-                  </button>
+                    <button
+                      onClick={() => toggleManualAttendance(record.studentId)}
+                      className={`p-2 rounded-full transition-colors ${
+                        record.isPresent
+                          ? "bg-green-500 text-white hover:bg-green-600"
+                          : "bg-gray-200 text-gray-500 hover:bg-gray-300"
+                      }`}
+                      title={record.isPresent ? "Mark Absent" : "Mark Present"}
+                    >
+                      {record.isPresent ? (
+                        <CheckCircle2 className="w-5 h-5" />
+                      ) : (
+                        <XCircle className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
                 </motion.div>
               ))}
 
@@ -852,6 +861,28 @@ export default function AttendancePage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Photo Viewer Modal */}
+      <Modal
+        isOpen={!!viewingPhoto}
+        onClose={() => setViewingPhoto(null)}
+        title={`Captured Photo - ${viewingPhoto?.name || ""}`}
+        size="md"
+      >
+        <div className="flex flex-col items-center">
+          {viewingPhoto?.url && (
+            <img 
+              src={viewingPhoto.url} 
+              alt={viewingPhoto.name}
+              className="max-w-full max-h-[70vh] rounded-lg shadow-lg object-contain"
+              style={{ backgroundColor: "#f3f4f6" }}
+            />
+          )}
+          <p className="mt-4 text-sm text-gray-500">
+            Face captured during attendance verification
+          </p>
+        </div>
+      </Modal>
 
       {/* Instructions */}
       <Card>
@@ -914,43 +945,55 @@ export default function AttendancePage() {
             </div>
           )}
 
-          {/* Students Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {/* Students List - Row-wise */}
+          <div className="space-y-2 max-h-[60vh] overflow-y-auto">
             {attendance.map((record) => (
               <div
                 key={record.studentId}
-                className={`p-4 rounded-lg border-2 ${
+                className={`flex items-center justify-between p-4 rounded-lg border ${
                   record.isPresent 
-                    ? "bg-green-50 border-green-300" 
+                    ? "bg-green-50 border-green-200" 
                     : "bg-red-50 border-red-200"
                 }`}
               >
-                <div className="flex items-center gap-3">
-                  {record.capturedImageUrl ? (
-                    <img 
-                      src={record.capturedImageUrl} 
-                      alt={record.studentName}
-                      className="w-14 h-14 rounded-full object-cover border-2 border-green-500"
-                    />
-                  ) : (
-                    <div className={`w-14 h-14 rounded-full flex items-center justify-center text-white text-xl font-medium ${
-                      record.isPresent 
-                        ? "bg-gradient-to-br from-green-500 to-emerald-600" 
-                        : "bg-gradient-to-br from-red-400 to-red-500"
-                    }`}>
-                      {record.studentName.charAt(0)}
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  {/* Avatar */}
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-medium flex-shrink-0 ${
+                    record.isPresent 
+                      ? "bg-gradient-to-br from-green-500 to-emerald-600" 
+                      : "bg-gradient-to-br from-red-400 to-red-500"
+                  }`}>
+                    {record.studentName.charAt(0)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium truncate">{record.studentName}</p>
+                    <div className="flex items-center gap-2 flex-wrap mt-1">
+                      <Badge variant={record.isPresent ? "success" : "danger"}>
+                        {record.isPresent ? "Present" : "Absent"}
+                      </Badge>
+                      {record.confidence && (
+                        <span className="text-xs text-blue-600 font-medium">
+                          {Math.round(record.confidence * 100)}% match
+                        </span>
+                      )}
+                      {record.markedAt && (
+                        <span className="text-xs text-gray-500">{safeFormatDateTime(record.markedAt)}</span>
+                      )}
                     </div>
-                  )}
-                  <div className="flex-1">
-                    <p className="font-medium">{record.studentName}</p>
-                    <Badge variant={record.isPresent ? "success" : "danger"} className="mt-1">
-                      {record.isPresent ? "Present" : "Absent"}
-                    </Badge>
-                    {record.markedAt && (
-                      <p className="text-xs text-gray-500 mt-1">{safeFormatDateTime(record.markedAt)}</p>
-                    )}
                   </div>
                 </div>
+                {/* View Photo Button */}
+                {record.capturedImageUrl && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setViewingPhoto({ url: record.capturedImageUrl!, name: record.studentName })}
+                    className="ml-2"
+                  >
+                    <Eye className="w-4 h-4 mr-1" />
+                    View Photo
+                  </Button>
+                )}
               </div>
             ))}
           </div>

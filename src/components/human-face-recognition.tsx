@@ -180,31 +180,47 @@ export function HumanFaceRecognition({
   // Capture face image from video
   const captureFaceImage = useCallback((faceBox?: { x: number; y: number; width: number; height: number }): string | undefined => {
     const video = videoRef.current;
-    if (!video) return undefined;
+    if (!video || video.videoWidth === 0 || video.videoHeight === 0) return undefined;
+
+    // Ensure video is playing and has valid dimensions
+    if (video.readyState < 2) return undefined; // HAVE_CURRENT_DATA or higher
 
     const captureCanvas = document.createElement('canvas');
     const captureCtx = captureCanvas.getContext('2d');
     if (!captureCtx) return undefined;
 
-    if (faceBox) {
-      // Capture just the face region with some padding
-      const padding = 50;
-      const x = Math.max(0, faceBox.x - padding);
-      const y = Math.max(0, faceBox.y - padding);
-      const width = Math.min(video.videoWidth - x, faceBox.width + padding * 2);
-      const height = Math.min(video.videoHeight - y, faceBox.height + padding * 2);
+    try {
+      if (faceBox && faceBox.width > 0 && faceBox.height > 0) {
+        // Capture just the face region with some padding
+        const padding = 40;
+        const x = Math.max(0, Math.floor(faceBox.x - padding));
+        const y = Math.max(0, Math.floor(faceBox.y - padding));
+        const width = Math.min(video.videoWidth - x, Math.floor(faceBox.width + padding * 2));
+        const height = Math.min(video.videoHeight - y, Math.floor(faceBox.height + padding * 2));
 
-      captureCanvas.width = width;
-      captureCanvas.height = height;
-      captureCtx.drawImage(video, x, y, width, height, 0, 0, width, height);
-    } else {
-      // Capture full frame
-      captureCanvas.width = video.videoWidth;
-      captureCanvas.height = video.videoHeight;
-      captureCtx.drawImage(video, 0, 0);
+        // Minimum dimensions check
+        if (width < 50 || height < 50) {
+          // Fall back to full frame if face box is too small
+          captureCanvas.width = video.videoWidth;
+          captureCanvas.height = video.videoHeight;
+          captureCtx.drawImage(video, 0, 0);
+        } else {
+          captureCanvas.width = width;
+          captureCanvas.height = height;
+          captureCtx.drawImage(video, x, y, width, height, 0, 0, width, height);
+        }
+      } else {
+        // Capture full frame
+        captureCanvas.width = video.videoWidth;
+        captureCanvas.height = video.videoHeight;
+        captureCtx.drawImage(video, 0, 0);
+      }
+
+      return captureCanvas.toDataURL('image/jpeg', 0.85);
+    } catch (err) {
+      console.error("Error capturing face image:", err);
+      return undefined;
     }
-
-    return captureCanvas.toDataURL('image/jpeg', 0.8);
   }, []);
 
   // Find best match for a face embedding
@@ -337,14 +353,14 @@ export function HumanFaceRecognition({
         for (const face of result.face) {
           if (face.embedding && face.embedding.length > 0) {
             const match = findMatch(Array.from(face.embedding));
-            if (match) {
-              // Check if already recognized recently (within 10 seconds)
-              const existingRecent = recognizedStudents.find(
-                (s) => s.studentId === match.id && 
-                  Date.now() - s.timestamp.getTime() < 10000
+            // Only process matches with confidence >= minConfidence (80%)
+            if (match && match.confidence >= minConfidence) {
+              // Check if already recognized in this session (permanent - don't re-detect same person)
+              const alreadyRecognized = recognizedStudents.find(
+                (s) => s.studentId === match.id
               );
               
-              if (!existingRecent) {
+              if (!alreadyRecognized) {
                 // Capture face image for the detected student
                 const faceBox = face.box ? {
                   x: face.box[0],
@@ -385,7 +401,7 @@ export function HumanFaceRecognition({
     if (detectionActive) {
       animationRef.current = requestAnimationFrame(recognitionLoop);
     }
-  }, [detectionActive, drawResults, findMatch, onFaceDetected, onMultipleFacesDetected, recognizedStudents, captureFaceImage]);
+  }, [detectionActive, drawResults, findMatch, minConfidence, onFaceDetected, onMultipleFacesDetected, recognizedStudents, captureFaceImage]);
 
   // Start/stop recognition
   useEffect(() => {
