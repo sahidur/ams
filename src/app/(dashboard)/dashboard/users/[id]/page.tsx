@@ -265,6 +265,22 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
   const [activityLoading, setActivityLoading] = useState(false);
   const [activityFilter, setActivityFilter] = useState<string>("all");
   
+  // Login logs state
+  const [loginLogs, setLoginLogs] = useState<{
+    id: string;
+    method: string;
+    success: boolean;
+    failReason: string | null;
+    ipAddress: string | null;
+    deviceType: string | null;
+    browser: string | null;
+    os: string | null;
+    country: string | null;
+    city: string | null;
+    createdAt: string;
+  }[]>([]);
+  const [loginLogsLoading, setLoginLogsLoading] = useState(false);
+  
   // Attachment state
   const [pendingAttachments, setPendingAttachments] = useState<{ fileName: string; fileUrl: string; fileType: string; fileSize: number }[]>([]);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
@@ -489,10 +505,28 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
     }
   };
 
+  const fetchLoginLogs = async () => {
+    setLoginLogsLoading(true);
+    try {
+      const res = await fetch(`/api/users/${id}/login-logs?limit=50`);
+      if (res.ok) {
+        const data = await res.json();
+        setLoginLogs(data.logs || []);
+      }
+    } catch (error) {
+      console.error("Error fetching login logs:", error);
+    } finally {
+      setLoginLogsLoading(false);
+    }
+  };
+
   // Fetch activity logs when timeline tab is active
   useEffect(() => {
     if (activeTab === "timeline") {
       fetchActivityLogs();
+      if (activityFilter === "all" || activityFilter === "LOGIN_INFORMATION") {
+        fetchLoginLogs();
+      }
     }
   }, [activeTab, activityFilter, id]);
 
@@ -1748,6 +1782,7 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                   className="px-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="all">All Categories</option>
+                  <option value="LOGIN_INFORMATION">Login Information</option>
                   <option value="PERSONAL">Personal Details</option>
                   <option value="JOB">Job Information</option>
                   <option value="PROJECT_ASSIGNMENT">Project Assignments</option>
@@ -1755,11 +1790,11 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                 </select>
               </CardHeader>
               <CardContent>
-                {activityLoading ? (
+                {activityLoading || loginLogsLoading ? (
                   <div className="flex items-center justify-center py-12">
                     <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
                   </div>
-                ) : activityLogs.length === 0 ? (
+                ) : (activityFilter === "LOGIN_INFORMATION" ? loginLogs.length === 0 : activityLogs.length === 0 && loginLogs.length === 0) ? (
                   <div className="text-center py-12 text-gray-500">
                     <History className="w-12 h-12 mx-auto mb-2 text-gray-300" />
                     <p>No activity logs found.</p>
@@ -1771,7 +1806,89 @@ export default function UserProfilePage({ params }: { params: Promise<{ id: stri
                     <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-gray-200" />
                     
                     <div className="space-y-4">
-                      {activityLogs.map((log) => (
+                      {/* Login Logs Section */}
+                      {(activityFilter === "all" || activityFilter === "LOGIN_INFORMATION") && loginLogs.length > 0 && (
+                        <>
+                          {loginLogs.map((log) => (
+                            <div key={log.id} className="relative pl-10">
+                              {/* Timeline dot */}
+                              <div className={`absolute left-2.5 w-3 h-3 rounded-full ring-4 ring-white ${
+                                log.success ? "bg-green-500" : "bg-red-500"
+                              }`} />
+                              
+                              <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 hover:bg-gray-100 transition-colors">
+                                <div className="flex items-start justify-between gap-4">
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-2">
+                                      <Badge variant={log.success ? "success" : "danger"}>
+                                        LOGIN
+                                      </Badge>
+                                      <Badge variant={
+                                        log.method === "PASSWORD" ? "info" :
+                                        log.method === "PASSKEY" ? "warning" : "default"
+                                      }>
+                                        {log.method}
+                                      </Badge>
+                                      <span className="text-xs text-gray-500">
+                                        {new Date(log.createdAt).toLocaleDateString("en-US", {
+                                          year: "numeric",
+                                          month: "short",
+                                          day: "numeric",
+                                          hour: "2-digit",
+                                          minute: "2-digit",
+                                        })}
+                                      </span>
+                                    </div>
+                                    
+                                    <p className="text-sm text-gray-900 font-medium">
+                                      {log.success ? "Successful login" : "Failed login attempt"}
+                                      {log.method === "PASSKEY" && " via Passkey/Fingerprint"}
+                                      {log.method === "PASSWORD" && " via Password"}
+                                    </p>
+                                    
+                                    {log.failReason && (
+                                      <p className="text-xs text-red-500 mt-1">{log.failReason}</p>
+                                    )}
+                                    
+                                    <div className="flex flex-wrap items-center gap-3 mt-2 text-xs text-gray-500">
+                                      {log.browser && log.os && (
+                                        <span className="flex items-center gap-1">
+                                          {log.browser} on {log.os}
+                                        </span>
+                                      )}
+                                      {log.deviceType && (
+                                        <span className="capitalize">{log.deviceType}</span>
+                                      )}
+                                      {log.ipAddress && (
+                                        <span className="font-mono text-[10px] bg-gray-200 px-1.5 py-0.5 rounded">
+                                          {log.ipAddress}
+                                        </span>
+                                      )}
+                                      {log.city && log.country && (
+                                        <span className="flex items-center gap-1">
+                                          <MapPin className="w-3 h-3" />
+                                          {log.city}, {log.country}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="flex-shrink-0">
+                                    {log.success ? (
+                                      <CheckCircle className="w-5 h-5 text-green-500" />
+                                    ) : (
+                                      <XCircle className="w-5 h-5 text-red-500" />
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </>
+                      )}
+                      
+                      {/* Activity Logs Section */}
+                      {activityFilter !== "LOGIN_INFORMATION" && activityLogs.map((log) => (
                         <div key={log.id} className="relative pl-10">
                           {/* Timeline dot */}
                           <div className={`absolute left-2.5 w-3 h-3 rounded-full ring-4 ring-white ${

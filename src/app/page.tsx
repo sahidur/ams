@@ -30,7 +30,8 @@ import {
   Building,
   Check,
   FolderKanban,
-  Layers
+  Layers,
+  Fingerprint
 } from "lucide-react";
 import { Button, Input } from "@/components/ui";
 import { loginSchema, type LoginInput } from "@/lib/validations";
@@ -101,6 +102,11 @@ export default function AuthPage() {
   const [message, setMessage] = useState("");
   const [registrationSuccess, setRegistrationSuccess] = useState(false);
   
+  // Passkey state
+  const [supportsPasskey, setSupportsPasskey] = useState(false);
+  const [passkeyStatus, setPasskeyStatus] = useState<"idle" | "scanning" | "success" | "error">("idle");
+  const [passkeyMessage, setPasskeyMessage] = useState("");
+  
   // Multi-step form state
   const [currentStep, setCurrentStep] = useState(1);
   const [formData, setFormData] = useState<Partial<Step1Data & Step2Data & Step3Data>>({});
@@ -115,12 +121,28 @@ export default function AuthPage() {
     ? projects.find(p => p.id === selectedProjectId)?.cohorts || []
     : [];
 
+  // Check passkey support
+  useEffect(() => {
+    const checkPasskeySupport = async () => {
+      if (window.PublicKeyCredential) {
+        try {
+          const available = await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+          setSupportsPasskey(available);
+        } catch {
+          setSupportsPasskey(false);
+        }
+      }
+    };
+    checkPasskeySupport();
+  }, []);
+
   // Redirect if already authenticated
   useEffect(() => {
     if (status === "authenticated" && session) {
       router.push("/dashboard");
     }
   }, [session, status, router]);
+
 
   // Fetch projects when switching to signup tab
   useEffect(() => {
@@ -197,6 +219,104 @@ export default function AuthPage() {
       setAuthStatus("error");
       setMessage("An unexpected error occurred");
       setTimeout(() => setAuthStatus("idle"), 3000);
+    }
+  };
+
+  const handlePasskeyLogin = async () => {
+    setPasskeyStatus("scanning");
+    setPasskeyMessage("Place your finger on the sensor...");
+    setAuthStatus("idle");
+    setMessage("");
+
+    try {
+      // Get authentication options
+      const optionsRes = await fetch("/api/passkey/authenticate");
+      if (!optionsRes.ok) throw new Error("Failed to get authentication options");
+      
+      const { options } = await optionsRes.json();
+      
+      if (options.allowCredentials.length === 0) {
+        throw new Error("No passkeys found. Please sign in with your password first.");
+      }
+
+      // Convert challenge from base64url to ArrayBuffer
+      const challenge = Uint8Array.from(
+        atob(options.challenge.replace(/-/g, "+").replace(/_/g, "/")),
+        c => c.charCodeAt(0)
+      );
+
+      // Convert credential IDs
+      const allowCredentials = options.allowCredentials.map((cred: { id: string; type: string }) => ({
+        type: cred.type,
+        id: Uint8Array.from(
+          atob(cred.id.replace(/-/g, "+").replace(/_/g, "/")),
+          c => c.charCodeAt(0)
+        ),
+      }));
+
+      // Get credential
+      const credential = await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          allowCredentials,
+          userVerification: "required",
+          timeout: 60000,
+          rpId: options.rpId,
+        },
+      }) as PublicKeyCredential;
+
+      if (!credential) throw new Error("Authentication cancelled");
+
+      const response = credential.response as AuthenticatorAssertionResponse;
+
+      // Verify with server
+      const verifyRes = await fetch("/api/passkey/authenticate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          credentialId: btoa(String.fromCharCode(...new Uint8Array(credential.rawId))),
+          authenticatorData: btoa(String.fromCharCode(...new Uint8Array(response.authenticatorData))),
+          clientDataJSON: btoa(String.fromCharCode(...new Uint8Array(response.clientDataJSON))),
+          signature: btoa(String.fromCharCode(...new Uint8Array(response.signature))),
+        }),
+      });
+
+      if (!verifyRes.ok) {
+        const err = await verifyRes.json();
+        throw new Error(err.error || "Verification failed");
+      }
+
+      const { user } = await verifyRes.json();
+
+      setPasskeyStatus("success");
+      setPasskeyMessage(`Welcome back, ${user.name}!`);
+
+      // Sign in using NextAuth with the verified user
+      const result = await signIn("credentials", {
+        redirect: false,
+        email: user.email,
+        passkeyVerified: "true",
+      });
+
+      if (result?.error) {
+        throw new Error(result.error);
+      }
+
+      // Redirect after animation
+      setTimeout(() => {
+        router.push("/dashboard");
+        router.refresh();
+      }, 1000);
+
+    } catch (error) {
+      console.error("Passkey login error:", error);
+      setPasskeyStatus("error");
+      setPasskeyMessage(error instanceof Error ? error.message : "Authentication failed");
+      
+      setTimeout(() => {
+        setPasskeyStatus("idle");
+        setPasskeyMessage("");
+      }, 3000);
     }
   };
 
@@ -573,6 +693,103 @@ export default function AuthPage() {
                         "Sign In"
                       )}
                     </Button>
+
+                    {/* Passkey Login */}
+                    {supportsPasskey && (
+                      <div className="mt-4">
+                        <div className="relative">
+                          <div className="absolute inset-0 flex items-center">
+                            <div className="w-full border-t border-slate-200" />
+                          </div>
+                          <div className="relative flex justify-center text-sm">
+                            <span className="bg-white px-4 text-slate-500">or</span>
+                          </div>
+                        </div>
+
+                        <AnimatePresence mode="wait">
+                          {passkeyStatus === "idle" && (
+                            <motion.div
+                              key="passkey-idle"
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              exit={{ opacity: 0, y: -10 }}
+                            >
+                              <Button
+                                type="button"
+                                variant="outline"
+                                className="w-full mt-4 h-12 border-2 hover:border-blue-300 hover:bg-blue-50 transition-all"
+                                onClick={handlePasskeyLogin}
+                              >
+                                <Fingerprint className="w-5 h-5 mr-2 text-blue-600" />
+                                Sign in with Passkey
+                              </Button>
+                            </motion.div>
+                          )}
+
+                          {passkeyStatus === "scanning" && (
+                            <motion.div
+                              key="passkey-scanning"
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              className="mt-4 p-4 rounded-xl bg-gradient-to-br from-blue-50 to-indigo-50 border-2 border-blue-200"
+                            >
+                              <div className="flex flex-col items-center">
+                                <motion.div
+                                  animate={{ scale: [1, 1.1, 1] }}
+                                  transition={{ repeat: Infinity, duration: 1.5 }}
+                                  className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center mb-3"
+                                >
+                                  <Fingerprint className="w-8 h-8 text-blue-600" />
+                                </motion.div>
+                                <Loader2 className="w-4 h-4 animate-spin text-blue-600 mb-2" />
+                                <p className="text-blue-700 font-medium text-sm">{passkeyMessage}</p>
+                              </div>
+                            </motion.div>
+                          )}
+
+                          {passkeyStatus === "success" && (
+                            <motion.div
+                              key="passkey-success"
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              className="mt-4 p-4 rounded-xl bg-gradient-to-br from-emerald-50 to-green-50 border-2 border-emerald-200"
+                            >
+                              <div className="flex flex-col items-center">
+                                <motion.div
+                                  initial={{ scale: 0 }}
+                                  animate={{ scale: 1 }}
+                                  transition={{ type: "spring", stiffness: 200 }}
+                                  className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mb-3"
+                                >
+                                  <CheckCircle className="w-8 h-8 text-emerald-600" />
+                                </motion.div>
+                                <p className="text-emerald-700 font-medium text-sm">{passkeyMessage}</p>
+                                <p className="text-xs text-emerald-600 mt-1">Redirecting...</p>
+                              </div>
+                            </motion.div>
+                          )}
+
+                          {passkeyStatus === "error" && (
+                            <motion.div
+                              key="passkey-error"
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.95 }}
+                              className="mt-4 p-4 rounded-xl bg-gradient-to-br from-red-50 to-rose-50 border-2 border-red-200"
+                            >
+                              <div className="flex flex-col items-center">
+                                <div className="w-16 h-16 rounded-full bg-red-100 flex items-center justify-center mb-3">
+                                  <XCircle className="w-8 h-8 text-red-600" />
+                                </div>
+                                <p className="text-red-700 font-medium text-sm text-center">{passkeyMessage}</p>
+                              </div>
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    )}
                   </motion.form>
                 ) : (
                   <motion.div

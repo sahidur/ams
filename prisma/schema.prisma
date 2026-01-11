@@ -189,7 +189,43 @@ model User {
   approvalActions      ApprovalAction[]    @relation("ActionActor")
   notifications        Notification[]
   
+  // Login Logs
+  loginLogs            LoginLog[]
+  
   @@map("users")
+}
+
+// Login Log Model for tracking user login activity
+enum LoginMethod {
+  PASSWORD
+  PASSKEY
+  PIN
+}
+
+model LoginLog {
+  id          String      @id @default(cuid())
+  userId      String
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Login details
+  method      LoginMethod
+  success     Boolean     @default(true)
+  failReason  String?     // Reason for failed login attempt
+  
+  // Device and location info
+  ipAddress   String?
+  userAgent   String?
+  deviceType  String?     // mobile, tablet, desktop
+  browser     String?
+  os          String?
+  country     String?
+  city        String?
+  
+  createdAt   DateTime    @default(now())
+  
+  @@index([userId])
+  @@index([createdAt])
+  @@map("login_logs")
 }
 
 model ProjectModelType {
