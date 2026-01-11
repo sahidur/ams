@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Clock,
@@ -30,6 +31,31 @@ import {
   Modal
 } from "@/components/ui";
 
+// Dynamic imports to avoid SSR issues
+const PDFGenerator = dynamic(
+  () => import("@/components/pdf-generator").then((mod) => mod.PDFGenerator),
+  { ssr: false }
+);
+
+const ApprovalHistoryTimeline = dynamic(
+  () => import("@/components/approval-history-timeline").then((mod) => mod.ApprovalHistoryTimeline),
+  { ssr: false }
+);
+
+interface ApprovalAction {
+  id: string;
+  actionType: string;
+  level: number;
+  levelName?: string;
+  comment: string | null;
+  createdAt: string;
+  actor: {
+    name: string;
+    email?: string;
+    profileImage?: string | null;
+  };
+}
+
 interface ApprovalRequest {
   id: string;
   requestNumber: string;
@@ -47,6 +73,7 @@ interface ApprovalRequest {
     displayName: string;
     icon: string | null;
     color: string | null;
+    bodyTemplate?: string | null;
     formFields?: {
       fieldName: string;
       fieldLabel: string;
@@ -62,14 +89,7 @@ interface ApprovalRequest {
   project: { id: string; name: string } | null;
   cohort: { id: string; name: string } | null;
   branch: { id: string; branchName: string; district: string } | null;
-  actions?: {
-    id: string;
-    actionType: string;
-    level: number;
-    comment: string | null;
-    createdAt: string;
-    actor: { name: string; profileImage: string | null };
-  }[];
+  actions?: ApprovalAction[];
   canApprove?: boolean;
 }
 
@@ -471,54 +491,30 @@ export default function PendingApprovalsPage() {
               </div>
             </div>
 
-            {/* Action History */}
-            {selectedRequest.actions && selectedRequest.actions.length > 0 && (
+            {/* PDF Document Section */}
+            {selectedRequest.template.bodyTemplate && (
               <div>
-                <h4 className="font-medium text-gray-900 mb-3">Previous Actions</h4>
-                <div className="space-y-3">
-                  {selectedRequest.actions.map((action) => (
-                    <div key={action.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg">
-                      <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
-                          action.actionType === "APPROVE"
-                            ? "bg-green-100"
-                            : action.actionType === "DECLINE"
-                            ? "bg-red-100"
-                            : action.actionType === "SEND_BACK"
-                            ? "bg-orange-100"
-                            : "bg-blue-100"
-                        }`}
-                      >
-                        {action.actionType === "APPROVE" ? (
-                          <CheckCircle2 className="w-4 h-4 text-green-600" />
-                        ) : action.actionType === "DECLINE" ? (
-                          <XCircle className="w-4 h-4 text-red-600" />
-                        ) : action.actionType === "SEND_BACK" ? (
-                          <RotateCcw className="w-4 h-4 text-orange-600" />
-                        ) : (
-                          <FileText className="w-4 h-4 text-blue-600" />
-                        )}
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium text-gray-900">
-                            {action.actor.name}{" "}
-                            <span className="font-normal text-gray-500">
-                              {action.actionType.toLowerCase().replace("_", " ")}
-                            </span>
-                          </p>
-                          <span className="text-xs text-gray-400">
-                            {formatDate(action.createdAt)}
-                          </span>
-                        </div>
-                        {action.comment && (
-                          <p className="text-sm text-gray-600 mt-1">{action.comment}</p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <h4 className="font-medium text-gray-900 mb-3">Generated Document</h4>
+                <PDFGenerator
+                  bodyTemplate={selectedRequest.template.bodyTemplate}
+                  formData={selectedRequest.formData}
+                  requestNumber={selectedRequest.requestNumber}
+                  templateName={selectedRequest.template.displayName}
+                  requesterName={selectedRequest.requester.name}
+                  submittedAt={selectedRequest.submittedAt}
+                  status={selectedRequest.status}
+                />
               </div>
+            )}
+
+            {/* Approval History Timeline */}
+            {selectedRequest.actions && selectedRequest.actions.length > 0 && (
+              <ApprovalHistoryTimeline
+                actions={selectedRequest.actions}
+                currentLevel={selectedRequest.currentLevel}
+                totalLevels={selectedRequest.totalLevels}
+                currentStatus={selectedRequest.status}
+              />
             )}
 
             {/* Action Buttons */}

@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, lazy, Suspense } from "react";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Plus, 
@@ -21,7 +22,9 @@ import {
   ToggleRight,
   Clock,
   Users,
-  Loader2
+  Loader2,
+  FileType,
+  Type
 } from "lucide-react";
 import { 
   Button, 
@@ -34,6 +37,15 @@ import {
   Modal
 } from "@/components/ui";
 
+// Dynamically import the RichTextEditor to avoid SSR issues
+const RichTextEditor = dynamic(
+  () => import("@/components/ui/rich-text-editor").then((mod) => mod.RichTextEditor),
+  { 
+    ssr: false,
+    loading: () => <div className="h-[300px] flex items-center justify-center bg-gray-50 rounded-lg"><Loader2 className="w-6 h-6 animate-spin text-gray-400" /></div>
+  }
+);
+
 interface ApprovalTemplate {
   id: string;
   name: string;
@@ -43,6 +55,7 @@ interface ApprovalTemplate {
   color: string | null;
   isActive: boolean;
   defaultSlaHours: number | null;
+  bodyTemplate: string | null;
   createdAt: string;
   _count: {
     requests: number;
@@ -109,9 +122,13 @@ export default function ApprovalTemplatesPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showFieldsModal, setShowFieldsModal] = useState(false);
   const [showLevelsModal, setShowLevelsModal] = useState(false);
+  const [showBodyModal, setShowBodyModal] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<ApprovalTemplate | null>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState({ type: "", text: "" });
+  
+  // Body template state
+  const [bodyTemplate, setBodyTemplate] = useState("");
   
   // Form states
   const [formData, setFormData] = useState({
@@ -371,6 +388,57 @@ export default function ApprovalTemplatesPage() {
     setShowLevelsModal(true);
   };
 
+  const openBodyModal = async (template: ApprovalTemplate) => {
+    setSelectedTemplate(template);
+    // Fetch the template body and fields
+    try {
+      const [templateRes, fieldsRes] = await Promise.all([
+        fetch(`/api/approval-templates/${template.id}`),
+        fetch(`/api/approval-templates/${template.id}/fields`)
+      ]);
+      
+      if (templateRes.ok) {
+        const templateData = await templateRes.json();
+        setBodyTemplate(templateData.bodyTemplate || "");
+      }
+      
+      if (fieldsRes.ok) {
+        const fields = await fieldsRes.json();
+        setFormFields(fields);
+      }
+    } catch (error) {
+      console.error("Error fetching template data:", error);
+    }
+    setShowBodyModal(true);
+  };
+
+  const handleSaveBodyTemplate = async () => {
+    if (!selectedTemplate) return;
+
+    setIsSaving(true);
+    try {
+      const res = await fetch(`/api/approval-templates/${selectedTemplate.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bodyTemplate }),
+      });
+
+      if (res.ok) {
+        setMessage({ type: "success", text: "Document body template saved successfully" });
+        fetchTemplates();
+        setShowBodyModal(false);
+      } else {
+        const error = await res.json();
+        setMessage({ type: "error", text: error.error || "Failed to save body template" });
+      }
+    } catch (error) {
+      console.error("Error saving body template:", error);
+      setMessage({ type: "error", text: "Failed to save body template" });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const resetForm = () => {
     setFormData({
       name: "",
@@ -586,6 +654,7 @@ export default function ApprovalTemplatesPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => openFieldsModal(template)}
+                      title="Form Fields"
                     >
                       <FileText className="w-4 h-4" />
                     </Button>
@@ -593,8 +662,17 @@ export default function ApprovalTemplatesPage() {
                       variant="outline"
                       size="sm"
                       onClick={() => openLevelsModal(template)}
+                      title="Approval Levels"
                     >
                       <Layers className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openBodyModal(template)}
+                      title="Document Body Template"
+                    >
+                      <FileType className="w-4 h-4" />
                     </Button>
                     <Button
                       variant="outline"
@@ -990,6 +1068,69 @@ export default function ApprovalTemplatesPage() {
             </Button>
             <Button onClick={handleSaveLevels} isLoading={isSaving}>
               Save Levels
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Body Template Modal */}
+      <Modal
+        isOpen={showBodyModal}
+        onClose={() => setShowBodyModal(false)}
+        title={`Document Body Template - ${selectedTemplate?.displayName}`}
+        size="full"
+      >
+        <div className="space-y-4">
+          <div className="flex justify-between items-start">
+            <div>
+              <p className="text-gray-600">
+                Design the document body template. Use <code className="bg-gray-100 px-1 rounded">{`{{fieldName}}`}</code> placeholders to insert form field values.
+              </p>
+              <p className="text-sm text-gray-500 mt-1">
+                This template will be used to generate a printable document when users submit a request.
+              </p>
+            </div>
+          </div>
+
+          {formFields.length === 0 ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+              <p className="text-yellow-800 text-sm">
+                <strong>Note:</strong> No form fields defined yet. Add fields to the template first to use them in the body template.
+              </p>
+            </div>
+          ) : null}
+
+          <RichTextEditor
+            content={bodyTemplate}
+            onChange={setBodyTemplate}
+            placeholder="Design your document body here..."
+            availableFields={formFields.map((f) => ({
+              fieldName: f.fieldName,
+              fieldLabel: f.fieldLabel,
+            }))}
+            className="min-h-[400px]"
+          />
+
+          {/* Preview section */}
+          {bodyTemplate && (
+            <div className="border-t pt-4">
+              <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                <Eye className="w-4 h-4" />
+                Template Preview (with sample placeholders)
+              </h4>
+              <div 
+                className="border rounded-lg p-4 bg-white prose prose-sm max-w-none"
+                dangerouslySetInnerHTML={{ __html: bodyTemplate }}
+              />
+            </div>
+          )}
+
+          <div className="flex justify-end gap-2 pt-4 border-t">
+            <Button variant="outline" onClick={() => setShowBodyModal(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSaveBodyTemplate} isLoading={isSaving}>
+              Save Body Template
             </Button>
           </div>
         </div>

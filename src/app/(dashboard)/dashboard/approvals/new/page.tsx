@@ -151,7 +151,8 @@ function NewRequestContent() {
       const res = await fetch("/api/users/my-projects");
       if (res.ok) {
         const data = await res.json();
-        setProjects(data);
+        // API returns { isUnrestricted: boolean, projects: Project[] }
+        setProjects(data.projects || []);
       }
     } catch (error) {
       console.error("Error fetching projects:", error);
@@ -163,7 +164,7 @@ function NewRequestContent() {
       const res = await fetch(`/api/branches?cohortId=${cohortId}`);
       if (res.ok) {
         const data = await res.json();
-        setBranches(data);
+        setBranches(Array.isArray(data) ? data : []);
       }
     } catch (error) {
       console.error("Error fetching branches:", error);

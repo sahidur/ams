@@ -130,7 +130,14 @@ export async function GET(
       where: { id },
       include: {
         template: {
-          include: {
+          select: {
+            id: true,
+            name: true,
+            displayName: true,
+            description: true,
+            icon: true,
+            color: true,
+            bodyTemplate: true,
             formFields: { orderBy: { sortOrder: "asc" } },
           },
         },
@@ -143,7 +150,7 @@ export async function GET(
           include: {
             actor: { select: { id: true, name: true, email: true, profileImage: true } },
           },
-          orderBy: { createdAt: "asc" },
+          orderBy: { createdAt: "desc" },
         },
       },
     });

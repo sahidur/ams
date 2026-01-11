@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Plus, 
@@ -32,6 +33,31 @@ import {
   Modal
 } from "@/components/ui";
 
+// Dynamic imports to avoid SSR issues
+const PDFGenerator = dynamic(
+  () => import("@/components/pdf-generator").then((mod) => mod.PDFGenerator),
+  { ssr: false }
+);
+
+const ApprovalHistoryTimeline = dynamic(
+  () => import("@/components/approval-history-timeline").then((mod) => mod.ApprovalHistoryTimeline),
+  { ssr: false }
+);
+
+interface ApprovalAction {
+  id: string;
+  actionType: string;
+  level: number;
+  levelName?: string;
+  comment: string | null;
+  createdAt: string;
+  actor: {
+    name: string;
+    email?: string;
+    profileImage?: string | null;
+  };
+}
+
 interface ApprovalRequest {
   id: string;
   requestNumber: string;
@@ -48,6 +74,7 @@ interface ApprovalRequest {
     displayName: string;
     icon: string | null;
     color: string | null;
+    bodyTemplate?: string | null;
   };
   requester: {
     id: string;
@@ -64,6 +91,7 @@ interface ApprovalRequest {
   cohort: { id: string; name: string } | null;
   branch: { id: string; branchName: string; district: string } | null;
   _count: { actions: number };
+  actions?: ApprovalAction[];
 }
 
 interface ApprovalTemplate {
@@ -490,63 +518,31 @@ export default function MyRequestsPage() {
               </div>
             </div>
 
-            {/* Action History */}
-            {(selectedRequest as ApprovalRequest & { actions?: { id: string; actionType: string; level: number; comment: string | null; createdAt: string; actor: { name: string } }[] }).actions && (selectedRequest as ApprovalRequest & { actions?: { id: string; actionType: string; level: number; comment: string | null; createdAt: string; actor: { name: string } }[] }).actions!.length > 0 && (
-              <div>
-                <h3 className="font-semibold text-gray-900 mb-3">Activity Timeline</h3>
-                <div className="space-y-4">
-                  {(selectedRequest as ApprovalRequest & { actions: { id: string; actionType: string; level: number; comment: string | null; createdAt: string; actor: { name: string } }[] }).actions.map((action, index) => (
-                    <div key={action.id} className="flex gap-4">
-                      <div className="flex flex-col items-center">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                            action.actionType === "APPROVE"
-                              ? "bg-green-100"
-                              : action.actionType === "DECLINE"
-                              ? "bg-red-100"
-                              : action.actionType === "SEND_BACK"
-                              ? "bg-orange-100"
-                              : "bg-blue-100"
-                          }`}
-                        >
-                          {action.actionType === "APPROVE" ? (
-                            <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          ) : action.actionType === "DECLINE" ? (
-                            <XCircle className="w-4 h-4 text-red-600" />
-                          ) : action.actionType === "SEND_BACK" ? (
-                            <RotateCcw className="w-4 h-4 text-orange-600" />
-                          ) : (
-                            <FileText className="w-4 h-4 text-blue-600" />
-                          )}
-                        </div>
-                        {index < (selectedRequest as ApprovalRequest & { actions: { id: string }[] }).actions.length - 1 && (
-                          <div className="w-0.5 h-full bg-gray-200 my-1" />
-                        )}
-                      </div>
-                      <div className="flex-1 pb-4">
-                        <div className="flex items-center justify-between">
-                          <p className="font-medium text-gray-900">
-                            {action.actor.name}{" "}
-                            <span className="font-normal text-gray-500">
-                              {action.actionType.toLowerCase().replace("_", " ")}
-                            </span>
-                          </p>
-                          <span className="text-xs text-gray-400">
-                            {formatDate(action.createdAt)}
-                          </span>
-                        </div>
-                        {action.level > 0 && (
-                          <p className="text-xs text-gray-500">Level {action.level}</p>
-                        )}
-                        {action.comment && (
-                          <p className="text-sm text-gray-600 mt-1 bg-gray-50 p-2 rounded">
-                            {action.comment}
-                          </p>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            {/* PDF Document Section */}
+            {selectedRequest.template.bodyTemplate && (
+              <div className="border-t pt-6">
+                <h3 className="font-semibold text-gray-900 mb-3">Generated Document</h3>
+                <PDFGenerator
+                  bodyTemplate={selectedRequest.template.bodyTemplate}
+                  formData={selectedRequest.formData}
+                  requestNumber={selectedRequest.requestNumber}
+                  templateName={selectedRequest.template.displayName}
+                  requesterName={selectedRequest.requester.name}
+                  submittedAt={selectedRequest.submittedAt}
+                  status={selectedRequest.status}
+                />
+              </div>
+            )}
+
+            {/* Approval History Timeline */}
+            {selectedRequest.actions && selectedRequest.actions.length > 0 && (
+              <div className="border-t pt-6">
+                <ApprovalHistoryTimeline
+                  actions={selectedRequest.actions}
+                  currentLevel={selectedRequest.currentLevel}
+                  totalLevels={selectedRequest.totalLevels}
+                  currentStatus={selectedRequest.status}
+                />
               </div>
             )}
 

@@ -68,7 +68,7 @@ export async function PUT(
 
     const { id } = await params;
     const body = await request.json();
-    const { name, displayName, description, icon, color, defaultSlaHours, isActive } = body;
+    const { name, displayName, description, icon, color, defaultSlaHours, isActive, bodyTemplate } = body;
 
     const existing = await prisma.approvalTemplate.findUnique({
       where: { id },
@@ -101,6 +101,7 @@ export async function PUT(
         color,
         defaultSlaHours,
         isActive,
+        bodyTemplate,
       },
       include: {
         formFields: { orderBy: { sortOrder: "asc" } },

@@ -820,6 +820,9 @@ model ApprovalTemplate {
   color          String?  // Color code for UI
   isActive       Boolean  @default(true)
   
+  // Body Template - HTML with field placeholders like {{fieldName}}
+  bodyTemplate   String?  @db.Text
+  
   // SLA Configuration
   defaultSlaHours Int?    // Default SLA hours per level
   
