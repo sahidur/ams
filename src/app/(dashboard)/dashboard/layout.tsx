@@ -240,6 +240,12 @@ const adminToolsSection: NavSection = {
       icon: Building,
       module: "USERS",
     },
+    {
+      title: "KB Categories",
+      href: "/dashboard/knowledge-base/manage",
+      icon: FolderCog,
+      module: "KNOWLEDGE_BASE",
+    },
   ],
 };
 

@@ -31,6 +31,7 @@ export const SYSTEM_MODULES = [
   { id: "EMPLOYMENT_TYPES", name: "Employment Types", description: "Employment type management" },
   { id: "DEPARTMENTS", name: "Departments", description: "Department management" },
   { id: "GEO_ADMIN", name: "Geo Admin", description: "Geographic administration management" },
+  { id: "KNOWLEDGE_BASE", name: "Knowledge Base", description: "Knowledge management hub for documents and files" },
   { id: "PROFILE", name: "Profile", description: "User profile (default access)" },
 ] as const;
 

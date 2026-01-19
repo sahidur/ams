@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "seed:kb": "npx ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed-knowledge-base.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.1",
@@ -34,6 +35,7 @@
     "bcryptjs": "^3.0.3",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "framer-motion": "^12.23.26",
     "html2canvas": "^1.4.1",
     "jspdf": "^4.0.0",

@@ -54,6 +54,7 @@ enum SystemModule {
   PROFILE
   APPROVALS
   APPROVAL_TEMPLATES
+  KNOWLEDGE_BASE
 }
 
 // New Role Management System
@@ -189,6 +190,11 @@ model User {
   approvalActions      ApprovalAction[]    @relation("ActionActor")
   notifications        Notification[]
   
+  // Knowledge Base Relations
+  uploadedKnowledgeFiles KnowledgeFile[]   @relation("KnowledgeFileUploader")
+  deletedKnowledgeFiles  KnowledgeFile[]   @relation("KnowledgeFileDeleter")
+  knowledgeFileLogs      KnowledgeFileLog[]
+  
   // Login Logs
   loginLogs            LoginLog[]
   
@@ -286,6 +292,7 @@ model Project {
   branchAssignments UserBranchAssignment[] @relation("ProjectBranchAssignments")
   approvalLevels  ApprovalLevel[]
   approvalRequests ApprovalRequest[]
+  knowledgeFiles   KnowledgeFileProject[]
   
   @@map("projects")
 }
@@ -324,6 +331,7 @@ model Cohort {
   branchAssignments     UserBranchAssignment[] @relation("CohortBranchAssignments")
   approvalLevels        ApprovalLevel[]
   approvalRequests      ApprovalRequest[]
+  knowledgeFiles        KnowledgeFileCohort[]
   
   @@map("cohorts")
 }
@@ -1037,4 +1045,147 @@ model Notification {
   
   @@index([userId, isRead, createdAt])
   @@map("notifications")
+}
+
+// ==========================================
+// Knowledge Base / Document Management
+// ==========================================
+
+// File Department (Metadata Table)
+model FileDepartment {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  knowledgeFiles KnowledgeFile[]
+  fileTypes      FileType[]
+  
+  @@map("file_departments")
+}
+
+// File Type (Metadata Table)
+model FileType {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  departmentId String?  // Optional link to a department for categorization
+  department   FileDepartment? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Relations
+  knowledgeFiles KnowledgeFile[]
+  
+  @@map("file_types")
+}
+
+// Main Knowledge File Model
+model KnowledgeFile {
+  id              String   @id @default(cuid())
+  
+  // File Information
+  fileName        String           // User-provided file name
+  fileDescription String           @db.Text // Long description
+  fileUrl         String           // CDN URL of the uploaded file
+  fileKey         String           // Storage key for deletion
+  originalFileName String          // Original uploaded file name
+  fileSize        Int              // File size in bytes
+  mimeType        String           // MIME type of the file
+  
+  // Metadata
+  departmentId    String?
+  department      FileDepartment?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  fileTypeId      String?
+  fileType        FileType?        @relation(fields: [fileTypeId], references: [id], onDelete: SetNull)
+  
+  // Year Range
+  yearFrom        Int?             // Start year
+  yearTo          Int?             // End year
+  
+  // Optional metadata
+  donorNames      String[]         // Array of donor names (multi-select)
+  vendorName      String?          // Vendor name
+  
+  // Status
+  isActive        Boolean          @default(true)
+  
+  // Soft Delete
+  isDeleted       Boolean          @default(false)
+  deletedAt       DateTime?
+  deletedById     String?
+  deletedBy       User?            @relation("KnowledgeFileDeleter", fields: [deletedById], references: [id], onDelete: SetNull)
+  
+  // Audit
+  uploadedById    String
+  uploadedBy      User             @relation("KnowledgeFileUploader", fields: [uploadedById], references: [id])
+  
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  
+  // Relations - Many-to-many with Projects and Cohorts
+  projects        KnowledgeFileProject[]
+  cohorts         KnowledgeFileCohort[]
+  
+  @@index([departmentId])
+  @@index([fileTypeId])
+  @@index([uploadedById])
+  @@index([isDeleted])
+  @@index([createdAt])
+  @@map("knowledge_files")
+}
+
+// Junction table for KnowledgeFile to Project (Many-to-Many)
+model KnowledgeFileProject {
+  id              String   @id @default(cuid())
+  knowledgeFileId String
+  knowledgeFile   KnowledgeFile @relation(fields: [knowledgeFileId], references: [id], onDelete: Cascade)
+  projectId       String
+  project         Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  
+  @@unique([knowledgeFileId, projectId])
+  @@map("knowledge_file_projects")
+}
+
+// Junction table for KnowledgeFile to Cohort (Many-to-Many)
+model KnowledgeFileCohort {
+  id              String   @id @default(cuid())
+  knowledgeFileId String
+  knowledgeFile   KnowledgeFile @relation(fields: [knowledgeFileId], references: [id], onDelete: Cascade)
+  cohortId        String
+  cohort          Cohort   @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  
+  @@unique([knowledgeFileId, cohortId])
+  @@map("knowledge_file_cohorts")
+}
+
+// Activity Log for Knowledge Base (visible only to Super Admin)
+model KnowledgeFileLog {
+  id              String   @id @default(cuid())
+  action          String   // CREATE, UPDATE, DELETE, RESTORE, PERMANENT_DELETE
+  knowledgeFileId String
+  fileName        String   // Store file name for reference after permanent delete
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+  details         String?  @db.Text // JSON string with additional details
+  
+  createdAt       DateTime @default(now())
+  
+  @@index([knowledgeFileId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("knowledge_file_logs")
 }

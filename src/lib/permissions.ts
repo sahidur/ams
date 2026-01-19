@@ -18,7 +18,8 @@ export type ModuleName =
   | "EMPLOYMENT_TYPES"
   | "DEPARTMENTS"
   | "GEO_ADMIN"
-  | "PROFILE";
+  | "PROFILE"
+  | "KNOWLEDGE_BASE";
 
 export type PermissionAction = "READ" | "WRITE" | "DELETE" | "ALL";
 
@@ -88,12 +89,14 @@ function checkLegacyPermission(role: string, module: ModuleName, action: Permiss
       COHORTS: ["ALL"], BRANCHES: ["ALL"], BATCHES: ["ALL"], CLASSES: ["ALL"], 
       ATTENDANCE: ["ALL"], FACE_TRAINING: ["ALL"], MODEL_TYPES: ["ALL"], 
       TRAINING_TYPES: ["ALL"], DESIGNATIONS: ["ALL"], EMPLOYMENT_STATUSES: ["ALL"],
-      EMPLOYMENT_TYPES: ["ALL"], DEPARTMENTS: ["ALL"], GEO_ADMIN: ["ALL"], PROFILE: ["ALL"]
+      EMPLOYMENT_TYPES: ["ALL"], DEPARTMENTS: ["ALL"], GEO_ADMIN: ["ALL"], PROFILE: ["ALL"],
+      KNOWLEDGE_BASE: ["ALL"]
     },
     HO_USER: {
       DASHBOARD: ["READ"], PROJECTS: ["READ"], COHORTS: ["READ"], BRANCHES: ["READ"],
       BATCHES: ["READ"], CLASSES: ["READ"], ATTENDANCE: ["READ"], 
-      MODEL_TYPES: ["READ"], TRAINING_TYPES: ["READ"], PROFILE: ["ALL"]
+      MODEL_TYPES: ["READ"], TRAINING_TYPES: ["READ"], PROFILE: ["ALL"],
+      KNOWLEDGE_BASE: ["READ", "WRITE"]
     },
     TRAINER: {
       DASHBOARD: ["READ"], BATCHES: ["READ"], CLASSES: ["READ", "WRITE"],
@@ -231,7 +234,7 @@ function getLegacyRolePermissions(role: string): Map<ModuleName, PermissionActio
         "DASHBOARD", "USERS", "ROLES", "PROJECTS", "COHORTS", "BRANCHES",
         "BATCHES", "CLASSES", "ATTENDANCE", "FACE_TRAINING", "MODEL_TYPES",
         "TRAINING_TYPES", "DESIGNATIONS", "EMPLOYMENT_STATUSES", "EMPLOYMENT_TYPES",
-        "DEPARTMENTS", "GEO_ADMIN", "PROFILE"
+        "DEPARTMENTS", "GEO_ADMIN", "PROFILE", "KNOWLEDGE_BASE"
       ];
       allModules.forEach((mod) => permissions.set(mod, ["ALL"]));
       break;
@@ -244,6 +247,7 @@ function getLegacyRolePermissions(role: string): Map<ModuleName, PermissionActio
       permissions.set("CLASSES", ["READ"]);
       permissions.set("ATTENDANCE", ["READ"]);
       permissions.set("PROFILE", ["ALL"]);
+      permissions.set("KNOWLEDGE_BASE", ["READ", "WRITE"]);
       break;
 
     case "TRAINER":
@@ -253,6 +257,7 @@ function getLegacyRolePermissions(role: string): Map<ModuleName, PermissionActio
       permissions.set("ATTENDANCE", ["READ", "WRITE"]);
       permissions.set("FACE_TRAINING", ["READ", "WRITE"]);
       permissions.set("PROFILE", ["ALL"]);
+      permissions.set("KNOWLEDGE_BASE", ["READ"]);
       break;
 
     case "STUDENT":
@@ -288,4 +293,33 @@ export async function getUserPermissionsObject(userId: string): Promise<Record<s
   });
 
   return result;
+}
+
+/**
+ * Check if a user is a Super Admin
+ * Super Admin is either a user with role "ADMIN" or has a userRole with name containing "Super"
+ */
+export async function isSuperAdmin(userId: string): Promise<boolean> {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    include: {
+      userRole: true,
+    },
+  });
+
+  if (!user) {
+    return false;
+  }
+
+  // Check legacy ADMIN role
+  if (user.role === "ADMIN") {
+    return true;
+  }
+
+  // Check if userRole name contains "Super" (e.g., "Super Admin")
+  if (user.userRole?.name?.toLowerCase().includes("super")) {
+    return true;
+  }
+
+  return false;
 }
