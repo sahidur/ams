@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
+import dynamic from "next/dynamic";
 import { 
   Users, 
   FolderKanban, 
@@ -20,7 +21,16 @@ import {
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, Select } from "@/components/ui";
 import { cn } from "@/lib/utils";
-import BangladeshMap from "@/components/bangladesh-map";
+
+// Dynamic import for map component (required for Leaflet with SSR)
+const InteractiveMap = dynamic(() => import("@/components/interactive-map"), {
+  ssr: false,
+  loading: () => (
+    <div className="w-full h-[500px] bg-gradient-to-br from-blue-50 to-indigo-50 rounded-xl flex items-center justify-center">
+      <Loader2 className="w-8 h-8 animate-spin text-blue-600" />
+    </div>
+  ),
+});
 
 interface DashboardStats {
   totalUsers: number;
@@ -412,7 +422,7 @@ export default function DashboardPage() {
                 </div>
               </CardHeader>
               <CardContent className="pt-0">
-                <BangladeshMap 
+                <InteractiveMap 
                   branchByDistrict={branchByDistrict}
                   onDistrictClick={(district) => {
                     console.log("District clicked:", district);

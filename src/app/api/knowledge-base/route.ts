@@ -5,6 +5,10 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { checkPermission } from "@/lib/permissions";
 import { uploadToSpaces } from "@/lib/spaces";
 
+// Route segment config for large file uploads (30 minute timeout, 2GB body limit)
+export const maxDuration = 1800; // 30 minutes in seconds
+export const dynamic = "force-dynamic";
+
 export async function GET(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
@@ -90,12 +94,35 @@ export async function GET(request: NextRequest) {
       where.vendorName = { contains: vendorName, mode: "insensitive" };
     }
 
-    // Search in file name
+    // Robust partial search across multiple fields
+    // Searches in: fileName, fileDescription, originalFileName, vendorName, and donorNames
     if (search) {
-      where.OR = [
-        { fileName: { contains: search, mode: "insensitive" } },
-        { originalFileName: { contains: search, mode: "insensitive" } },
-      ];
+      const searchTerms = search.trim().toLowerCase().split(/\s+/).filter(Boolean);
+      
+      if (searchTerms.length > 0) {
+        // For each search term, create OR conditions across all searchable fields
+        const searchConditions = searchTerms.map((term) => ({
+          OR: [
+            { fileName: { contains: term, mode: "insensitive" as const } },
+            { fileDescription: { contains: term, mode: "insensitive" as const } },
+            { originalFileName: { contains: term, mode: "insensitive" as const } },
+            { vendorName: { contains: term, mode: "insensitive" as const } },
+            // Search in related department name
+            { department: { name: { contains: term, mode: "insensitive" as const } } },
+            // Search in related file type name
+            { fileType: { name: { contains: term, mode: "insensitive" as const } } },
+            // Search in related project names
+            { projects: { some: { project: { name: { contains: term, mode: "insensitive" as const } } } } },
+            // Search in related project donor names
+            { projects: { some: { project: { donorName: { contains: term, mode: "insensitive" as const } } } } },
+            // Search in related cohort names
+            { cohorts: { some: { cohort: { name: { contains: term, mode: "insensitive" as const } } } } },
+          ],
+        }));
+        
+        // All search terms must match (AND between terms, OR within each term's fields)
+        where.AND = [...(where.AND || []), ...searchConditions];
+      }
     }
 
     const [files, totalCount] = await Promise.all([
@@ -180,11 +207,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "File is required" }, { status: 400 });
     }
 
-    // Check file size (4GB limit)
-    const maxSize = 4 * 1024 * 1024 * 1024; // 4GB in bytes
+    // Check file size (2GB limit)
+    const maxSize = 2 * 1024 * 1024 * 1024; // 2GB in bytes
     if (file.size > maxSize) {
       return NextResponse.json(
-        { error: "File size exceeds 4GB limit" },
+        { error: "File size exceeds 2GB limit" },
         { status: 400 }
       );
     }

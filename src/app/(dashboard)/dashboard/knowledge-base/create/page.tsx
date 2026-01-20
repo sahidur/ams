@@ -139,10 +139,10 @@ export default function CreateKnowledgeBasePage() {
   const onDrop = useCallback((acceptedFiles: File[]) => {
     const uploadedFile = acceptedFiles[0];
     if (uploadedFile) {
-      // Check file size (4GB limit)
-      const maxSize = 4 * 1024 * 1024 * 1024;
+      // Check file size (2GB limit)
+      const maxSize = 2 * 1024 * 1024 * 1024;
       if (uploadedFile.size > maxSize) {
-        setError("File size exceeds 4GB limit");
+        setError("File size exceeds 2GB limit");
         return;
       }
       setFile(uploadedFile);
@@ -196,25 +196,44 @@ export default function CreateKnowledgeBasePage() {
       formData.append("projectIds", JSON.stringify(selectedProjects));
       formData.append("cohortIds", JSON.stringify(selectedCohorts));
 
-      // Simulate progress for large files
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) return prev;
-          return prev + 10;
+      // Use XMLHttpRequest for real upload progress tracking
+      const xhr = new XMLHttpRequest();
+      
+      const uploadPromise = new Promise<void>((resolve, reject) => {
+        xhr.upload.addEventListener("progress", (event) => {
+          if (event.lengthComputable) {
+            const percentComplete = Math.round((event.loaded / event.total) * 100);
+            setUploadProgress(percentComplete);
+          }
         });
-      }, 500);
 
-      const res = await fetch("/api/knowledge-base", {
-        method: "POST",
-        body: formData,
+        xhr.addEventListener("load", () => {
+          if (xhr.status >= 200 && xhr.status < 300) {
+            resolve();
+          } else {
+            try {
+              const errorData = JSON.parse(xhr.responseText);
+              reject(new Error(errorData.error || "Failed to upload file"));
+            } catch {
+              reject(new Error("Failed to upload file"));
+            }
+          }
+        });
+
+        xhr.addEventListener("error", () => {
+          reject(new Error("Network error during upload"));
+        });
+
+        xhr.addEventListener("timeout", () => {
+          reject(new Error("Upload timed out. Please try again."));
+        });
+
+        xhr.open("POST", "/api/knowledge-base");
+        xhr.timeout = 30 * 60 * 1000; // 30 minutes timeout
+        xhr.send(formData);
       });
 
-      clearInterval(progressInterval);
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || "Failed to upload file");
-      }
+      await uploadPromise;
 
       setUploadProgress(100);
       setSuccess(true);
@@ -357,7 +376,7 @@ export default function CreateKnowledgeBasePage() {
                   </p>
                   <p className="text-gray-500 mb-4">or click to browse</p>
                   <p className="text-sm text-gray-400">
-                    Supports all file types • Max 4GB
+                    Supports all file types • Max 2GB
                   </p>
                 </div>
               ) : (

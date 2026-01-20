@@ -23,7 +23,6 @@ import {
   Grid3X3,
   List,
   Loader2,
-  Trash2,
 } from "lucide-react";
 import { Button, Card, Input, Badge, Modal } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
@@ -270,12 +269,6 @@ export default function KnowledgeBasePage() {
           </div>
           
           <div className="flex items-center gap-3">
-            <Link href="/dashboard/knowledge-base/recycle-bin">
-              <Button variant="outline" className="text-gray-600">
-                <Trash2 className="h-4 w-4 mr-2" />
-                Recycle Bin
-              </Button>
-            </Link>
             <Link href="/dashboard/knowledge-base/create">
               <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
                 Upload Document

@@ -143,12 +143,6 @@ const knowledgeBaseSection: NavSection = {
       icon: FileSearch,
       module: "KNOWLEDGE_BASE",
     },
-    {
-      title: "Manage Documents",
-      href: "/dashboard/knowledge-base/manage",
-      icon: FolderCog,
-      module: "KNOWLEDGE_BASE",
-    },
   ],
 };
 
@@ -244,6 +238,12 @@ const adminToolsSection: NavSection = {
       title: "KB Categories",
       href: "/dashboard/knowledge-base/manage",
       icon: FolderCog,
+      module: "KNOWLEDGE_BASE",
+    },
+    {
+      title: "KB Recycle Bin",
+      href: "/dashboard/knowledge-base/recycle-bin",
+      icon: FileStack,
       module: "KNOWLEDGE_BASE",
     },
   ],

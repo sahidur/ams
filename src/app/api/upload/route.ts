@@ -13,6 +13,10 @@ import {
 } from "@/lib/spaces";
 import prisma from "@/lib/prisma";
 
+// Route segment config for large file uploads (30 minute timeout)
+export const maxDuration = 1800; // 30 minutes in seconds
+export const dynamic = "force-dynamic";
+
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions);

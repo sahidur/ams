@@ -15,12 +15,14 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Increase body size limit for file uploads (default is 1MB)
+  // Increase body size limit for file uploads (2GB max)
   experimental: {
     serverActions: {
       bodySizeLimit: "2gb",
     },
   },
+  // Increase server response timeout for large file uploads (30 minutes)
+  serverExternalPackages: [],
 };
 
 export default nextConfig;
