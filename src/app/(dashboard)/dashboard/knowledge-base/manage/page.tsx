@@ -1,22 +1,33 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { useSession } from "next-auth/react";
+import { type ColumnDef } from "@tanstack/react-table";
 import {
   Plus,
   Edit,
   Trash2,
-  MoreVertical,
+  MoreHorizontal,
   AlertTriangle,
-  ToggleLeft,
-  ToggleRight,
   Building2,
   FileType2,
   ArrowLeft,
-  ChevronDown,
   Loader2,
+  Power,
+  PowerOff,
 } from "lucide-react";
-import { Button, Card, Input, Modal, Badge } from "@/components/ui";
+import { 
+  Button, 
+  Card, 
+  CardContent,
+  CardHeader,
+  CardTitle,
+  Input, 
+  Modal, 
+  Badge,
+  DataTable 
+} from "@/components/ui";
 import { useRouter } from "next/navigation";
 
 interface FileDepartment {
@@ -49,6 +60,7 @@ interface FileType {
 type TabType = "departments" | "fileTypes";
 
 export default function ManageKnowledgeBasePage() {
+  const { data: session } = useSession();
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabType>("departments");
   
@@ -63,6 +75,7 @@ export default function ManageKnowledgeBasePage() {
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isToggleModalOpen, setIsToggleModalOpen] = useState(false);
   const [modalType, setModalType] = useState<TabType>("departments");
   const [selectedDepartment, setSelectedDepartment] = useState<FileDepartment | null>(null);
   const [selectedFileType, setSelectedFileType] = useState<FileType | null>(null);
@@ -80,7 +93,6 @@ export default function ManageKnowledgeBasePage() {
   
   // Action menu
   const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
-  const actionMenuRef = useRef<HTMLDivElement>(null);
 
   // Fetch departments
   const fetchDepartments = async () => {
@@ -115,17 +127,6 @@ export default function ManageKnowledgeBasePage() {
   useEffect(() => {
     fetchDepartments();
     fetchFileTypes();
-  }, []);
-
-  // Close action menu when clicking outside
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (actionMenuRef.current && !actionMenuRef.current.contains(event.target as Node)) {
-        setActionMenuOpen(null);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
   // Open create/edit modal
@@ -172,6 +173,20 @@ export default function ManageKnowledgeBasePage() {
       setSelectedDepartment(null);
     }
     setIsDeleteModalOpen(true);
+    setActionMenuOpen(null);
+  };
+
+  // Open toggle status confirmation modal
+  const openToggleModal = (type: TabType, item: FileDepartment | FileType) => {
+    setModalType(type);
+    if (type === "departments") {
+      setSelectedDepartment(item as FileDepartment);
+      setSelectedFileType(null);
+    } else {
+      setSelectedFileType(item as FileType);
+      setSelectedDepartment(null);
+    }
+    setIsToggleModalOpen(true);
     setActionMenuOpen(null);
   };
 
@@ -257,20 +272,24 @@ export default function ManageKnowledgeBasePage() {
     }
   };
 
-  // Toggle status
-  const toggleStatus = async (type: TabType, item: FileDepartment | FileType) => {
+  // Toggle status with confirmation
+  const handleToggleStatus = async () => {
+    setSubmitting(true);
+    const item = modalType === "departments" ? selectedDepartment : selectedFileType;
+    if (!item) return;
+
     try {
       const id = item.id;
-      const url = type === "departments"
+      const url = modalType === "departments"
         ? `/api/file-departments/${id}`
         : `/api/file-types/${id}`;
 
       const payload = {
         name: item.name,
         description: item.description,
-        sortOrder: (item as FileDepartment | FileType).sortOrder,
+        sortOrder: item.sortOrder,
         isActive: !item.isActive,
-        ...(type === "fileTypes" && { departmentId: (item as FileType).departmentId }),
+        ...(modalType === "fileTypes" && { departmentId: (item as FileType).departmentId }),
       };
 
       const res = await fetch(url, {
@@ -280,31 +299,251 @@ export default function ManageKnowledgeBasePage() {
       });
 
       if (res.ok) {
-        if (type === "departments") {
+        if (modalType === "departments") {
           fetchDepartments();
         } else {
           fetchFileTypes();
         }
+        setIsToggleModalOpen(false);
       }
     } catch (error) {
       console.error("Error toggling status:", error);
+    } finally {
+      setSubmitting(false);
     }
-    setActionMenuOpen(null);
   };
+
+  // Department columns matching user table design
+  const departmentColumns: ColumnDef<FileDepartment>[] = [
+    {
+      accessorKey: "name",
+      header: "Name",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium flex-shrink-0">
+            {row.original.name.charAt(0)}
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium text-gray-900 truncate">{row.original.name}</p>
+            <p className="text-xs text-gray-500 truncate">{row.original.description || "No description"}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "_count.fileTypes",
+      header: "File Types",
+      cell: ({ row }) => (
+        <Badge variant="secondary">{row.original._count.fileTypes}</Badge>
+      ),
+    },
+    {
+      accessorKey: "_count.knowledgeFiles",
+      header: "Files",
+      cell: ({ row }) => (
+        <Badge variant="outline">{row.original._count.knowledgeFiles}</Badge>
+      ),
+    },
+    {
+      accessorKey: "isActive",
+      header: "Status",
+      cell: ({ row }) => (
+        <Badge variant={row.original.isActive ? "success" : "danger"}>
+          {row.original.isActive ? "Active" : "Inactive"}
+        </Badge>
+      ),
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <div className="relative flex justify-end">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setActionMenuOpen(actionMenuOpen === row.original.id ? null : row.original.id);
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+          {actionMenuOpen === row.original.id && (
+            <>
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setActionMenuOpen(null)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+              >
+                <button
+                  onClick={() => openModal("departments", row.original)}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => openToggleModal("departments", row.original)}
+                  className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                    row.original.isActive 
+                      ? "text-orange-600 hover:bg-orange-50" 
+                      : "text-green-600 hover:bg-green-50"
+                  }`}
+                >
+                  {row.original.isActive ? (
+                    <>
+                      <PowerOff className="w-4 h-4" />
+                      Deactivate
+                    </>
+                  ) : (
+                    <>
+                      <Power className="w-4 h-4" />
+                      Activate
+                    </>
+                  )}
+                </button>
+                <div className="border-t border-gray-100 my-1" />
+                <button
+                  onClick={() => openDeleteModal("departments", row.original)}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+              </motion.div>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  // File type columns matching user table design
+  const fileTypeColumns: ColumnDef<FileType>[] = [
+    {
+      accessorKey: "name",
+      header: "Name",
+      cell: ({ row }) => (
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-500 to-pink-600 flex items-center justify-center text-white font-medium flex-shrink-0">
+            {row.original.name.charAt(0)}
+          </div>
+          <div className="min-w-0">
+            <p className="font-medium text-gray-900 truncate">{row.original.name}</p>
+            <p className="text-xs text-gray-500 truncate">{row.original.description || "No description"}</p>
+          </div>
+        </div>
+      ),
+    },
+    {
+      accessorKey: "department",
+      header: "Department",
+      cell: ({ row }) => row.original.department ? (
+        <Badge variant="outline">{row.original.department.name}</Badge>
+      ) : (
+        <span className="text-gray-400">-</span>
+      ),
+    },
+    {
+      accessorKey: "_count.knowledgeFiles",
+      header: "Files",
+      cell: ({ row }) => (
+        <Badge variant="secondary">{row.original._count.knowledgeFiles}</Badge>
+      ),
+    },
+    {
+      accessorKey: "isActive",
+      header: "Status",
+      cell: ({ row }) => (
+        <Badge variant={row.original.isActive ? "success" : "danger"}>
+          {row.original.isActive ? "Active" : "Inactive"}
+        </Badge>
+      ),
+    },
+    {
+      id: "actions",
+      cell: ({ row }) => (
+        <div className="relative flex justify-end">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setActionMenuOpen(actionMenuOpen === row.original.id ? null : row.original.id);
+            }}
+            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+          >
+            <MoreHorizontal className="w-4 h-4" />
+          </button>
+          {actionMenuOpen === row.original.id && (
+            <>
+              <div 
+                className="fixed inset-0 z-40" 
+                onClick={() => setActionMenuOpen(null)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="absolute right-0 top-full mt-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+              >
+                <button
+                  onClick={() => openModal("fileTypes", row.original)}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
+                >
+                  <Edit className="w-4 h-4" />
+                  Edit
+                </button>
+                <button
+                  onClick={() => openToggleModal("fileTypes", row.original)}
+                  className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                    row.original.isActive 
+                      ? "text-orange-600 hover:bg-orange-50" 
+                      : "text-green-600 hover:bg-green-50"
+                  }`}
+                >
+                  {row.original.isActive ? (
+                    <>
+                      <PowerOff className="w-4 h-4" />
+                      Deactivate
+                    </>
+                  ) : (
+                    <>
+                      <Power className="w-4 h-4" />
+                      Activate
+                    </>
+                  )}
+                </button>
+                <div className="border-t border-gray-100 my-1" />
+                <button
+                  onClick={() => openDeleteModal("fileTypes", row.original)}
+                  className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  Delete
+                </button>
+              </motion.div>
+            </>
+          )}
+        </div>
+      ),
+    },
+  ];
+
+  const toggleItem = modalType === "departments" ? selectedDepartment : selectedFileType;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 p-4 md:p-6">
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="max-w-6xl mx-auto"
+        className="max-w-7xl mx-auto"
       >
         {/* Header */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4 mb-6">
           <Button
             variant="outline"
             onClick={() => router.push("/dashboard/knowledge-base")}
-            className="p-2"
+            className="p-2 w-fit"
           >
             <ArrowLeft className="w-5 h-5" />
           </Button>
@@ -319,7 +558,7 @@ export default function ManageKnowledgeBasePage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-2 mb-6">
+        <div className="flex flex-wrap items-center gap-2 mb-6">
           <button
             onClick={() => setActiveTab("departments")}
             className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
@@ -329,7 +568,7 @@ export default function ManageKnowledgeBasePage() {
             }`}
           >
             <Building2 className="w-4 h-4" />
-            File Departments
+            <span className="hidden sm:inline">File</span> Departments
           </button>
           <button
             onClick={() => setActiveTab("fileTypes")}
@@ -340,253 +579,71 @@ export default function ManageKnowledgeBasePage() {
             }`}
           >
             <FileType2 className="w-4 h-4" />
-            File Types
+            <span className="hidden sm:inline">File</span> Types
           </button>
         </div>
 
         {/* Departments Tab */}
         {activeTab === "departments" && (
           <Card className="overflow-hidden">
-            {/* Header */}
-            <div className="p-4 border-b flex items-center justify-between bg-gradient-to-r from-blue-50 to-indigo-50">
-              <div>
-                <h2 className="font-semibold text-gray-900">File Departments</h2>
-                <p className="text-sm text-gray-500">Manage document categories</p>
+            <CardHeader className="border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg">File Departments</CardTitle>
+                  <p className="text-sm text-gray-500 mt-1">Manage document categories</p>
+                </div>
+                <Button onClick={() => openModal("departments")}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Add Department</span>
+                  <span className="sm:hidden">Add</span>
+                </Button>
               </div>
-              <Button onClick={() => openModal("departments")}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add Department
-              </Button>
-            </div>
-
-            {/* Loading */}
-            {loadingDepartments && (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-              </div>
-            )}
-
-            {/* Table */}
-            {!loadingDepartments && (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">File Types</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Files</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {departments.map((dept) => (
-                      <tr key={dept.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-900">{dept.name}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {dept.description || <span className="text-gray-400">-</span>}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Badge variant="secondary">{dept._count.fileTypes}</Badge>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Badge variant="outline">{dept._count.knowledgeFiles}</Badge>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Badge variant={dept.isActive ? "success" : "secondary"}>
-                            {dept.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="relative inline-block" ref={actionMenuOpen === dept.id ? actionMenuRef : null}>
-                            <button
-                              onClick={() => setActionMenuOpen(actionMenuOpen === dept.id ? null : dept.id)}
-                              className="p-2 hover:bg-gray-100 rounded-lg"
-                            >
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
-                            <AnimatePresence>
-                              {actionMenuOpen === dept.id && (
-                                <motion.div
-                                  initial={{ opacity: 0, scale: 0.95 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  exit={{ opacity: 0, scale: 0.95 }}
-                                  className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border z-10"
-                                >
-                                  <button
-                                    onClick={() => openModal("departments", dept)}
-                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                  >
-                                    <Edit className="w-4 h-4" />
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => toggleStatus("departments", dept)}
-                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                  >
-                                    {dept.isActive ? (
-                                      <>
-                                        <ToggleLeft className="w-4 h-4" />
-                                        Deactivate
-                                      </>
-                                    ) : (
-                                      <>
-                                        <ToggleRight className="w-4 h-4" />
-                                        Activate
-                                      </>
-                                    )}
-                                  </button>
-                                  <button
-                                    onClick={() => openDeleteModal("departments", dept)}
-                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                    Delete
-                                  </button>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {departments.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
-                          No departments found. Create your first one!
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            </CardHeader>
+            <CardContent className="p-0 sm:p-6">
+              {loadingDepartments ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : (
+                <DataTable 
+                  columns={departmentColumns} 
+                  data={departments} 
+                  searchPlaceholder="Search departments..."
+                />
+              )}
+            </CardContent>
           </Card>
         )}
 
         {/* File Types Tab */}
         {activeTab === "fileTypes" && (
           <Card className="overflow-hidden">
-            {/* Header */}
-            <div className="p-4 border-b flex items-center justify-between bg-gradient-to-r from-purple-50 to-pink-50">
-              <div>
-                <h2 className="font-semibold text-gray-900">File Types</h2>
-                <p className="text-sm text-gray-500">Define document classification types</p>
+            <CardHeader className="border-b bg-gradient-to-r from-purple-50 to-pink-50">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <CardTitle className="text-lg">File Types</CardTitle>
+                  <p className="text-sm text-gray-500 mt-1">Define document classification types</p>
+                </div>
+                <Button onClick={() => openModal("fileTypes")}>
+                  <Plus className="w-4 h-4 mr-2" />
+                  <span className="hidden sm:inline">Add File Type</span>
+                  <span className="sm:hidden">Add</span>
+                </Button>
               </div>
-              <Button onClick={() => openModal("fileTypes")}>
-                <Plus className="w-4 h-4 mr-2" />
-                Add File Type
-              </Button>
-            </div>
-
-            {/* Loading */}
-            {loadingFileTypes && (
-              <div className="flex items-center justify-center py-12">
-                <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
-              </div>
-            )}
-
-            {/* Table */}
-            {!loadingFileTypes && (
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead className="bg-gray-50 border-b">
-                    <tr>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Description</th>
-                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Files</th>
-                      <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase">Status</th>
-                      <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y">
-                    {fileTypes.map((ft) => (
-                      <tr key={ft.id} className="hover:bg-gray-50">
-                        <td className="px-4 py-3 font-medium text-gray-900">{ft.name}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {ft.description || <span className="text-gray-400">-</span>}
-                        </td>
-                        <td className="px-4 py-3">
-                          {ft.department ? (
-                            <Badge variant="outline">{ft.department.name}</Badge>
-                          ) : (
-                            <span className="text-gray-400">-</span>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Badge variant="secondary">{ft._count.knowledgeFiles}</Badge>
-                        </td>
-                        <td className="px-4 py-3 text-center">
-                          <Badge variant={ft.isActive ? "success" : "secondary"}>
-                            {ft.isActive ? "Active" : "Inactive"}
-                          </Badge>
-                        </td>
-                        <td className="px-4 py-3 text-right">
-                          <div className="relative inline-block" ref={actionMenuOpen === ft.id ? actionMenuRef : null}>
-                            <button
-                              onClick={() => setActionMenuOpen(actionMenuOpen === ft.id ? null : ft.id)}
-                              className="p-2 hover:bg-gray-100 rounded-lg"
-                            >
-                              <MoreVertical className="w-4 h-4" />
-                            </button>
-                            <AnimatePresence>
-                              {actionMenuOpen === ft.id && (
-                                <motion.div
-                                  initial={{ opacity: 0, scale: 0.95 }}
-                                  animate={{ opacity: 1, scale: 1 }}
-                                  exit={{ opacity: 0, scale: 0.95 }}
-                                  className="absolute right-0 mt-1 w-48 bg-white rounded-lg shadow-lg border z-10"
-                                >
-                                  <button
-                                    onClick={() => openModal("fileTypes", ft)}
-                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                  >
-                                    <Edit className="w-4 h-4" />
-                                    Edit
-                                  </button>
-                                  <button
-                                    onClick={() => toggleStatus("fileTypes", ft)}
-                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                                  >
-                                    {ft.isActive ? (
-                                      <>
-                                        <ToggleLeft className="w-4 h-4" />
-                                        Deactivate
-                                      </>
-                                    ) : (
-                                      <>
-                                        <ToggleRight className="w-4 h-4" />
-                                        Activate
-                                      </>
-                                    )}
-                                  </button>
-                                  <button
-                                    onClick={() => openDeleteModal("fileTypes", ft)}
-                                    className="w-full flex items-center gap-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                                  >
-                                    <Trash2 className="w-4 h-4" />
-                                    Delete
-                                  </button>
-                                </motion.div>
-                              )}
-                            </AnimatePresence>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {fileTypes.length === 0 && (
-                      <tr>
-                        <td colSpan={6} className="px-4 py-12 text-center text-gray-500">
-                          No file types found. Create your first one!
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            )}
+            </CardHeader>
+            <CardContent className="p-0 sm:p-6">
+              {loadingFileTypes ? (
+                <div className="flex items-center justify-center py-12">
+                  <Loader2 className="w-6 h-6 animate-spin text-blue-600" />
+                </div>
+              ) : (
+                <DataTable 
+                  columns={fileTypeColumns} 
+                  data={fileTypes} 
+                  searchPlaceholder="Search file types..."
+                />
+              )}
+            </CardContent>
           </Card>
         )}
 
@@ -603,7 +660,7 @@ export default function ManageKnowledgeBasePage() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {formError && (
               <div className="p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
-                <AlertTriangle className="w-4 h-4" />
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
                 <span className="text-sm">{formError}</span>
               </div>
             )}
@@ -678,16 +735,17 @@ export default function ManageKnowledgeBasePage() {
               </label>
             </div>
 
-            <div className="flex justify-end gap-3 pt-4">
+            <div className="flex gap-3 pt-4">
               <Button
                 type="button"
                 variant="outline"
                 onClick={() => setIsModalOpen(false)}
                 disabled={submitting}
+                className="flex-1"
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={submitting}>
+              <Button type="submit" disabled={submitting} className="flex-1">
                 {submitting ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -706,28 +764,25 @@ export default function ManageKnowledgeBasePage() {
           isOpen={isDeleteModalOpen}
           onClose={() => setIsDeleteModalOpen(false)}
           title="Confirm Delete"
+          size="sm"
         >
-          <div className="space-y-4">
-            <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
-                <AlertTriangle className="w-5 h-5 text-red-600" />
-              </div>
-              <div>
-                <p className="font-medium text-gray-900">
-                  Delete {modalType === "departments" ? "Department" : "File Type"}?
-                </p>
-                <p className="text-sm text-gray-500 mt-1">
-                  Are you sure you want to delete &quot;{modalType === "departments" ? selectedDepartment?.name : selectedFileType?.name}&quot;? 
-                  This action cannot be undone.
-                </p>
-              </div>
+          <div className="text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <Trash2 className="w-6 h-6 text-red-600" />
             </div>
-
-            <div className="flex justify-end gap-3">
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to delete{" "}
+              <span className="font-semibold">
+                {modalType === "departments" ? selectedDepartment?.name : selectedFileType?.name}
+              </span>
+              ? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
               <Button
                 variant="outline"
                 onClick={() => setIsDeleteModalOpen(false)}
                 disabled={submitting}
+                className="flex-1"
               >
                 Cancel
               </Button>
@@ -735,6 +790,7 @@ export default function ManageKnowledgeBasePage() {
                 variant="destructive"
                 onClick={handleDelete}
                 disabled={submitting}
+                className="flex-1"
               >
                 {submitting ? (
                   <>
@@ -743,6 +799,68 @@ export default function ManageKnowledgeBasePage() {
                   </>
                 ) : (
                   "Delete"
+                )}
+              </Button>
+            </div>
+          </div>
+        </Modal>
+
+        {/* Toggle Status Confirmation Modal */}
+        <Modal
+          isOpen={isToggleModalOpen}
+          onClose={() => {
+            setIsToggleModalOpen(false);
+            setSelectedDepartment(null);
+            setSelectedFileType(null);
+          }}
+          title={toggleItem?.isActive ? "Deactivate" : "Activate"}
+          size="sm"
+        >
+          <div className="text-center">
+            <div className={`mx-auto w-12 h-12 rounded-full flex items-center justify-center mb-4 ${
+              toggleItem?.isActive ? "bg-orange-100" : "bg-green-100"
+            }`}>
+              {toggleItem?.isActive ? (
+                <PowerOff className="w-6 h-6 text-orange-600" />
+              ) : (
+                <Power className="w-6 h-6 text-green-600" />
+              )}
+            </div>
+            <p className="text-gray-600 mb-6">
+              Are you sure you want to {toggleItem?.isActive ? "deactivate" : "activate"}{" "}
+              <span className="font-semibold">{toggleItem?.name}</span>?
+              {toggleItem?.isActive && (
+                <span className="block mt-2 text-sm text-orange-600">
+                  This will hide it from selection dropdowns.
+                </span>
+              )}
+            </p>
+            <div className="flex gap-3">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setIsToggleModalOpen(false);
+                  setSelectedDepartment(null);
+                  setSelectedFileType(null);
+                }} 
+                className="flex-1"
+                disabled={submitting}
+              >
+                Cancel
+              </Button>
+              <Button 
+                variant={toggleItem?.isActive ? "destructive" : "default"}
+                onClick={handleToggleStatus} 
+                className="flex-1"
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Processing...
+                  </>
+                ) : (
+                  toggleItem?.isActive ? "Deactivate" : "Activate"
                 )}
               </Button>
             </div>

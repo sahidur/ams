@@ -37,6 +37,7 @@ import {
   ClipboardPlus,
   Clock,
   FileStack,
+  ArchiveRestore,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui";
@@ -172,12 +173,6 @@ const approvalsSection: NavSection = {
       module: "APPROVALS",
       alwaysShow: true,
     },
-    {
-      title: "Application Types",
-      href: "/dashboard/approval-templates",
-      icon: FileStack,
-      module: "APPROVAL_TEMPLATES",
-    },
   ],
 };
 
@@ -235,6 +230,12 @@ const adminToolsSection: NavSection = {
       module: "USERS",
     },
     {
+      title: "Application Types",
+      href: "/dashboard/approval-templates",
+      icon: FileStack,
+      module: "APPROVAL_TEMPLATES",
+    },
+    {
       title: "KB Categories",
       href: "/dashboard/knowledge-base/manage",
       icon: FolderCog,
@@ -243,7 +244,7 @@ const adminToolsSection: NavSection = {
     {
       title: "KB Recycle Bin",
       href: "/dashboard/knowledge-base/recycle-bin",
-      icon: FileStack,
+      icon: ArchiveRestore,
       module: "KNOWLEDGE_BASE",
     },
   ],

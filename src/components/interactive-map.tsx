@@ -244,38 +244,82 @@ export default function InteractiveMap({ branchByDistrict, onDistrictClick }: In
         </div>
       </div>
 
-      {/* Selected District Info */}
+      {/* Selected District Info - Improved Design */}
       {selectedDistrict && (
-        <div className="absolute top-4 right-4 z-[1000] bg-white/95 backdrop-blur-sm rounded-lg p-4 shadow-lg max-w-xs">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="font-semibold text-gray-900">{selectedDistrict.district}</h3>
-            <button 
-              onClick={() => setSelectedDistrict(null)}
-              className="text-gray-400 hover:text-gray-600"
-            >
-              ×
-            </button>
-          </div>
-          <Badge 
-            style={{ backgroundColor: DIVISION_COLORS[selectedDistrict.division] }}
-            className="text-white mb-2"
+        <div className="absolute top-4 right-4 z-[1000] bg-white rounded-xl shadow-2xl max-w-sm overflow-hidden border border-gray-100">
+          {/* Header with gradient */}
+          <div 
+            className="px-4 py-3 text-white"
+            style={{ background: `linear-gradient(135deg, ${DIVISION_COLORS[selectedDistrict.division]}, ${DIVISION_COLORS[selectedDistrict.division]}dd)` }}
           >
-            {selectedDistrict.division}
-          </Badge>
-          <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-            <Building2 className="w-4 h-4" />
-            <span>{selectedDistrict.count} Branches</span>
-          </div>
-          <div className="max-h-32 overflow-y-auto">
-            {selectedDistrict.branches.slice(0, 5).map((branch) => (
-              <div key={branch.id} className="text-xs text-gray-500 py-1 border-t">
-                <span className="font-medium">{branch.branchName}</span>
-                <span className="text-gray-400 ml-1">({branch.upazila})</span>
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="font-bold text-lg">{selectedDistrict.district}</h3>
+                <p className="text-white/80 text-sm">{selectedDistrict.division} Division</p>
               </div>
-            ))}
-            {selectedDistrict.branches.length > 5 && (
-              <div className="text-xs text-blue-500 pt-1">
-                +{selectedDistrict.branches.length - 5} more...
+              <button 
+                onClick={() => setSelectedDistrict(null)}
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 transition-colors"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+          
+          {/* Stats Row */}
+          <div className="flex divide-x divide-gray-100 bg-gray-50">
+            <div className="flex-1 px-4 py-3 text-center">
+              <p className="text-2xl font-bold text-gray-900">{selectedDistrict.count}</p>
+              <p className="text-xs text-gray-500">Branches</p>
+            </div>
+            <div className="flex-1 px-4 py-3 text-center">
+              <p className="text-2xl font-bold text-gray-900">
+                {new Set(selectedDistrict.branches.map(b => b.cohort?.id).filter(Boolean)).size}
+              </p>
+              <p className="text-xs text-gray-500">Cohorts</p>
+            </div>
+            <div className="flex-1 px-4 py-3 text-center">
+              <p className="text-2xl font-bold text-gray-900">
+                {selectedDistrict.branches.reduce((sum, b) => sum + (b._count?.batches || 0), 0)}
+              </p>
+              <p className="text-xs text-gray-500">Batches</p>
+            </div>
+          </div>
+          
+          {/* Branch List */}
+          <div className="p-4">
+            <p className="text-xs font-semibold text-gray-500 uppercase mb-2">Branches</p>
+            <div className="max-h-40 overflow-y-auto space-y-2">
+              {selectedDistrict.branches.slice(0, 8).map((branch) => (
+                <div 
+                  key={branch.id} 
+                  className="flex items-start gap-3 p-2 rounded-lg hover:bg-gray-50 transition-colors"
+                >
+                  <div 
+                    className="w-2 h-2 rounded-full mt-2 flex-shrink-0"
+                    style={{ backgroundColor: DIVISION_COLORS[selectedDistrict.division] }}
+                  />
+                  <div className="min-w-0 flex-1">
+                    <p className="font-medium text-sm text-gray-900 truncate">{branch.branchName}</p>
+                    <p className="text-xs text-gray-500">{branch.upazila}</p>
+                    {branch.cohort && (
+                      <div className="flex items-center gap-1 mt-1">
+                        <span className="text-xs px-1.5 py-0.5 rounded bg-blue-50 text-blue-700">
+                          {branch.cohort.cohortId}
+                        </span>
+                        <span className="text-xs text-gray-400">•</span>
+                        <span className="text-xs text-gray-500">{branch._count?.batches || 0} batches</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+            {selectedDistrict.branches.length > 8 && (
+              <div className="mt-3 pt-3 border-t border-gray-100 text-center">
+                <span className="text-sm text-blue-600 font-medium">
+                  +{selectedDistrict.branches.length - 8} more branches
+                </span>
               </div>
             )}
           </div>

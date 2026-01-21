@@ -183,3 +183,28 @@ export const MAX_FILE_SIZES = {
   document: 10 * 1024 * 1024, // 10MB
   attachment: 2 * 1024 * 1024 * 1024, // 2GB
 };
+
+/**
+ * Convert a public CDN URL to a secure API URL
+ * This ensures files are served through authenticated endpoints
+ * @param url - The public CDN URL
+ * @returns The secure API URL or original URL if conversion fails
+ */
+export function toSecureUrl(url: string): string {
+  if (!url) return url;
+  
+  try {
+    const cdnEndpoint = CDN_ENDPOINT.replace(/\/$/, "");
+    const basePath = `${cdnEndpoint}/${BASE_FOLDER}/`;
+    
+    if (url.startsWith(basePath)) {
+      const relativePath = url.replace(basePath, "");
+      return `/api/files/${relativePath}`;
+    }
+    
+    // Return original URL if not a CDN URL
+    return url;
+  } catch {
+    return url;
+  }
+}

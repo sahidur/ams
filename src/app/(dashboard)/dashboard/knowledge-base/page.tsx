@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search,
@@ -19,14 +20,18 @@ import {
   FolderOpen,
   User,
   X,
-  ChevronDown,
   Grid3X3,
   List,
   Loader2,
+  MoreHorizontal,
+  Trash2,
+  Edit,
+  AlertTriangle,
 } from "lucide-react";
 import { Button, Card, Input, Badge, Modal } from "@/components/ui";
 import { formatDate } from "@/lib/utils";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 interface Project {
   id: string;
@@ -77,6 +82,11 @@ interface Pagination {
   totalPages: number;
 }
 
+interface UserPermission {
+  module: string;
+  action: string;
+}
+
 // Get file icon based on mime type
 function getFileIcon(mimeType: string) {
   if (mimeType.startsWith("image/")) return FileImage;
@@ -109,6 +119,8 @@ function getFileTypeColor(mimeType: string): string {
 }
 
 export default function KnowledgeBasePage() {
+  const { data: session } = useSession();
+  const router = useRouter();
   const [files, setFiles] = useState<KnowledgeFile[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState<Pagination>({
@@ -142,6 +154,45 @@ export default function KnowledgeBasePage() {
   
   // Preview modal
   const [previewFile, setPreviewFile] = useState<KnowledgeFile | null>(null);
+  
+  // Delete modal
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [fileToDelete, setFileToDelete] = useState<KnowledgeFile | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  
+  // Action menu
+  const [actionMenuOpen, setActionMenuOpen] = useState<string | null>(null);
+  
+  // Permissions
+  const [userPermissions, setUserPermissions] = useState<UserPermission[]>([]);
+  const isSuperAdmin = session?.user?.userRoleName === "Super Admin" || 
+    (session?.user as { userRole?: { name: string } })?.userRole?.name === "SUPER_ADMIN";
+  
+  const hasDeletePermission = isSuperAdmin || userPermissions.some(
+    p => p.module === "KNOWLEDGE_BASE" && (p.action === "DELETE" || p.action === "ALL")
+  );
+  
+  const hasWritePermission = isSuperAdmin || userPermissions.some(
+    p => p.module === "KNOWLEDGE_BASE" && (p.action === "WRITE" || p.action === "ALL")
+  );
+
+  // Fetch user permissions
+  useEffect(() => {
+    const fetchPermissions = async () => {
+      if (session?.user?.id) {
+        try {
+          const res = await fetch("/api/roles/modules?userPermissions=true");
+          if (res.ok) {
+            const data = await res.json();
+            setUserPermissions(data.permissions || []);
+          }
+        } catch (error) {
+          console.error("Error fetching permissions:", error);
+        }
+      }
+    };
+    fetchPermissions();
+  }, [session?.user?.id]);
 
   // Fetch dropdown data
   useEffect(() => {
@@ -172,7 +223,7 @@ export default function KnowledgeBasePage() {
   }, []);
 
   // Fetch files with filters
-  const fetchFiles = async (page = 1) => {
+  const fetchFiles = useCallback(async (page = 1) => {
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -200,7 +251,7 @@ export default function KnowledgeBasePage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [pagination.limit, search, selectedProjects, selectedCohorts, selectedDepartment, selectedFileType, yearFrom, yearTo, selectedDonor, vendorName]);
 
   useEffect(() => {
     fetchFiles();
@@ -228,15 +279,52 @@ export default function KnowledgeBasePage() {
     setShowFilters(false);
   };
 
-  // Download file
+  // Download file - using secure URL
   const downloadFile = (file: KnowledgeFile) => {
+    // Use the secure file serving API
+    const secureUrl = file.fileUrl.includes("/api/files/") 
+      ? file.fileUrl 
+      : `/api/files/knowledge-base/${file.fileUrl.split("/knowledge-base/").pop()}`;
+    
     const link = document.createElement("a");
-    link.href = file.fileUrl;
+    link.href = secureUrl;
     link.download = file.originalFileName;
     link.target = "_blank";
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Delete file
+  const handleDelete = async () => {
+    if (!fileToDelete) return;
+    
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/knowledge-base/${fileToDelete.id}`, {
+        method: "DELETE",
+      });
+      
+      if (res.ok) {
+        fetchFiles(pagination.page);
+        setDeleteModalOpen(false);
+        setFileToDelete(null);
+      } else {
+        const error = await res.json();
+        alert(error.error || "Failed to delete file");
+      }
+    } catch (error) {
+      console.error("Error deleting file:", error);
+      alert("Failed to delete file");
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const openDeleteModal = (file: KnowledgeFile) => {
+    setFileToDelete(file);
+    setDeleteModalOpen(true);
+    setActionMenuOpen(null);
   };
 
   const activeFiltersCount = [
@@ -268,12 +356,14 @@ export default function KnowledgeBasePage() {
             </p>
           </div>
           
-          <div className="flex items-center gap-3">
-            <Link href="/dashboard/knowledge-base/create">
-              <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
-                Upload Document
-              </Button>
-            </Link>
+          <div className="flex flex-wrap items-center gap-3">
+            {hasWritePermission && (
+              <Link href="/dashboard/knowledge-base/create">
+                <Button className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white">
+                  Upload Document
+                </Button>
+              </Link>
+            )}
           </div>
         </div>
 
@@ -284,7 +374,7 @@ export default function KnowledgeBasePage() {
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
               <Input
-                placeholder="Search by file name..."
+                placeholder="Search by file name, description, vendor..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && applyFilters()}
@@ -337,7 +427,7 @@ export default function KnowledgeBasePage() {
                 exit={{ height: 0, opacity: 0 }}
                 className="overflow-hidden"
               >
-                <div className="pt-4 mt-4 border-t grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="pt-4 mt-4 border-t grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                   {/* Projects Multi-select */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Projects</label>
@@ -491,7 +581,7 @@ export default function KnowledgeBasePage() {
               <Button variant="outline" onClick={clearFilters}>
                 Clear Filters
               </Button>
-            ) : (
+            ) : hasWritePermission && (
               <Link href="/dashboard/knowledge-base/create">
                 <Button>Upload Document</Button>
               </Link>
@@ -501,7 +591,7 @@ export default function KnowledgeBasePage() {
 
         {/* Grid View */}
         {!loading && files.length > 0 && viewMode === "grid" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {files.map((file, index) => {
               const FileIcon = getFileIcon(file.mimeType);
               return (
@@ -511,7 +601,45 @@ export default function KnowledgeBasePage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: index * 0.05 }}
                 >
-                  <Card className="p-4 hover:shadow-lg transition-all duration-300 group h-full flex flex-col">
+                  <Card className="p-4 hover:shadow-lg transition-all duration-300 group h-full flex flex-col relative">
+                    {/* Actions Menu */}
+                    {(hasWritePermission || hasDeletePermission) && (
+                      <div className="absolute top-2 right-2 z-10">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActionMenuOpen(actionMenuOpen === file.id ? null : file.id);
+                          }}
+                          className="p-1.5 hover:bg-gray-100 rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+                        >
+                          <MoreHorizontal className="w-4 h-4" />
+                        </button>
+                        {actionMenuOpen === file.id && (
+                          <>
+                            <div 
+                              className="fixed inset-0 z-40" 
+                              onClick={() => setActionMenuOpen(null)}
+                            />
+                            <motion.div
+                              initial={{ opacity: 0, scale: 0.95 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              className="absolute right-0 top-full mt-1 w-36 bg-white rounded-lg shadow-lg border border-gray-200 py-1 z-50"
+                            >
+                              {hasDeletePermission && (
+                                <button
+                                  onClick={() => openDeleteModal(file)}
+                                  className="flex items-center gap-2 w-full px-3 py-2 text-sm text-red-600 hover:bg-red-50"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                  Delete
+                                </button>
+                              )}
+                            </motion.div>
+                          </>
+                        )}
+                      </div>
+                    )}
+                    
                     {/* File Icon */}
                     <div className={`w-12 h-12 rounded-lg flex items-center justify-center mb-3 ${getFileTypeColor(file.mimeType)}`}>
                       <FileIcon className="w-6 h-6" />
@@ -526,7 +654,7 @@ export default function KnowledgeBasePage() {
                     <div className="space-y-2 text-sm text-gray-500">
                       {file.department && (
                         <div className="flex items-center gap-1">
-                          <Building2 className="w-3 h-3" />
+                          <Building2 className="w-3 h-3 flex-shrink-0" />
                           <span className="truncate">{file.department.name}</span>
                         </div>
                       )}
@@ -536,7 +664,7 @@ export default function KnowledgeBasePage() {
                         </Badge>
                       )}
                       <div className="flex items-center gap-1">
-                        <Calendar className="w-3 h-3" />
+                        <Calendar className="w-3 h-3 flex-shrink-0" />
                         <span>{formatDate(file.createdAt)}</span>
                       </div>
                       <div className="text-xs text-gray-400">
@@ -579,12 +707,11 @@ export default function KnowledgeBasePage() {
                 <thead className="bg-gray-50 border-b">
                   <tr>
                     <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">File</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Department</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Type</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Projects</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Year</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Size</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Uploaded</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden md:table-cell">Department</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Type</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden xl:table-cell">Projects</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden sm:table-cell">Size</th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase hidden lg:table-cell">Uploaded</th>
                     <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">Actions</th>
                   </tr>
                 </thead>
@@ -595,26 +722,26 @@ export default function KnowledgeBasePage() {
                       <tr key={file.id} className="hover:bg-gray-50">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-3">
-                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center ${getFileTypeColor(file.mimeType)}`}>
+                            <div className={`w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0 ${getFileTypeColor(file.mimeType)}`}>
                               <FileIcon className="w-5 h-5" />
                             </div>
-                            <div>
-                              <p className="font-medium text-gray-900 line-clamp-1">{file.fileName}</p>
-                              <p className="text-xs text-gray-500">{file.originalFileName}</p>
+                            <div className="min-w-0">
+                              <p className="font-medium text-gray-900 truncate max-w-[200px]">{file.fileName}</p>
+                              <p className="text-xs text-gray-500 truncate max-w-[200px]">{file.originalFileName}</p>
                             </div>
                           </div>
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-sm text-gray-600 hidden md:table-cell">
                           {file.department?.name || "-"}
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 hidden lg:table-cell">
                           {file.fileType ? (
                             <Badge variant="secondary" className="text-xs">
                               {file.fileType.name}
                             </Badge>
                           ) : "-"}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-sm text-gray-600 hidden xl:table-cell">
                           {file.projects.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {file.projects.slice(0, 2).map((p) => (
@@ -630,34 +757,40 @@ export default function KnowledgeBasePage() {
                             </div>
                           ) : "-"}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
-                          {file.yearFrom && file.yearTo
-                            ? `${file.yearFrom} - ${file.yearTo}`
-                            : file.yearFrom || file.yearTo || "-"}
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-sm text-gray-600 hidden sm:table-cell">
                           {formatFileSize(file.fileSize)}
                         </td>
-                        <td className="px-4 py-3 text-sm text-gray-600">
+                        <td className="px-4 py-3 text-sm text-gray-600 hidden lg:table-cell">
                           <div>
                             <p>{formatDate(file.createdAt)}</p>
                             <p className="text-xs text-gray-400">{file.uploadedBy.name}</p>
                           </div>
                         </td>
                         <td className="px-4 py-3 text-right">
-                          <div className="flex items-center justify-end gap-2">
+                          <div className="flex items-center justify-end gap-1">
                             <button
                               onClick={() => setPreviewFile(file)}
                               className="p-2 hover:bg-gray-100 rounded-lg text-gray-600"
+                              title="View details"
                             >
                               <Eye className="w-4 h-4" />
                             </button>
                             <button
                               onClick={() => downloadFile(file)}
                               className="p-2 hover:bg-blue-100 rounded-lg text-blue-600"
+                              title="Download"
                             >
                               <Download className="w-4 h-4" />
                             </button>
+                            {hasDeletePermission && (
+                              <button
+                                onClick={() => openDeleteModal(file)}
+                                className="p-2 hover:bg-red-100 rounded-lg text-red-600"
+                                title="Delete"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -702,15 +835,15 @@ export default function KnowledgeBasePage() {
             <div className="space-y-4">
               {/* File Icon and Name */}
               <div className="flex items-start gap-4">
-                <div className={`w-16 h-16 rounded-xl flex items-center justify-center ${getFileTypeColor(previewFile.mimeType)}`}>
+                <div className={`w-16 h-16 rounded-xl flex items-center justify-center flex-shrink-0 ${getFileTypeColor(previewFile.mimeType)}`}>
                   {(() => {
                     const FileIcon = getFileIcon(previewFile.mimeType);
                     return <FileIcon className="w-8 h-8" />;
                   })()}
                 </div>
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold text-gray-900">{previewFile.fileName}</h3>
-                  <p className="text-sm text-gray-500">{previewFile.originalFileName}</p>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-xl font-semibold text-gray-900 break-words">{previewFile.fileName}</h3>
+                  <p className="text-sm text-gray-500 truncate">{previewFile.originalFileName}</p>
                   <p className="text-sm text-gray-400 mt-1">{formatFileSize(previewFile.fileSize)}</p>
                 </div>
               </div>
@@ -789,7 +922,7 @@ export default function KnowledgeBasePage() {
 
               {/* Uploader Info */}
               <div className="pt-4 border-t flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium">
+                <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-medium flex-shrink-0">
                   {previewFile.uploadedBy.name.charAt(0)}
                 </div>
                 <div>
@@ -799,7 +932,7 @@ export default function KnowledgeBasePage() {
               </div>
 
               {/* Actions */}
-              <div className="flex gap-3 pt-4">
+              <div className="flex flex-col sm:flex-row gap-3 pt-4">
                 <Button
                   onClick={() => downloadFile(previewFile)}
                   className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-600 text-white"
@@ -810,12 +943,67 @@ export default function KnowledgeBasePage() {
                 <Button
                   variant="outline"
                   onClick={() => setPreviewFile(null)}
+                  className="flex-1 sm:flex-none"
                 >
                   Close
                 </Button>
               </div>
             </div>
           )}
+        </Modal>
+
+        {/* Delete Confirmation Modal */}
+        <Modal
+          isOpen={deleteModalOpen}
+          onClose={() => {
+            setDeleteModalOpen(false);
+            setFileToDelete(null);
+          }}
+          title="Delete Document"
+          size="sm"
+        >
+          <div className="text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mb-4">
+              <Trash2 className="w-6 h-6 text-red-600" />
+            </div>
+            <p className="text-gray-600 mb-2">
+              Are you sure you want to delete
+            </p>
+            <p className="font-semibold text-gray-900 mb-4">
+              &quot;{fileToDelete?.fileName}&quot;?
+            </p>
+            <p className="text-sm text-gray-500 mb-6">
+              This file will be moved to the recycle bin and can be restored by an administrator.
+            </p>
+            <div className="flex gap-3">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setDeleteModalOpen(false);
+                  setFileToDelete(null);
+                }}
+                disabled={deleting}
+                className="flex-1"
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleDelete}
+                disabled={deleting}
+                className="flex-1"
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Deleting...
+                  </>
+                ) : (
+                  "Delete"
+                )}
+              </Button>
+            </div>
+          </div>
         </Modal>
       </motion.div>
     </div>
