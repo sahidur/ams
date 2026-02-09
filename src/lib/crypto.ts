@@ -34,8 +34,9 @@ export function verifyEmbeddingHash(embedding: number[], salt: string, storedHas
 
 // Encrypt data using AES-256-GCM (for at-rest encryption)
 export function encryptData(data: string, key: string): { encrypted: string; iv: string; authTag: string } {
-  // Derive a key from the secret
-  const derivedKey = crypto.pbkdf2Sync(key, "ams-salt", 100000, 32, "sha256");
+  // Derive a key from the secret using deployment-specific salt
+  const salt = process.env.ENCRYPTION_SALT || process.env.NEXTAUTH_SECRET || "ams-deployment-salt";
+  const derivedKey = crypto.pbkdf2Sync(key, salt, 600000, 32, "sha256");
   
   // Generate a random IV
   const iv = crypto.randomBytes(16);
@@ -59,8 +60,9 @@ export function encryptData(data: string, key: string): { encrypted: string; iv:
 
 // Decrypt data using AES-256-GCM
 export function decryptData(encryptedData: string, iv: string, authTag: string, key: string): string {
-  // Derive the same key
-  const derivedKey = crypto.pbkdf2Sync(key, "ams-salt", 100000, 32, "sha256");
+  // Derive the same key using deployment-specific salt
+  const salt = process.env.ENCRYPTION_SALT || process.env.NEXTAUTH_SECRET || "ams-deployment-salt";
+  const derivedKey = crypto.pbkdf2Sync(key, salt, 600000, 32, "sha256");
   
   // Create decipher
   const decipher = crypto.createDecipheriv(
@@ -87,7 +89,10 @@ export function encryptFaceEmbedding(embedding: number[]): {
   salt: string;
   hash: string;
 } {
-  const encryptionKey = process.env.BIOMETRIC_ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET || "default-key";
+  const encryptionKey = process.env.BIOMETRIC_ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET;
+  if (!encryptionKey) {
+    throw new Error("BIOMETRIC_ENCRYPTION_KEY or NEXTAUTH_SECRET must be set for biometric encryption");
+  }
   const salt = generateSalt();
   
   // Serialize embedding
@@ -114,7 +119,10 @@ export function decryptFaceEmbedding(
   iv: string,
   authTag: string
 ): number[] {
-  const encryptionKey = process.env.BIOMETRIC_ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET || "default-key";
+  const encryptionKey = process.env.BIOMETRIC_ENCRYPTION_KEY || process.env.NEXTAUTH_SECRET;
+  if (!encryptionKey) {
+    throw new Error("BIOMETRIC_ENCRYPTION_KEY or NEXTAUTH_SECRET must be set for biometric decryption");
+  }
   
   const decrypted = decryptData(encryptedEmbedding, iv, authTag, encryptionKey);
   return JSON.parse(decrypted);

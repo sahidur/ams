@@ -46,24 +46,10 @@ export async function POST(request: Request) {
     });
 
     if (existingUser) {
-      if (existingUser.email === email) {
-        return NextResponse.json(
-          { error: "User with this email already exists" },
-          { status: 400 }
-        );
-      }
-      if (existingUser.phone === phone) {
-        return NextResponse.json(
-          { error: "User with this phone number already exists" },
-          { status: 400 }
-        );
-      }
-      if (existingUser.employeeId === employeeId) {
-        return NextResponse.json(
-          { error: "User with this employee ID already exists" },
-          { status: 400 }
-        );
-      }
+      return NextResponse.json(
+        { error: "An account with these details already exists" },
+        { status: 400 }
+      );
     }
 
     // Hash password and PIN

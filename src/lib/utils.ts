@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { randomInt } from "crypto";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -72,7 +73,8 @@ export function formatDateTime(date: Date | string): string {
 }
 
 export function generateRandomPin(): string {
-  return Math.floor(1000 + Math.random() * 9000).toString();
+  // Use cryptographically secure random number generator
+  return randomInt(100000, 999999).toString();
 }
 
 export function getRoleDisplayName(role: string): string {

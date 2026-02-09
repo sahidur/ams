@@ -316,8 +316,8 @@ export async function isSuperAdmin(userId: string): Promise<boolean> {
     return true;
   }
 
-  // Check if userRole name contains "Super" (e.g., "Super Admin")
-  if (user.userRole?.name?.toLowerCase().includes("super")) {
+  // Check if userRole name is exactly "Super Admin" (case-insensitive)
+  if (user.userRole?.name?.toLowerCase() === "super admin") {
     return true;
   }
 

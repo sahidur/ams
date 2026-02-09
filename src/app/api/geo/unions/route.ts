@@ -1,9 +1,17 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { checkPermission } from "@/lib/permissions";
 
 // GET all unions
 export async function GET(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const upazilaId = searchParams.get("upazilaId");
     const activeOnly = searchParams.get("activeOnly") === "true";
@@ -41,6 +49,16 @@ export async function GET(request: NextRequest) {
 // POST create union
 export async function POST(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const hasWritePermission = await checkPermission(session.user.id, "GEO_ADMIN", "WRITE");
+    if (!hasWritePermission) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await request.json();
     const { name, bnName, upazilaId, parentId } = body;
     const actualUpazilaId = upazilaId || parentId;
@@ -76,6 +94,16 @@ export async function POST(request: NextRequest) {
 // PUT update union
 export async function PUT(request: NextRequest) {
   try {
+    const session = await getServerSession(authOptions);
+    if (!session?.user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const hasWritePermission = await checkPermission(session.user.id, "GEO_ADMIN", "WRITE");
+    if (!hasWritePermission) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const body = await request.json();
     const { id, name, bnName, isActive } = body;
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { checkPermission } from "@/lib/permissions";
 
 // GET all approval templates
 export async function GET(request: NextRequest) {
@@ -61,6 +62,12 @@ export async function POST(request: NextRequest) {
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Only users with WRITE permission can create templates
+    const hasWritePermission = await checkPermission(session.user.id, "USERS", "WRITE");
+    if (!hasWritePermission) {
+      return NextResponse.json({ error: "Forbidden: insufficient permissions" }, { status: 403 });
     }
 
     const body = await request.json();

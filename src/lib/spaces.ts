@@ -1,4 +1,5 @@
 import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import crypto from "crypto";
 
 // DigitalOcean Spaces Configuration
 const spacesClient = new S3Client({
@@ -34,10 +35,10 @@ export async function uploadToSpaces(
   folder: string,
   contentType: string
 ): Promise<UploadResult> {
-  // Generate unique file name
+  // Generate unique file name with cryptographically secure random string
   const timestamp = Date.now();
-  const randomString = Math.random().toString(36).substring(2, 8);
-  const extension = fileName.split(".").pop() || "";
+  const randomString = crypto.randomUUID();
+  const extension = (fileName.split(".").pop() || "").replace(/[^a-zA-Z0-9]/g, "");
   const uniqueFileName = `${timestamp}-${randomString}.${extension}`;
   const key = `${BASE_FOLDER}/${folder}/${uniqueFileName}`;
 

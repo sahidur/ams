@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { checkPermission } from "@/lib/permissions";
 
 // GET single approval template
 export async function GET(
@@ -64,6 +65,12 @@ export async function PUT(
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Only users with WRITE permission can update templates
+    const hasWritePermission = await checkPermission(session.user.id, "USERS", "WRITE");
+    if (!hasWritePermission) {
+      return NextResponse.json({ error: "Forbidden: insufficient permissions" }, { status: 403 });
     }
 
     const { id } = await params;
@@ -131,6 +138,12 @@ export async function DELETE(
     const session = await getServerSession(authOptions);
     if (!session?.user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Only users with DELETE permission can delete templates
+    const hasDeletePermission = await checkPermission(session.user.id, "USERS", "DELETE");
+    if (!hasDeletePermission) {
+      return NextResponse.json({ error: "Forbidden: insufficient permissions" }, { status: 403 });
     }
 
     const { id } = await params;

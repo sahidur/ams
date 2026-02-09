@@ -12,6 +12,7 @@ import {
   MAX_FILE_SIZES,
 } from "@/lib/spaces";
 import prisma from "@/lib/prisma";
+import { checkPermission } from "@/lib/permissions";
 
 // Route segment config for large file uploads (30 minute timeout)
 export const maxDuration = 1800; // 30 minutes in seconds
@@ -87,7 +88,19 @@ export async function POST(request: NextRequest) {
 
     // If this is a profile image, update the user's profile and delete old image
     if (type === "profile-image") {
-      const userId = entityId || session.user.id;
+      let userId = session.user.id;
+      
+      // If entityId is provided and differs from session user, require admin permission
+      if (entityId && entityId !== session.user.id) {
+        const hasUserWritePermission = await checkPermission(session.user.id, "USERS", "WRITE");
+        if (!hasUserWritePermission) {
+          return NextResponse.json(
+            { error: "You do not have permission to update another user's profile image" },
+            { status: 403 }
+          );
+        }
+        userId = entityId;
+      }
       
       // Get current profile image to delete
       const currentUser = await prisma.user.findUnique({

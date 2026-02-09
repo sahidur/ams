@@ -4,14 +4,14 @@ import { z } from "zod";
 const bangladeshPhoneRegex = /^(?:\+?880|0)1[3-9]\d{8}$/;
 
 export const loginSchema = z.object({
-  email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  email: z.string().email("Invalid email address").transform(v => v.toLowerCase().trim()),
+  password: z.string().min(8, "Password must be at least 8 characters").max(128, "Password is too long"),
 });
 
 export const registerSchema = z.object({
   // Step 1: Personal Information (ALL MANDATORY)
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
+  name: z.string().min(2, "Name must be at least 2 characters").max(100, "Name is too long"),
+  email: z.string().email("Invalid email address").transform(v => v.toLowerCase().trim()),
   phone: z.string()
     .min(1, "Phone number is required")
     .regex(bangladeshPhoneRegex, "Invalid Bangladesh phone number (e.g., 01712345678 or +8801712345678)"),
@@ -29,7 +29,12 @@ export const registerSchema = z.object({
   
   // Step 3: Security
   pin: z.string().length(6, "PIN must be exactly 6 digits").regex(/^\d{6}$/, "PIN must be 6 digits"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .max(128, "Password is too long")
+    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
+    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
+    .regex(/[0-9]/, "Password must contain at least one number"),
   confirmPassword: z.string(),
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
@@ -37,8 +42,8 @@ export const registerSchema = z.object({
 });
 
 export const userSchema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Invalid email address"),
+  name: z.string().min(2, "Name must be at least 2 characters").max(100, "Name is too long"),
+  email: z.string().email("Invalid email address").transform(v => v.toLowerCase().trim()),
   phone: z.string()
     .min(1, "Phone number is required")
     .regex(bangladeshPhoneRegex, "Invalid Bangladesh phone number (e.g., 01712345678 or +8801712345678)"),

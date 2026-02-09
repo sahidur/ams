@@ -63,6 +63,7 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as NextAuthOptions["adapter"],
   session: {
     strategy: "jwt",
+    maxAge: 8 * 60 * 60, // 8 hours
   },
   pages: {
     signIn: "/login",
@@ -95,7 +96,7 @@ export const authOptions: NextAuthOptions = {
         });
 
         if (!user) {
-          throw new Error("No user found with this email");
+          throw new Error("Invalid email or password");
         }
 
         // Check if this is a passkey-verified login
@@ -158,7 +159,7 @@ export const authOptions: NextAuthOptions = {
 
         if (!isPasswordValid) {
           await logLogin(user.id, "PASSWORD", false, "Invalid password", ipAddress, userAgent);
-          throw new Error("Invalid password");
+          throw new Error("Invalid email or password");
         }
 
         // Log successful password login
