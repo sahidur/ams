@@ -2,6 +2,12 @@ import { PrismaClient } from "@prisma/client";
 import { Pool } from "pg";
 import { PrismaPg } from "@prisma/adapter-pg";
 
+// Required for DigitalOcean managed PostgreSQL which uses its own CA certificate
+// This only affects TLS connections in this Node.js process (database connections)
+if (process.env.DATABASE_URL?.includes("digitalocean")) {
+  process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+}
+
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
