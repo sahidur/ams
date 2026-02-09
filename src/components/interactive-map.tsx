@@ -1,11 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, useMap, CircleMarker } from "react-leaflet";
+import { MapContainer, TileLayer, useMap, CircleMarker } from "react-leaflet";
 import L from "leaflet";
-import { Building2, MapPin, Users } from "lucide-react";
 import { Badge } from "@/components/ui";
 import "leaflet/dist/leaflet.css";
+
+// Custom styles to move zoom controls lower
+const mapStyles = `
+  .leaflet-top.leaflet-left {
+    top: 70px !important;
+  }
+`;
 
 // Fix for Leaflet marker icons in Next.js
 const DefaultIcon = L.icon({
@@ -216,6 +222,9 @@ export default function InteractiveMap({ branchByDistrict, onDistrictClick }: In
 
   return (
     <div className="relative w-full h-[500px] rounded-xl overflow-hidden border border-gray-200">
+      {/* Custom styles for zoom controls */}
+      <style>{mapStyles}</style>
+      
       {/* Stats Badge */}
       <div className="absolute top-4 left-4 z-[1000] bg-white/95 backdrop-blur-sm rounded-lg px-3 py-2 shadow-lg">
         <div className="flex items-center gap-4">
@@ -360,28 +369,7 @@ export default function InteractiveMap({ branchByDistrict, onDistrictClick }: In
               eventHandlers={{
                 click: () => handleDistrictClick(district),
               }}
-            >
-              <Popup>
-                <div className="min-w-[150px]">
-                  <h3 className="font-semibold text-gray-900">{district.district}</h3>
-                  <p className="text-xs text-gray-500 mb-2">{district.division} Division</p>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Building2 className="w-4 h-4 text-gray-600" />
-                    <span className="font-medium">{district.count} Branches</span>
-                  </div>
-                  {district.branches.length > 0 && (
-                    <div className="mt-2 pt-2 border-t text-xs text-gray-500">
-                      {district.branches.slice(0, 3).map((b) => (
-                        <div key={b.id}>{b.branchName}</div>
-                      ))}
-                      {district.branches.length > 3 && (
-                        <div className="text-blue-500">+{district.branches.length - 3} more</div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </Popup>
-            </CircleMarker>
+            />
           );
         })}
       </MapContainer>
